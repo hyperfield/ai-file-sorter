@@ -31,6 +31,13 @@
 
 namespace {
 
+bool should_emit_manual_accessibility_events()
+{
+    // Keep accessible names/descriptions available, but avoid manual events after
+    // crash reports showed Qt GUI stack overflow during analysis startup.
+    return false;
+}
+
 } // namespace
 
 CategorizationProgressDialog::CategorizationProgressDialog(QWidget* parent,
@@ -133,7 +140,6 @@ void CategorizationProgressDialog::apply_theme_styles()
     }
 }
 
-
 void CategorizationProgressDialog::show()
 {
     QDialog::show();
@@ -142,8 +148,10 @@ void CategorizationProgressDialog::show()
     apply_accessibility_metadata();
     if (stop_button) {
         stop_button->setFocus(Qt::OtherFocusReason);
-        QAccessibleEvent focus_event(stop_button, QAccessible::Focus);
-        QAccessible::updateAccessibility(&focus_event);
+        if (should_emit_manual_accessibility_events()) {
+            QAccessibleEvent focus_event(stop_button, QAccessible::Focus);
+            QAccessible::updateAccessibility(&focus_event);
+        }
     }
     if (text_view) {
         text_view->moveCursor(QTextCursor::End);
@@ -918,7 +926,7 @@ void CategorizationProgressDialog::announce_accessibility_message(const QString&
     last_announced_message_ = trimmed_message;
     setAccessibleDescription(trimmed_message);
 
-    if (!isVisible()) {
+    if (!isVisible() || !should_emit_manual_accessibility_events()) {
         return;
     }
 
@@ -933,7 +941,7 @@ void CategorizationProgressDialog::announce_accessibility_message(const QString&
 
 void CategorizationProgressDialog::notify_accessible_text_insert(const QString& text) const
 {
-    if (!text_view || text.isEmpty()) {
+    if (!text_view || text.isEmpty() || !should_emit_manual_accessibility_events()) {
         return;
     }
 

@@ -11,6 +11,11 @@
 
 #include <cstdlib>
 
+#ifndef _WIN32
+#include <sys/un.h>
+#include <unistd.h>
+#endif
+
 namespace {
 
 QString normalized_instance_id(QString instance_id)
@@ -44,17 +49,21 @@ QString runtime_directory()
 QString build_server_endpoint(const QString& server_name)
 {
 #ifndef _WIN32
-    if (const char* override_dir = std::getenv("AI_FILE_SORTER_SINGLE_INSTANCE_RUNTIME_DIR");
-        override_dir && *override_dir) {
-        QDir dir(QString::fromLocal8Bit(override_dir));
-        dir.mkpath(QStringLiteral("."));
-        const QByteArray digest = QCryptographicHash::hash(server_name.toUtf8(),
-                                                           QCryptographicHash::Sha256).toHex();
-        return dir.filePath(QStringLiteral("aifs-%1.sock")
-                                .arg(QString::fromLatin1(digest.left(32))));
+    const QDir dir(runtime_directory());
+    const QByteArray digest = QCryptographicHash::hash(
+        (dir.absolutePath() + QLatin1Char('/') + server_name).toUtf8(),
+        QCryptographicHash::Sha256).toHex();
+    const QString name = QStringLiteral("aifs-%1.sock").arg(QString::fromLatin1(digest.left(32)));
+    const QString endpoint = dir.filePath(name);
+    if (QFile::encodeName(endpoint).size() < static_cast<qsizetype>(sizeof(sockaddr_un{}.sun_path))) {
+        return endpoint;
     }
-#endif
+    // macOS temporary directories can exceed the Unix socket pathname limit.
+    return QDir(QStringLiteral("/tmp")).filePath(
+        QStringLiteral("aifs-%1-%2.sock").arg(geteuid()).arg(QString::fromLatin1(digest.left(32))));
+#else
     return server_name;
+#endif
 }
 
 } // namespace
@@ -147,6 +156,7 @@ QString SingleInstanceCoordinator::build_lock_file_path(const QString& instance_
 bool SingleInstanceCoordinator::start_primary_listener()
 {
     server_ = std::make_unique<QLocalServer>();
+    server_->setSocketOptions(QLocalServer::UserAccessOption);
     QObject::connect(server_.get(),
                      &QLocalServer::newConnection,
                      server_.get(),
@@ -193,7 +203,9 @@ bool SingleInstanceCoordinator::notify_primary_instance() const
 
     socket.flush();
     socket.disconnectFromServer();
-    socket.waitForDisconnected(100);
+    if (socket.state() != QLocalSocket::UnconnectedState) {
+        socket.waitForDisconnected(100);
+    }
     return true;
 }
 

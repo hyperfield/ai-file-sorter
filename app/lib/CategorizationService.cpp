@@ -3,11 +3,18 @@
 #include "ArtifactCategoryPolicy.hpp"
 #include "CategorizationResponseParser.hpp"
 #include "FileCategoryPolicy.hpp"
+#include "FolderStructurePattern.hpp"
+#include "FolderTreeCatalog.hpp"
+#include "FolderTreeRoutingExplanation.hpp"
+#include "FolderTreeRoutingPlan.hpp"
 #include "Settings.hpp"
 #include "CategoryLanguage.hpp"
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
 #include "LLMErrors.hpp"
+#include "LLMRequestRunner.hpp"
+#include "LocalLLMPromptBuilder.hpp"
+#include "FolderTreeLLMRouter.hpp"
 #include "TestHooks.hpp"
 #include "UserLearningStore.hpp"
 #include "Utils.hpp"
@@ -19,13 +26,14 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
-#include <future>
 #include <memory>
 #include <sstream>
 #include <thread>
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <QString>
+#include <QCryptographicHash>
 
 namespace {
 constexpr const char* kLocalTimeoutEnv = "AI_FILE_SORTER_LOCAL_LLM_TIMEOUT";
@@ -41,6 +49,10 @@ constexpr std::string_view kConsistentSortingStyleMarker = "Sorting style: More 
 constexpr std::string_view kRefinedSortingStyleMarker = "Sorting style: More refined";
 constexpr int kMinimumLearnedPreferenceScore = 12;
 constexpr int kCategoryTranslationCompletionTokens = 128;
+constexpr std::string_view kWhitelistInstructions =
+    "Copy the allowed labels exactly, including their language. "
+    "These rules take precedence over style preferences, learned examples and recent assignments. "
+    "Unrestricted labels may be descriptive. If no permitted pair fits, reply NO_MATCH.\n";
 std::string to_lower_copy_str(std::string value);
 
 #ifdef AI_FILE_SORTER_TEST_BUILD
@@ -181,6 +193,11 @@ bool has_image_description_context(const std::string& prompt_path) {
     return prompt_path.find(kImageDescriptionMarker) != std::string::npos;
 }
 
+std::string file_type_cache_label(FileType file_type)
+{
+    return file_type == FileType::Directory ? "D" : "F";
+}
+
 bool is_image_prompt_context(const std::string& prompt_name,
                              FileType file_type) {
     return file_type == FileType::File &&
@@ -239,6 +256,21 @@ std::string extract_base_prompt_path(const std::string& prompt_path) {
         return prompt_path;
     }
     return prompt_path.substr(0, newline);
+}
+
+DatabaseManager::ResolvedCategory semantic_for_selected_folder(
+    DatabaseManager& database, const DatabaseManager::ResolvedCategory& preliminary,
+    const FolderTreeCatalog::Selection& selection)
+{
+    if (preliminary.taxonomy_id != -1 && !preliminary.category.empty() && !preliminary.subcategory.empty() &&
+        to_lower_copy_str(preliminary.category) != "uncategorized" &&
+        to_lower_copy_str(preliminary.subcategory) != "general") {
+        return preliminary;
+    }
+    const auto labels = Utils::utf8_to_path(FolderStructurePattern::human_label_path(selection.relative_path));
+    const auto child = Utils::path_to_utf8(labels.filename());
+    const auto parent = Utils::path_to_utf8(labels.parent_path().filename());
+    return database.resolve_category(parent.empty() ? child : parent, parent.empty() ? "General" : child);
 }
 
 bool is_screenshot_like_image_context(const std::string& prompt_name,
@@ -366,9 +398,8 @@ bool is_allowed(const std::string& value, const std::vector<std::string>& allowe
     if (allowed.empty()) {
         return true;
     }
-    const std::string norm = to_lower_copy_str(value);
     for (const auto& item : allowed) {
-        if (to_lower_copy_str(item) == norm) {
+        if (QString::fromStdString(item).compare(QString::fromStdString(value), Qt::CaseInsensitive) == 0) {
             return true;
         }
     }
@@ -387,12 +418,10 @@ std::pair<std::string, std::string> normalize_image_category_labels(
     if (!is_image_prompt_context(prompt_name, file_type)) {
         return {category, subcategory};
     }
-    if (!prefer_stable_main_category && !whitelist_enabled) {
+    if (!prefer_stable_main_category || whitelist_enabled) {
         return {category, subcategory};
     }
-    if (whitelist_enabled && !is_allowed("Images", allowed_categories)) {
-        return {category, subcategory};
-    }
+    (void)allowed_categories;
 
     const auto stable_main = FileCategoryPolicy::preferred_main_category_for_file_name(prompt_name);
     if (!stable_main) {
@@ -439,11 +468,6 @@ std::pair<std::string, std::string> normalize_artifact_category_labels(
     }
 
     return {normalized->category, normalized->subcategory};
-}
-
-// Returns the first allowed entry or an empty string when the list is empty.
-std::string first_allowed_or_blank(const std::vector<std::string>& allowed) {
-    return allowed.empty() ? std::string() : allowed.front();
 }
 
 std::vector<std::string> category_map_keys(
@@ -506,15 +530,24 @@ bool is_allowed_subcategory_for_category(
     return is_allowed(subcategory, allowed);
 }
 
-std::string first_allowed_subcategory_for_category(
-    const std::string& category,
-    const std::vector<std::string>& flat_subcategories,
-    const std::unordered_map<std::string, std::vector<std::string>>& subcategories_by_category)
+// Preserve user spelling; never replace an invalid answer with an arbitrary list entry.
+bool match_whitelist_labels(std::string& category, std::string& subcategory, const Settings& settings)
 {
-    const auto allowed = effective_subcategories_for_category(category,
-                                                              flat_subcategories,
-                                                              subcategories_by_category);
-    return first_allowed_or_blank(allowed);
+    if (!settings.get_use_whitelist()) return true;
+    const auto mapped = settings.get_allowed_subcategories_by_category();
+    const auto categories = allowed_categories_for_whitelist(settings.get_allowed_categories(), mapped);
+    const auto match = [](std::string& value, const std::vector<std::string>& allowed) {
+        if (allowed.empty()) return true;
+        for (const auto& literal : allowed) {
+            if (QString::fromStdString(literal).compare(QString::fromStdString(value), Qt::CaseInsensitive) == 0) {
+                value = literal;
+                return true;
+            }
+        }
+        return false;
+    };
+    return match(category, categories) && match(subcategory,
+        effective_subcategories_for_category(category, settings.get_allowed_subcategories(), mapped));
 }
 
 std::size_t whitelist_constraint_count(
@@ -645,7 +678,8 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
     std::function<std::unique_ptr<ILLMClient>()> llm_factory,
     const PromptOverrideProvider& prompt_override,
     const SuggestedNameProvider& suggested_name_provider,
-    const ResultCallback& result_callback) const
+    const ResultCallback& result_callback,
+    FolderTreeRoutingPlan* routing_plan) const
 {
     std::vector<CategorizedFile> categorized;
     if (files.empty()) {
@@ -662,6 +696,8 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
 
     categorized.reserve(files.size());
     SessionHistoryMap session_history;
+    FolderTreeRoutingPlan local_routing_plan;
+    auto& reservations = routing_plan ? *routing_plan : local_routing_plan;
     const int remote_requests_per_minute = is_local_llm ? 0 : resolve_remote_requests_per_minute();
     std::chrono::steady_clock::time_point next_remote_request = std::chrono::steady_clock::now();
     RemoteThrottleCallback remote_throttle_callback;
@@ -716,7 +752,8 @@ std::vector<CategorizedFile> CategorizationService::categorize_entries(
                                                              progress_callback,
                                                               recategorization_callback,
                                                               session_history,
-                                                              remote_throttle_callback)) {
+                                                              remote_throttle_callback,
+                                                              reservations)) {
             categorized.push_back(*categorized_entry);
             if (result_callback) {
                 result_callback(*categorized_entry);
@@ -738,6 +775,10 @@ std::string CategorizationService::build_whitelist_context() const
     const auto subs = settings.get_allowed_subcategories();
     const auto subcategories_by_category = settings.get_allowed_subcategories_by_category();
     const auto cats = allowed_categories_for_whitelist(raw_cats, subcategories_by_category);
+    if (whitelist_constraint_count(raw_cats, subs, subcategories_by_category) == 0) {
+        return "Category and subcategory labels are unrestricted.";
+    }
+    oss << LLMPrompt::kCategoryWhitelistHeader << kWhitelistInstructions;
     if (!cats.empty()) {
         oss << "Allowed main categories (pick exactly one label from the numbered list):\n";
         for (size_t i = 0; i < cats.size(); ++i) {
@@ -758,8 +799,7 @@ std::string CategorizationService::build_whitelist_context() const
             oss << "For categories not listed above, allowed subcategories are: "
                 << join_label_list(subs) << "\n";
         } else {
-            oss << "For categories not listed above, subcategories are unrestricted; "
-                   "pick a specific, relevant subcategory and do not repeat the main category.";
+            oss << "For categories not listed above, subcategories are unrestricted; use a concise descriptive label.";
         }
         return oss.str();
     }
@@ -769,7 +809,7 @@ std::string CategorizationService::build_whitelist_context() const
             oss << (i + 1) << ") " << subs[i] << "\n";
         }
     } else {
-        oss << "Allowed subcategories: any (pick a specific, relevant subcategory; do not repeat the main category).";
+        oss << "Allowed subcategories: any concise descriptive label.";
     }
     return oss.str();
 }
@@ -878,31 +918,30 @@ std::string CategorizationService::build_large_whitelist_candidate_context(const
     }
 
     std::ostringstream oss;
-    oss << "Selected whitelist is large, so only the most relevant allowed candidates are shown.\n";
+    oss << LLMPrompt::kCategoryWhitelistHeader << kWhitelistInstructions;
+    oss << "Selected whitelist is large; the following lists are a retrieved subset of its allowed labels.\n";
     if (!candidates.empty()) {
-        oss << "Allowed category candidates (pick exactly one when it fits):\n";
-        for (std::size_t i = 0; i < candidates.size(); ++i) {
-            oss << (i + 1) << ") " << candidates[i].first;
-            if (!candidates[i].second.empty()) {
-                oss << " : " << candidates[i].second;
-            }
-            oss << "\n";
+        oss << "Allowed main categories (retrieved subset; choose a suitable label or NO_MATCH):\n";
+        const auto categories = unique_categories_from_pairs(candidates);
+        for (std::size_t i = 0; i < categories.size(); ++i) {
+            oss << (i + 1) << ") " << categories[i] << "\n";
         }
     } else {
-        oss << "No strong whitelist candidate matched this file. Choose the best category from the selected whitelist if you know it; otherwise suggest a new category for review.\n";
+        oss << "No allowed main-category candidates are available for this file. Reply NO_MATCH; "
+               "the app will leave it unassigned for review.\n";
     }
 
     if (!subcategories_by_category.empty()) {
         const auto candidate_categories = unique_categories_from_pairs(candidates);
         if (!candidate_categories.empty()) {
-            oss << "Allowed subcategories for shown category candidates:\n";
+            oss << "Allowed subcategories by main category:\n";
             for (const auto& category : candidate_categories) {
                 const auto allowed = effective_subcategories_for_category(category,
                                                                           subs,
                                                                           subcategories_by_category);
                 if (allowed.empty()) {
                     oss << "- " << category
-                        << ": any specific, relevant subcategory; do not repeat the main category\n";
+                        << ": any concise descriptive label\n";
                 } else {
                     oss << "- " << category << ": " << join_label_list(allowed) << "\n";
                 }
@@ -911,17 +950,24 @@ std::string CategorizationService::build_large_whitelist_candidate_context(const
     } else if (!subs.empty()) {
         const auto ranked_subs = rank_allowed_labels_for_query(subs, query, kMaxLargeWhitelistPromptCandidates);
         if (!ranked_subs.empty()) {
-            oss << "Allowed subcategory candidates:\n";
+            oss << "Allowed subcategories (retrieved subset):\n";
             for (std::size_t i = 0; i < ranked_subs.size(); ++i) {
                 oss << (i + 1) << ") " << ranked_subs[i] << "\n";
             }
         } else {
-            oss << "Allowed subcategories are restricted by the selected whitelist, but no strong subcategory candidate matched this file.\n";
+            oss << "No allowed subcategory candidates are available for this file. Reply NO_MATCH.\n";
         }
     } else {
-        oss << "Allowed subcategories: any (pick a specific, relevant subcategory; do not repeat the main category).";
+        oss << "Allowed subcategories: any concise descriptive label.";
     }
 
+    bool examples = false;
+    for (const auto& candidate : candidates) {
+        if (candidate.second.empty()) continue;
+        if (!examples) oss << "\nPermitted example pairs (optional clues; obey the allowed lists):\n";
+        oss << "- " << candidate.first << " : " << candidate.second << "\n";
+        examples = true;
+    }
     return oss.str();
 }
 
@@ -981,6 +1027,7 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
         }
         auto [normalized_category, normalized_subcategory] =
             normalize_candidate_for_prompt(candidate.category, candidate.subcategory);
+        if (!match_whitelist_labels(normalized_category, normalized_subcategory, settings)) continue;
         if (!family_selection.categories.empty() &&
             !is_allowed(normalized_category, family_selection.categories)) {
             continue;
@@ -1002,8 +1049,13 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
         return std::string();
     }
 
-    oss << "Prefer one of these user-learned candidates when it fits the file. "
-           "If none fits, choose a better category and subcategory for review.";
+    oss << "Prefer these examples when they fit, subject to the allowed labels. ";
+    if (settings.get_use_whitelist() && whitelist_constraint_count(settings.get_allowed_categories(),
+            settings.get_allowed_subcategories(), settings.get_allowed_subcategories_by_category()) > 0) {
+        oss << "If none fits, use another permitted pair or reply NO_MATCH.";
+    } else {
+        oss << "If none fits, choose another concise category and subcategory that describe the file.";
+    }
     return oss.str();
 }
 
@@ -1013,6 +1065,8 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
     const std::string& prompt_path,
     FileType file_type) const
 {
+    // The model already compared the filtered examples with the explicit allowed labels.
+    if (settings.get_use_whitelist()) return resolved;
     if (!user_learning_store_ || !user_learning_store_->is_open()) {
         return resolved;
     }
@@ -1106,15 +1160,19 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
 std::string CategorizationService::build_category_language_context() const
 {
     const CategoryLanguage lang = settings.get_category_language();
-    if (lang == CategoryLanguage::English) {
-        return std::string();
-    }
     const std::string name = categoryLanguageDisplay(lang);
     return fmt::format(
-        "Determine the canonical main category and subcategory in English only. "
-        "Do not translate, do not add bilingual text, do not use parentheses, and do not explain. "
-        "The final labels will be translated to {} later.",
+        "Write unrestricted category and subcategory labels in English. "
+        "Copy any provided allowed labels literally, preserving their language, proper nouns and identifiers. "
+        "The app handles {} display translations separately from the allowed-list identities.",
         name);
+}
+
+std::string CategorizationService::whitelist_cache_policy() const
+{
+    const auto context = build_whitelist_context() + (settings.get_use_consistency_hints() ? "consistent" : "refined");
+    return "literal-whitelist-v1:" + QCryptographicHash::hash(QByteArray::fromStdString(context),
+        QCryptographicHash::Sha256).toHex().toStdString();
 }
 
 std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cached_categorization(
@@ -1125,13 +1183,17 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     FileType file_type,
     const ProgressCallback& progress_callback) const
 {
-    const auto cached = db_manager.get_categorization_from_db(dir_path, item_name, file_type);
-    if (cached.size() < 2) {
+    const auto cached = db_manager.get_categorized_file(dir_path, item_name, file_type);
+    if (!cached) {
+        return std::nullopt;
+    }
+    if (settings.get_use_whitelist() &&
+        db_manager.get_categorization_policy(dir_path, item_name, file_type) != whitelist_cache_policy()) {
         return std::nullopt;
     }
 
-    const std::string sanitized_category = Utils::sanitize_path_label(cached[0]);
-    const std::string sanitized_subcategory = Utils::sanitize_path_label(cached[1]);
+    const std::string sanitized_category = Utils::sanitize_path_label(cached->category);
+    const std::string sanitized_subcategory = Utils::sanitize_path_label(cached->subcategory);
     if (sanitized_category.empty() || sanitized_subcategory.empty()) {
         if (core_logger) {
             core_logger->warn("Ignoring cached categorization with empty values for '{}'", item_name);
@@ -1151,11 +1213,181 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
         return std::nullopt;
     }
 
+    auto category = sanitized_category;
+    auto subcategory = sanitized_subcategory;
+    if (!match_whitelist_labels(category, subcategory, settings)) return std::nullopt;
+
     (void)item_name;
     (void)current_path;
     (void)categorization_path;
     (void)progress_callback;
-    return db_manager.resolve_category(sanitized_category, sanitized_subcategory);
+    return settings.get_use_whitelist()
+        ? db_manager.resolve_literal_category(category, subcategory)
+        : db_manager.resolve_category(category, subcategory);
+}
+
+std::vector<FolderStructurePluginProfile> CategorizationService::folder_structure_profiles() const
+{
+    if (!folder_structure_profile_provider_) {
+        return {};
+    }
+    return folder_structure_profile_provider_();
+}
+
+DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category_to_folder_tree(
+    ILLMClient& llm,
+    bool is_local_llm,
+    const std::string& display_name,
+    const std::string& display_path,
+    const std::string& dir_path,
+    const std::string& prompt_name,
+    const std::string& prompt_path,
+    FileType file_type,
+    const DatabaseManager::ResolvedCategory& semantic,
+    const ProgressCallback& progress_callback,
+    const RemoteThrottleCallback& remote_throttle_callback,
+    FolderTreeRoutingPlan& routing_plan) const
+{
+    const bool allow_new = settings.get_suggest_new_folders();
+    const std::string analysis_root =
+        settings.get_sort_folder().empty() ? dir_path : settings.get_sort_folder();
+    const std::string destination_root =
+        settings.get_effective_destination_folder(analysis_root);
+    const auto catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(destination_root));
+    const auto planning_catalog = allow_new ? routing_plan.planning_catalog(destination_root, catalog) : catalog;
+    const std::string fingerprint = catalog.fingerprint();
+    const std::string semantic_target =
+        FolderTreeCatalog::semantic_target_path(semantic.category, semantic.subcategory);
+    const auto best_existing =
+        FolderTreeCatalog::best_semantic_match(catalog, semantic.category, semantic.subcategory);
+    const auto plugin_profiles = folder_structure_profiles();
+    const auto structure_profile = FolderStructurePattern::infer_profile(catalog, plugin_profiles);
+
+    auto reuse_pending_proposal = [&](FolderTreeCatalog::Selection selection) {
+        if (!allow_new || !selection.suggested_new) {
+            return selection;
+        }
+        const auto equivalent = routing_plan.find_equivalent_proposal(
+            destination_root, selection.relative_path, structure_profile.has_recognized_conventions);
+        if (!equivalent) {
+            return selection;
+        }
+        const auto reused = FolderTreeCatalog::resolve_target_path(*equivalent, catalog, true);
+        if (reused && reused->relative_path != selection.relative_path && core_logger) {
+            core_logger->info("Reusing proposed folder '{}' instead of '{}' for '{}'",
+                              reused->relative_path, selection.relative_path, display_name);
+        }
+        return reused.value_or(selection);
+    };
+
+    auto attach_selection = [&](const FolderTreeCatalog::Selection& selection) {
+        if (selection.suggested_new) {
+            routing_plan.reserve(destination_root, selection.relative_path);
+        }
+        auto routed = semantic_for_selected_folder(db_manager, semantic, selection);
+        routed.target_folder_relative_path = selection.relative_path;
+        routed.folder_tree_routing_explanation = FolderTreeRoutingExplanation::build({
+            routed.category,
+            routed.subcategory,
+            FolderTreeCatalog::semantic_target_path(routed.category, routed.subcategory),
+            selection,
+            best_existing,
+            structure_profile
+        });
+        routed.folder_tree_mode = true;
+        routed.target_folder_suggested_new = selection.suggested_new;
+        routed.target_folder_exists = selection.exists;
+        routed.folder_tree_allow_new_folders = allow_new;
+        return routed;
+    };
+
+    auto persist_route = [&](const FolderTreeCatalog::Selection& selection) {
+        DatabaseManager::FolderTreeRoutingRecord record;
+        record.destination_root = destination_root;
+        record.tree_fingerprint = fingerprint;
+        record.allow_new_folders = allow_new;
+        record.semantic_category = semantic.category;
+        record.semantic_subcategory = semantic.subcategory;
+        record.semantic_target_folder = semantic_target;
+        if (best_existing) {
+            record.best_existing_folder = best_existing->entry.relative_path;
+            record.best_existing_score = best_existing->score;
+        }
+        record.target_folder_relative_path = selection.relative_path;
+        record.target_folder_suggested_new = selection.suggested_new;
+        record.target_folder_exists = selection.exists;
+        db_manager.insert_or_update_folder_tree_routing(display_name,
+                                                        file_type_cache_label(file_type),
+                                                        dir_path,
+                                                        record);
+    };
+
+    auto validate_proposal = [&](FolderTreeCatalog::Selection selection)
+        -> std::optional<FolderTreeCatalog::Selection> {
+        if (!selection.suggested_new) return selection;
+        selection = reuse_pending_proposal(std::move(selection));
+        // Resolve equivalent proposals before allocation, including exhausted numeric ranges.
+        if (planning_catalog.find_existing(selection.relative_path)) return selection;
+        const auto allocated = FolderStructurePattern::allocate_proposed_path(
+            planning_catalog, selection.relative_path);
+        return allocated ? FolderTreeCatalog::resolve_target_path(*allocated, catalog, allow_new) : std::nullopt;
+    };
+
+    if (auto cached = db_manager.get_folder_tree_routing(display_name,
+                                                         file_type,
+                                                         dir_path,
+                                                         destination_root,
+                                                         fingerprint,
+                                                         allow_new,
+                                                         semantic.category,
+                                                         semantic.subcategory)) {
+        if (auto selection = FolderTreeCatalog::resolve_target_path(cached->target_folder_relative_path,
+                                                                    catalog,
+                                                                    allow_new)) {
+            if (const auto selected = validate_proposal(*selection)) {
+                persist_route(*selected);
+                auto routed = attach_selection(*selected);
+                emit_progress_message(progress_callback, "ROUTE-CACHE", display_name, routed, display_path, prompt_path);
+                return routed;
+            }
+        }
+    }
+
+    std::optional<FolderTreeCatalog::Selection> selection;
+
+    try {
+        selection = FolderTreeLLMRouter::select(planning_catalog, allow_new,
+            semantic.category, semantic.subcategory, plugin_profiles,
+            [&](const std::string& context, const LLMResponseConstraint& constraint) {
+                if (!is_local_llm &&
+                    (!ensure_remote_credentials_for_request(display_name, progress_callback) ||
+                     (remote_throttle_callback && !remote_throttle_callback(display_name)))) {
+                    throw std::runtime_error("Folder routing request was not authorized");
+                }
+                return run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm,
+                                            context, &constraint);
+            }, [&](FolderTreeCatalog::Selection candidate) -> std::optional<FolderTreeCatalog::Selection> {
+                // Planning entries include uncreated proposals; validate physical flags and numbering before retry ends.
+                const auto physical = FolderTreeCatalog::resolve_target_path(candidate.relative_path, catalog, allow_new);
+                return physical ? validate_proposal(*physical) : std::nullopt;
+            });
+    } catch (const std::exception& ex) {
+        if (core_logger) {
+            core_logger->warn("Folder-tree routing LLM failed for '{}': {}", display_name, ex.what());
+        }
+    }
+    if (!selection) {
+        if (progress_callback) {
+            progress_callback(fmt::format("[LLM-ERROR] {} (no valid target folder)", display_name));
+        }
+        return DatabaseManager::ResolvedCategory{-1, "", ""};
+    }
+
+    *selection = reuse_pending_proposal(*selection);
+    persist_route(*selection);
+    auto routed = attach_selection(*selection);
+    emit_progress_message(progress_callback, "ROUTE", display_name, routed, display_path, prompt_path);
+    return routed;
 }
 
 bool CategorizationService::ensure_remote_credentials_for_request(
@@ -1215,11 +1447,18 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
     try {
         const std::string category_subcategory =
             run_llm_with_timeout(llm, prompt_name, prompt_path, file_type, is_local_llm, consistency_context);
+        if (CategorizationResponseParser::is_category_abstention(category_subcategory)) {
+            if (progress_callback) progress_callback(fmt::format(
+                "[LLM-ERROR] {} (no suitable permitted category; left unassigned)", display_name));
+            return DatabaseManager::ResolvedCategory{-1, "", ""};
+        }
         auto [category, subcategory] =
             CategorizationResponseParser::split_category_subcategory(category_subcategory);
+        if (CategorizationResponseParser::is_category_abstention(category)) {
+            return DatabaseManager::ResolvedCategory{-1, "", ""};
+        }
 
         const auto allowed_categories = settings.get_allowed_categories();
-        const auto allowed_subcategories = settings.get_allowed_subcategories();
         const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
         const auto effective_allowed_categories =
             allowed_categories_for_whitelist(allowed_categories, allowed_subcategories_by_category);
@@ -1275,26 +1514,14 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                               category,
                               subcategory);
         }
-        auto resolved = db_manager.resolve_category(category, subcategory);
-        if (settings.get_use_whitelist()) {
-            bool whitelist_adjusted = false;
-            if (!is_allowed(resolved.category, effective_allowed_categories)) {
-                resolved.category = first_allowed_or_blank(effective_allowed_categories);
-                whitelist_adjusted = true;
-            }
-            if (!is_allowed_subcategory_for_category(resolved.category,
-                                                     resolved.subcategory,
-                                                     allowed_subcategories,
-                                                     allowed_subcategories_by_category)) {
-                resolved.subcategory = first_allowed_subcategory_for_category(resolved.category,
-                                                                              allowed_subcategories,
-                                                                              allowed_subcategories_by_category);
-                whitelist_adjusted = true;
-            }
-            if (whitelist_adjusted) {
-                resolved = db_manager.resolve_category(resolved.category, resolved.subcategory);
-            }
+        if (!match_whitelist_labels(category, subcategory, settings)) {
+            if (progress_callback) progress_callback(fmt::format(
+                "[LLM-ERROR] {} (answer outside the active whitelist; left unassigned)", display_name));
+            return DatabaseManager::ResolvedCategory{-1, "", ""};
         }
+        auto resolved = settings.get_use_whitelist()
+            ? db_manager.resolve_literal_category(category, subcategory)
+            : db_manager.resolve_category(category, subcategory);
         resolved = prefer_learned_candidate_for_generic_result(resolved, prompt_name, prompt_path, file_type);
         const auto validation = CategorizationResponseParser::validate_labels(resolved.category,
                                                                               resolved.subcategory);
@@ -1341,6 +1568,26 @@ void CategorizationService::emit_progress_message(const ProgressCallback& progre
     if (!progress_callback) {
         return;
     }
+    if (resolved.folder_tree_mode) {
+        const std::string current_path_display = current_path.empty() ? "-" : current_path;
+        const std::string target =
+            resolved.target_folder_relative_path.empty() ? "-" : resolved.target_folder_relative_path;
+        progress_callback(fmt::format(
+            "[{}] {}\n"
+            "    Target folder       : {}\n"
+            "    New folder          : {}\n"
+            "    Current Path        : {}{}",
+            source,
+            item_name,
+            target,
+            resolved.target_folder_suggested_new ? "yes" : "no",
+            current_path_display,
+            resolved.folder_tree_routing_explanation.empty()
+                ? ""
+                : fmt::format("\n    Why                : {}",
+                              resolved.folder_tree_routing_explanation)));
+        return;
+    }
     const std::string sub = resolved.subcategory.empty() ? "-" : resolved.subcategory;
     const std::string current_path_display = current_path.empty() ? "-" : current_path;
     const std::string categorization_path_display =
@@ -1366,8 +1613,10 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
     FileType file_type,
     const ProgressCallback& progress_callback,
     const std::string& consistency_context,
-    const RemoteThrottleCallback& remote_throttle_callback) const
+    const RemoteThrottleCallback& remote_throttle_callback,
+    FolderTreeRoutingPlan& routing_plan) const
 {
+    const bool folder_tree_sorting = settings.get_sorting_mode() == SortingMode::ExistingFolderTree;
     if (auto cached = try_cached_categorization(display_name,
                                                 display_path,
                                                 prompt_path,
@@ -1376,6 +1625,20 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
                                                 progress_callback)) {
         const auto display_resolved = localize_resolved_category(llm, *cached);
         emit_progress_message(progress_callback, "CACHE", display_name, display_resolved, display_path, prompt_path);
+        if (folder_tree_sorting) {
+            return route_semantic_category_to_folder_tree(llm,
+                                                          is_local_llm,
+                                                          display_name,
+                                                          display_path,
+                                                          dir_path,
+                                                          prompt_name,
+                                                          prompt_path,
+                                                          file_type,
+                                                          *cached,
+                                                          progress_callback,
+                                                          remote_throttle_callback,
+                                                          routing_plan);
+        }
         return *cached;
     }
 
@@ -1387,15 +1650,30 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_with_cache(
         return DatabaseManager::ResolvedCategory{-1, "", ""};
     }
 
-    return categorize_via_llm(llm,
-                              is_local_llm,
-                              display_name,
-                              display_path,
-                              prompt_name,
-                              prompt_path,
-                              file_type,
-                              progress_callback,
-                              consistency_context);
+    auto semantic = categorize_via_llm(llm,
+                                       is_local_llm,
+                                       display_name,
+                                       display_path,
+                                       prompt_name,
+                                       prompt_path,
+                                       file_type,
+                                       progress_callback,
+                                       consistency_context);
+    if (folder_tree_sorting) {
+        return route_semantic_category_to_folder_tree(llm,
+                                                      is_local_llm,
+                                                      display_name,
+                                                      display_path,
+                                                      dir_path,
+                                                      prompt_name,
+                                                      prompt_path,
+                                                      file_type,
+                                                      semantic,
+                                                      progress_callback,
+                                                      remote_throttle_callback,
+                                                      routing_plan);
+    }
+    return semantic;
 }
 
 std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
@@ -1408,14 +1686,17 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     const ProgressCallback& progress_callback,
     const RecategorizationCallback& recategorization_callback,
     SessionHistoryMap& session_history,
-    const RemoteThrottleCallback& remote_throttle_callback) const
+    const RemoteThrottleCallback& remote_throttle_callback,
+    FolderTreeRoutingPlan& routing_plan) const
 {
     const std::filesystem::path entry_path = Utils::utf8_to_path(entry.full_path);
     const std::string dir_path = Utils::path_to_utf8(entry_path.parent_path());
     const std::string display_path = Utils::abbreviate_user_path(entry.full_path);
     const std::string prompt_name = prompt_override ? prompt_override->name : entry.file_name;
     const std::string prompt_path = prompt_override ? prompt_override->path : entry.full_path;
-    const std::string prompt_path_display = Utils::abbreviate_user_path(prompt_path);
+    const auto base_prompt_path = extract_base_prompt_path(prompt_path);
+    const std::string prompt_path_display = Utils::abbreviate_user_path(base_prompt_path) +
+                                          prompt_path.substr(base_prompt_path.size());
     const bool use_consistency_hints = settings.get_use_consistency_hints();
     const bool rich_image_context = has_image_description_context(prompt_path);
     const std::string extension = extract_extension(entry.file_name);
@@ -1427,7 +1708,7 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     }
     const std::string combined_context = build_combined_context(hint_block,
                                                                 prompt_name,
-                                                                prompt_path,
+                                                                prompt_name + "\n" + extract_learning_context_text(prompt_path),
                                                                 entry.type);
 
     DatabaseManager::ResolvedCategory resolved;
@@ -1443,7 +1724,8 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
                                                       prompt_path_display,
                                                       progress_callback,
                                                       combined_context,
-                                                      remote_throttle_callback);
+                                                      remote_throttle_callback,
+                                                      routing_plan);
             break;
         } catch (const BackoffError& backoff) {
             const int wait_seconds = backoff.retry_after_seconds() > 0 ? backoff.retry_after_seconds() : 60;
@@ -1481,12 +1763,15 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
         return retry;
     }
 
-    update_storage_with_result(entry,
-                               dir_path,
-                               resolved,
-                               use_consistency_hints,
-                               suggested_name,
-                               session_history);
+    // An unassigned review row must not become a cached categorization or a learned hint.
+    if (resolved.taxonomy_id != -1 && !resolved.category.empty() && !resolved.subcategory.empty()) {
+        update_storage_with_result(entry,
+                                   dir_path,
+                                   resolved,
+                                   use_consistency_hints,
+                                   suggested_name,
+                                   session_history);
+    }
 
     const auto display_resolved = db_manager.localize_category(resolved, settings.get_category_language());
     CategorizedFile result{dir_path, entry.file_name, entry.type,
@@ -1496,6 +1781,12 @@ std::optional<CategorizedFile> CategorizationService::categorize_single_entry(
     result.canonical_category = resolved.category;
     result.canonical_subcategory = resolved.subcategory;
     result.learning_context = extract_learning_context_text(prompt_path);
+    result.target_folder_relative_path = resolved.target_folder_relative_path;
+    result.folder_tree_routing_explanation = resolved.folder_tree_routing_explanation;
+    result.folder_tree_mode = resolved.folder_tree_mode;
+    result.target_folder_suggested_new = resolved.target_folder_suggested_new;
+    result.target_folder_exists = resolved.target_folder_exists;
+    result.folder_tree_allow_new_folders = resolved.folder_tree_allow_new_folders;
     return result;
 }
 
@@ -1509,8 +1800,6 @@ std::string CategorizationService::build_combined_context(const std::string& hin
     const auto allowed_categories = settings.get_allowed_categories();
     const auto allowed_subcategories = settings.get_allowed_subcategories();
     const auto allowed_subcategories_by_category = settings.get_allowed_subcategories_by_category();
-    const auto effective_allowed_categories =
-        allowed_categories_for_whitelist(allowed_categories, allowed_subcategories_by_category);
     const bool image_context = is_image_prompt_context(prompt_name, file_type);
     const bool document_context = is_document_prompt_context(prompt_name, file_type);
     const bool use_specialized_prompt_context = image_context || document_context;
@@ -1532,19 +1821,17 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         : std::string();
     const bool rich_image_context =
         image_context && has_image_description_context(prompt_path);
-    const bool artifact_context =
-        !use_specialized_prompt_context &&
-        ArtifactCategoryPolicy::is_supported_artifact_file_name(prompt_name);
     std::string image_block;
     std::string document_block;
-    std::string artifact_block;
 
-    if (!settings.get_use_whitelist() && use_specialized_prompt_context) {
+    if (use_specialized_prompt_context) {
         std::ostringstream style_guidance;
         style_guidance << (prefer_stable_taxonomy ? kConsistentSortingStyleMarker
                                                   : kRefinedSortingStyleMarker)
                        << "\n";
-        if (prefer_stable_taxonomy) {
+        if (settings.get_use_whitelist()) {
+            style_guidance << "- Apply this sorting style only to unrestricted labels; copy allowed labels literally.\n";
+        } else if (prefer_stable_taxonomy) {
             style_guidance
                 << "- Favor stable, filesystem-oriented main categories when they fit.\n"
                 << "- Keep similar files aligned to the same broad taxonomy when the evidence is close.\n";
@@ -1563,17 +1850,13 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         sorting_style_block = style_guidance.str();
     }
 
-    if (image_context) {
+    if (image_context && !settings.get_use_whitelist()) {
         std::ostringstream image_guidance;
         image_guidance
             << "Image categorization guidance:\n"
             << "- Categorize the subject matter shown in the image, not merely the file format.\n";
 
-        if (settings.get_use_whitelist() && !is_allowed("Images", effective_allowed_categories)) {
-            image_guidance
-                << "- Respect the active whitelist if one is provided.\n"
-                << "- Prefer image-focused labels, and put the depicted subject, scene, or on-screen content in the subcategory when the whitelist allows it.\n";
-        } else if (prefer_stable_taxonomy) {
+        if (prefer_stable_taxonomy) {
             image_guidance
                 << "- Keep the main category stable and filesystem-oriented.\n"
                 << "- Always use Images as the main category, and put the depicted subject, scene, or on-screen content in the subcategory.\n";
@@ -1587,7 +1870,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
             << "- Keep the subcategory concise and leaf-like: prefer labels such as Pets, Small Mammals, Wildlife, Landscapes, or Dashboard Interfaces, and do not prefix them with Images.\n"
             << "- Treat screenshots, webpage captures, dashboards, forms, mockups, and app interfaces as images depicting content.\n"
             << "- Do not classify a PNG/JPG/WebP screenshot as Software, Operating Systems, Installers, Databases, or similar artifact categories unless the file itself is actually such an artifact.\n"
-            << "- Use the filename, extension, and directory context as supporting clues.\n";
+            << "- Use the filename and extension as supporting clues.\n";
 
         if (rich_image_context) {
             image_guidance
@@ -1603,18 +1886,14 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         image_block = image_guidance.str();
     }
 
-    if (document_context) {
+    if (document_context && !settings.get_use_whitelist()) {
         std::ostringstream document_guidance;
         document_guidance
             << "Document categorization guidance:\n"
             << "- Categorize the document by its subject matter and content, not merely by its file extension or the application that may have created it.\n"
-            << "- Use any provided document summary as the primary evidence when available, and use the filename, extension, and directory context only as supporting clues.\n";
+            << "- Use any provided document summary as the primary evidence when available, and use the filename and extension only as supporting clues.\n";
 
-        if (settings.get_use_whitelist()) {
-            document_guidance
-                << "- Respect the active whitelist if one is provided.\n"
-                << "- Keep the main category broad and filesystem-friendly, and put the specific topic in the subcategory when the whitelist allows it.\n";
-        } else if (prefer_stable_taxonomy) {
+        if (prefer_stable_taxonomy) {
             document_guidance
                 << "- Keep the main category stable and filesystem-oriented.\n"
                 << "- Prefer one of these main categories when it clearly fits: Documents, Presentations, Spreadsheets, Data Exports, Configs.\n"
@@ -1631,19 +1910,6 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         }
 
         document_block = document_guidance.str();
-    }
-
-    if (artifact_context && settings.get_use_whitelist()) {
-        std::ostringstream artifact_guidance;
-        artifact_guidance
-            << "Software and archive artifact guidance:\n"
-            << "- Keep the main category stable and filesystem-oriented.\n"
-            << "- Use the main category for the broad family, and put the specific software purpose in the subcategory.\n"
-            << "- Keep the subcategory concise and leaf-like: prefer labels such as Version Control, Database Tools, Graphics Drivers, or Installer Tools, and do not stack multiple family labels.\n"
-            << "- Prefer specific subcategories like Version Control, Database Tools, Screen Recording, Process Monitoring, Graphics Drivers, Virtualization, or Installer Tools when they fit.\n"
-            << "- Do not answer with a generic subcategory that merely repeats the main category or another top-level family like Software, Installers, Drivers, Operating Systems, Archives, Data Exports, or Other.\n"
-            << "- Use the filename, extension, and directory context as supporting clues.\n";
-        artifact_block = artifact_guidance.str();
     }
 
     if (!language_block.empty()) {
@@ -1666,12 +1932,6 @@ std::string CategorizationService::build_combined_context(const std::string& hin
             combined_context += "\n\n";
         }
         combined_context += document_block;
-    }
-    if (!artifact_block.empty()) {
-        if (!combined_context.empty()) {
-            combined_context += "\n\n";
-        }
-        combined_context += artifact_block;
     }
     if (!family_candidate_block.empty()) {
         if (!combined_context.empty()) {
@@ -1743,12 +2003,11 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::translat
         "Return only JSON in this exact shape: {{\"category\":\"...\",\"subcategory\":\"...\"}}\n"
         "Rules:\n"
         "- Keep the meaning precise.\n"
-        "- No English.\n"
+        "- Translate descriptive words; preserve proper nouns, acronyms and identifiers.\n"
         "- No parentheses.\n"
         "- No explanations.\n"
         "- No trailing periods.\n"
-        "- Keep the main category broad and concise.\n"
-        "- Keep the subcategory specific and concise.\n\n"
+        "- Preserve each label's meaning and level of detail; do not recategorize it.\n\n"
         "category: {}\n"
         "subcategory: {}",
         language_name,
@@ -1803,7 +2062,8 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
     const std::string& prompt_path,
     const ProgressCallback& progress_callback,
     const std::string& combined_context,
-    const RemoteThrottleCallback& remote_throttle_callback) const
+    const RemoteThrottleCallback& remote_throttle_callback,
+    FolderTreeRoutingPlan& routing_plan) const
 {
     return categorize_with_cache(llm,
                                  is_local_llm,
@@ -1815,7 +2075,8 @@ DatabaseManager::ResolvedCategory CategorizationService::run_categorization_with
                                  entry.type,
                                  progress_callback,
                                  combined_context,
-                                 remote_throttle_callback);
+                                 remote_throttle_callback,
+                                 routing_plan);
 }
 
 std::optional<CategorizedFile> CategorizationService::handle_empty_result(
@@ -1868,13 +2129,16 @@ void CategorizationService::update_storage_with_result(const FileEntry& entry,
                           resolved.subcategory.empty() ? "<none>" : resolved.subcategory);
     }
 
-    db_manager.insert_or_update_file_with_categorization(
+    const bool stored = db_manager.insert_or_update_file_with_categorization(
         entry.file_name,
         entry.type == FileType::File ? "F" : "D",
         dir_path,
         resolved,
         used_consistency_hints,
         suggested_name);
+    if (stored && settings.get_use_whitelist()) {
+        db_manager.set_categorization_policy(dir_path, entry.file_name, entry.type, whitelist_cache_policy());
+    }
 
     const std::string signature = make_file_signature(entry.type, extract_extension(entry.file_name));
     if (!signature.empty()) {
@@ -1888,17 +2152,24 @@ std::string CategorizationService::run_llm_with_timeout(
     const std::string& item_path,
     FileType file_type,
     bool is_local_llm,
-    const std::string& consistency_context) const
+    const std::string& consistency_context,
+    const LLMResponseConstraint* constraint) const
 {
     const int timeout_seconds = resolve_llm_timeout(is_local_llm);
 
-    auto future = start_llm_future(llm, item_name, item_path, file_type, consistency_context);
-
-    if (future.wait_for(std::chrono::seconds(timeout_seconds)) == std::future_status::timeout) {
-        throw std::runtime_error("Timed out waiting for LLM response");
-    }
-
-    return future.get();
+    const std::string evidence = extract_learning_context_text(item_path);
+    // Source folders are storage/cache identity, not evidence about the item's subject.
+    // Keep the filename for backend prompt specialization without exposing its parent path.
+    const std::string request_path = item_name;
+    const std::string request_context = LocalLLMPromptBuilder::build_request_context(evidence, consistency_context);
+    const auto response_constraint = constraint ? std::optional(*constraint) : std::nullopt;
+    return LLMRequestRunner::run(llm, [&llm, item_name, request_path, file_type, request_context, response_constraint] {
+        if (response_constraint) {
+            return llm.categorize_file_constrained(item_name, request_path, file_type, request_context,
+                                                  *response_constraint);
+        }
+        return llm.categorize_file(item_name, request_path, file_type, request_context);
+    }, std::chrono::seconds(timeout_seconds), core_logger);
 }
 
 int CategorizationService::resolve_llm_timeout(bool is_local_llm) const
@@ -1954,31 +2225,6 @@ int CategorizationService::resolve_remote_requests_per_minute() const
                            requests_per_minute);
     }
     return requests_per_minute;
-}
-
-std::future<std::string> CategorizationService::start_llm_future(
-    ILLMClient& llm,
-    const std::string& item_name,
-    const std::string& item_path,
-    FileType file_type,
-    const std::string& consistency_context) const
-{
-    auto promise = std::make_shared<std::promise<std::string>>();
-    std::future<std::string> future = promise->get_future();
-
-    std::thread([&llm, promise, item_name, item_path, file_type, consistency_context]() mutable {
-        try {
-            promise->set_value(llm.categorize_file(item_name, item_path, file_type, consistency_context));
-        } catch (...) {
-            try {
-                promise->set_exception(std::current_exception());
-            } catch (...) {
-                // no-op
-            }
-        }
-    }).detach();
-
-    return future;
 }
 
 std::vector<CategorizationService::CategoryPair> CategorizationService::collect_consistency_hints(
@@ -2076,11 +2322,17 @@ std::string CategorizationService::format_hint_block(const std::vector<CategoryP
 
     std::ostringstream oss;
     oss << "Recent assignments for similar items:\n";
+    std::size_t emitted = 0;
     for (const auto& hint : hints) {
-        const std::string sub = hint.second.empty() ? hint.first : hint.second;
-        oss << "- " << hint.first << " : " << sub << "\n";
+        auto category = hint.first;
+        auto subcategory = hint.second.empty() ? hint.first : hint.second;
+        if (!match_whitelist_labels(category, subcategory, settings)) continue;
+        oss << "- " << category << " : " << subcategory << "\n";
+        ++emitted;
     }
-    oss << "Prefer one of the above when it fits; otherwise, choose the closest consistent alternative.";
+    if (emitted == 0) return {};
+    oss << "Use these examples only when they fit and obey the allowed labels; otherwise choose another "
+           "permitted pair or reply NO_MATCH.";
     return oss.str();
 }
 

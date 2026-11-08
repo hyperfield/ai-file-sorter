@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -14,6 +15,35 @@ constexpr int kOptionFiles = 1;
 constexpr int kOptionDirectories = 2;
 constexpr int kOptionHiddenFiles = 4;
 constexpr int kOptionRecursive = 8;
+
+bool is_supported_provider(const QString& provider_id)
+{
+    return provider_id == QStringLiteral("mockcloud") || provider_id == QStringLiteral("onedrive");
+}
+
+QString provider_display_name(const QString& provider_id)
+{
+    if (provider_id == QStringLiteral("onedrive")) {
+        return QStringLiteral("OneDrive");
+    }
+    return QStringLiteral("MockCloud");
+}
+
+bool path_matches_provider(const std::filesystem::path& path, const QString& provider_id)
+{
+    const QString text = QString::fromStdString(path.string());
+    if (provider_id == QStringLiteral("mockcloud")) {
+        return text.contains(QStringLiteral("MockCloud"), Qt::CaseInsensitive);
+    }
+    if (provider_id == QStringLiteral("onedrive")) {
+        const QString sync_root = QString::fromLocal8Bit(qgetenv("OneDrive"));
+        if (!sync_root.isEmpty() && text.startsWith(sync_root, Qt::CaseInsensitive)) {
+            return true;
+        }
+        return text.contains(QStringLiteral("OneDrive"), Qt::CaseInsensitive);
+    }
+    return false;
+}
 
 std::string file_type_name(const std::filesystem::directory_entry& entry)
 {
@@ -111,7 +141,31 @@ QJsonObject mutation_result(bool success,
     return result;
 }
 
-QJsonObject path_status(const std::filesystem::path& path)
+std::vector<std::filesystem::path> created_directories_from_json(const QJsonArray& array)
+{
+    std::vector<std::filesystem::path> directories;
+    directories.reserve(array.size());
+    for (const auto& value : array) {
+        if (value.isString()) {
+            directories.emplace_back(value.toString().toStdString());
+        }
+    }
+    return directories;
+}
+
+void remove_empty_created_directories(const std::vector<std::filesystem::path>& directories)
+{
+    for (auto it = directories.rbegin(); it != directories.rend(); ++it) {
+        std::error_code ec;
+        if (std::filesystem::exists(*it, ec) && !ec &&
+            std::filesystem::is_directory(*it, ec) && !ec &&
+            std::filesystem::is_empty(*it, ec) && !ec) {
+            std::filesystem::remove(*it, ec);
+        }
+    }
+}
+
+QJsonObject path_status(const std::filesystem::path& path, const QString& provider_id)
 {
     std::error_code ec;
     QJsonObject status;
@@ -122,7 +176,10 @@ QJsonObject path_status(const std::filesystem::path& path)
     status["conflict_copy"] = false;
     status["should_retry"] = status["sync_locked"].toBool(false);
     status["retry_after_ms"] = status["sync_locked"].toBool(false) ? 2000 : 0;
-    status["stable_identity"] = QString::fromStdString(path.lexically_normal().string());
+    status["stable_identity"] =
+        QStringLiteral("%1:%2")
+            .arg(provider_id.isEmpty() ? QStringLiteral("mockcloud") : provider_id)
+            .arg(QString::fromStdString(path.lexically_normal().string()));
     if (exists) {
         const qint64 size = static_cast<qint64>(std::filesystem::file_size(path, ec));
         const qint64 mtime = static_cast<qint64>(read_mtime(path));
@@ -131,7 +188,7 @@ QJsonObject path_status(const std::filesystem::path& path)
         status["revision_token"] = QString();
     }
     status["message"] = status["sync_locked"].toBool(false)
-        ? QStringLiteral("MockCloud file is still locked.")
+        ? QStringLiteral("%1 file is still locked.").arg(provider_display_name(provider_id))
         : QString();
     return status;
 }
@@ -160,20 +217,21 @@ int main(int argc, char* argv[])
     if (action == QStringLiteral("probe")) {
         QJsonArray provider_ids;
         provider_ids.append(QStringLiteral("mockcloud"));
+        provider_ids.append(QStringLiteral("onedrive"));
         response["provider_ids"] = provider_ids;
     } else if (action == QStringLiteral("detect")) {
         const QString root_path = request.value("root_path").toString();
         QJsonObject detection;
-        const bool matched =
-            provider_id == QStringLiteral("mockcloud") &&
-            root_path.contains(QStringLiteral("MockCloud"), Qt::CaseInsensitive);
+        const bool matched = is_supported_provider(provider_id) &&
+            path_matches_provider(root_path.toStdString(), provider_id);
         detection["matched"] = matched;
         detection["confidence"] = matched ? 65 : 0;
         detection["detection_source"] = matched
             ? QStringLiteral("path_heuristic")
             : QString();
         detection["message"] = matched
-            ? QStringLiteral("Detected a MockCloud folder. External compatibility support is available.")
+            ? QStringLiteral("Detected a %1 folder. External compatibility support is available.")
+                  .arg(provider_display_name(provider_id))
             : QString();
         response["detection"] = detection;
     } else if (action == QStringLiteral("capabilities")) {
@@ -188,10 +246,10 @@ int main(int argc, char* argv[])
         const int options = request.value("options").toInt();
         response["entries"] = list_entries(root, options);
     } else if (action == QStringLiteral("inspect_path")) {
-        response["status"] = path_status(request.value("path").toString().toStdString());
+        response["status"] = path_status(request.value("path").toString().toStdString(), provider_id);
     } else if (action == QStringLiteral("preflight_move")) {
-        const auto source = path_status(request.value("source").toString().toStdString());
-        const auto destination = path_status(request.value("destination").toString().toStdString());
+        const auto source = path_status(request.value("source").toString().toStdString(), provider_id);
+        const auto destination = path_status(request.value("destination").toString().toStdString(), provider_id);
         QJsonObject preflight;
         const bool source_exists = source.value("exists").toBool(false);
         const bool destination_exists = destination.value("exists").toBool(false);
@@ -210,7 +268,8 @@ int main(int argc, char* argv[])
         } else if (destination_exists) {
             preflight["message"] = QStringLiteral("Destination path already exists.");
         } else if (sync_locked) {
-            preflight["message"] = QStringLiteral("MockCloud file is still locked.");
+            preflight["message"] =
+                QStringLiteral("%1 file is still locked.").arg(provider_display_name(provider_id));
         } else {
             preflight["message"] = QString();
         }
@@ -249,6 +308,11 @@ int main(int argc, char* argv[])
                     response["success"] = false;
                     response["error"] = QString::fromStdString(ec.message());
                 } else {
+                    if (action == QStringLiteral("undo_move")) {
+                        remove_empty_created_directories(
+                            created_directories_from_json(
+                                request.value("created_directories").toArray()));
+                    }
                     response = mutation_result(true, false, std::string(), destination);
                 }
             }

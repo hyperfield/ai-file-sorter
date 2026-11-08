@@ -20,7 +20,7 @@ std::string to_lower_copy(std::string value)
 bool contains_only_allowed_chars(const std::string& value)
 {
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             return false;
         }
         static const std::string forbidden = R"(<>:"/\|?*)";
@@ -38,7 +38,7 @@ bool has_leading_or_trailing_space_or_dot(const std::string& value)
     }
     const unsigned char first = static_cast<unsigned char>(value.front());
     const unsigned char last = static_cast<unsigned char>(value.back());
-    return std::isspace(first) || std::isspace(last) || value.front() == '.' ||
+    return Utils::is_ascii_space(first) || Utils::is_ascii_space(last) || value.front() == '.' ||
            value.back() == '.';
 }
 
@@ -74,7 +74,7 @@ bool looks_like_extension_label(const std::string& value)
 std::string ReviewNameValidator::trim_copy(const std::string& value)
 {
     std::string result = value;
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     result.erase(result.begin(), std::find_if(result.begin(), result.end(), not_space));
     result.erase(std::find_if(result.rbegin(), result.rend(), not_space).base(), result.end());
     return result;

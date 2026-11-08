@@ -116,6 +116,39 @@ TEST_CASE("Legacy local LLaMa resolves the previous Q4 artifact without marking 
     CHECK_FALSE(builtin_llm_artifact_available(LLMChoice::Local_4b_Gemma));
 }
 
+TEST_CASE("Built-in local model visibility preserves retired choices") {
+    LlmStorageOverrideGuard storage_guard;
+    TempDir temp;
+    Utils::set_llm_storage_directory_override(temp.path().string());
+    EnvVarGuard mistral_url_guard(
+        "LOCAL_LLM_7B_DOWNLOAD_URL", std::string("https://example.com/mistral.gguf"));
+
+    SECTION("Current models remain available without downloads") {
+        for (const auto choice : {LLMChoice::Local_4b_Gemma, LLMChoice::Local_4b_Qwen35,
+                                  LLMChoice::Local_7b_Gemma}) {
+            CHECK(builtin_llm_choice_visible(choice, LLMChoice::Unset));
+        }
+    }
+    SECTION("Mistral requires existing weights or a saved selection") {
+        CHECK_FALSE(builtin_llm_choice_visible(LLMChoice::Local_7b, LLMChoice::Unset));
+        CHECK_FALSE(builtin_llm_choice_visible(LLMChoice::Local_7b, LLMChoice::Local_4b_Gemma));
+        CHECK(builtin_llm_choice_visible(LLMChoice::Local_7b, LLMChoice::Local_7b));
+        write_gguf_file(temp.path() / "mistral.gguf");
+        CHECK(builtin_llm_choice_visible(LLMChoice::Local_7b, LLMChoice::Local_4b_Gemma));
+        CHECK(resolve_downloaded_builtin_llm_path(LLMChoice::Local_7b) == temp.path() / "mistral.gguf");
+    }
+    SECTION("Legacy Llama continues to require downloaded weights") {
+        CHECK_FALSE(builtin_llm_choice_visible(LLMChoice::Local_3b_legacy, LLMChoice::Local_3b_legacy));
+        write_gguf_file(Utils::make_default_path_to_file_from_download_url(kLegacyLlama3BQ4Url));
+        CHECK(builtin_llm_choice_visible(LLMChoice::Local_3b_legacy, LLMChoice::Unset));
+    }
+    SECTION("Non-built-in choices are excluded") {
+        CHECK_FALSE(builtin_llm_choice_visible(LLMChoice::Custom, LLMChoice::Custom));
+        CHECK_FALSE(builtin_llm_choice_visible(LLMChoice::Remote_OpenAI, LLMChoice::Remote_OpenAI));
+        CHECK_FALSE(builtin_llm_choice_visible(LLMChoice::Unset, LLMChoice::Unset));
+    }
+}
+
 TEST_CASE("Built-in Gemma 4B resolves the shared visual-model artifact path") {
     TempDir config_dir;
     EnvVarGuard home_guard("HOME", config_dir.path().string());

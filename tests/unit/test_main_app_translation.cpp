@@ -6,11 +6,38 @@
 #include "TranslationManager.hpp"
 #include "WhatsNewContent.hpp"
 #include "Language.hpp"
+#include "Logger.hpp"
 #include <app_version.hpp>
 
 #include <QCoreApplication>
 
 #include <vector>
+
+TEST_CASE("MainApp loads default settings without registered application loggers") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    struct RestoreLoggers {
+        std::shared_ptr<spdlog::logger> core = spdlog::get("core_logger");
+        std::shared_ptr<spdlog::logger> ui = spdlog::get("ui_logger");
+        ~RestoreLoggers() {
+            spdlog::drop("core_logger");
+            spdlog::drop("ui_logger");
+            if (core) spdlog::register_logger(core);
+            if (ui) spdlog::register_logger(ui);
+        }
+    } restore_loggers;
+    spdlog::drop("core_logger");
+    spdlog::drop("ui_logger");
+    Settings settings;
+    REQUIRE_FALSE(settings.load());
+    settings.set_language(Language::English);
+    MainApp window(settings, /*development_mode=*/false, /*test_mode=*/true);
+    CHECK(MainAppTestAccess::analyze_button_text(window) == QStringLiteral("Analyze folder"));
+    CHECK_FALSE(spdlog::get("core_logger"));
+    CHECK_FALSE(spdlog::get("ui_logger"));
+}
 
 TEST_CASE("MainApp retranslate reflects language changes") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
@@ -780,12 +807,25 @@ TEST_CASE("What's New content is packaged for the current app version")
     const QString markdown = WhatsNewContent::markdown_for_version(version);
 
     REQUIRE(markdown.contains(QStringLiteral("Highlights")));
-    REQUIRE(markdown.contains(QStringLiteral("SSE4.2-capable x64 CPUs")));
-    REQUIRE(markdown.contains(QStringLiteral("CA bundle staging")));
+    REQUIRE(markdown.contains(QStringLiteral("existing folder structure")));
+    REQUIRE(markdown.contains(QStringLiteral("filename word limits")));
+    REQUIRE(markdown.contains(QStringLiteral("Qwen3.5 4B")));
+    REQUIRE(markdown.contains(QStringLiteral("Metal backend detection")));
+    REQUIRE(markdown.contains(QStringLiteral("image-analysis benchmark")));
 
     REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
+    REQUIRE_FALSE(WhatsNewContent::markdown_for_version(version, Language::French).isEmpty());
 
-    const QString french = WhatsNewContent::markdown_for_version(version, Language::French);
+    const QString previous_release = WhatsNewContent::markdown_for_version(QStringLiteral("1.9.2"));
+    REQUIRE(previous_release.contains(QStringLiteral("Fixed a Windows issue")));
+    REQUIRE(previous_release.contains(QStringLiteral("close before sorting started")));
+
+    const QString localized_version = QStringLiteral("1.9.1");
+    const QString localized_english = WhatsNewContent::markdown_for_version(localized_version);
+    REQUIRE(localized_english.contains(QStringLiteral("SSE4.2-capable x64 CPUs")));
+    REQUIRE(localized_english.contains(QStringLiteral("CA bundle staging")));
+
+    const QString french = WhatsNewContent::markdown_for_version(localized_version, Language::French);
     REQUIRE(french.contains(QStringLiteral("Points forts")));
     REQUIRE_FALSE(french.contains(QStringLiteral("Highlights")));
 
@@ -808,9 +848,9 @@ TEST_CASE("What's New content is packaged for the current app version")
 
     for (const Language language : localized_languages) {
         INFO("Language enum value: " << static_cast<int>(language));
-        const QString localized = WhatsNewContent::markdown_for_version(version, language);
+        const QString localized = WhatsNewContent::markdown_for_version(localized_version, language);
         REQUIRE_FALSE(localized.isEmpty());
-        REQUIRE(localized != markdown);
+        REQUIRE(localized != localized_english);
     }
 
     REQUIRE(WhatsNewContent::markdown_for_version(QStringLiteral("bad/version")).isEmpty());

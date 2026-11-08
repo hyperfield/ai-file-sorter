@@ -5,6 +5,7 @@
 #include "DatabaseManager.hpp"
 #include "ILLMClient.hpp"
 #include "LLMErrors.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "MainAppTestAccess.hpp"
 #include "CategoryLanguage.hpp"
 #include "LocalLLMTestAccess.hpp"
@@ -21,6 +22,7 @@
 #include <atomic>
 #include <chrono>
 #include <deque>
+#include <filesystem>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -64,7 +66,16 @@ public:
         : captured_path_(std::move(captured_path)),
           captured_context_(std::move(captured_context)),
           calls_(std::move(calls)),
-          response_(std::move(response)) {}
+          responses_{std::move(response)} {}
+
+    PromptCaptureLLM(std::shared_ptr<std::string> captured_path,
+                     std::shared_ptr<std::string> captured_context,
+                     std::shared_ptr<int> calls,
+                     std::vector<std::string> responses)
+        : captured_path_(std::move(captured_path)),
+          captured_context_(std::move(captured_context)),
+          calls_(std::move(calls)),
+          responses_(std::move(responses)) {}
 
     std::string categorize_file(const std::string&,
                                 const std::string& file_path,
@@ -75,7 +86,7 @@ public:
         if (captured_context_) {
             *captured_context_ = consistency_context;
         }
-        return response_;
+        return next_response();
     }
 
     std::string complete_prompt(const std::string& prompt, int) override {
@@ -84,7 +95,7 @@ public:
         if (captured_context_) {
             *captured_context_ = prompt;
         }
-        return response_;
+        return next_response();
     }
 
     void set_prompt_logging_enabled(bool) override {
@@ -94,7 +105,17 @@ private:
     std::shared_ptr<std::string> captured_path_;
     std::shared_ptr<std::string> captured_context_;
     std::shared_ptr<int> calls_;
-    std::string response_;
+    std::vector<std::string> responses_;
+    std::size_t response_index_{0};
+
+    std::string next_response() {
+        if (responses_.empty()) {
+            return {};
+        }
+        const std::size_t index = std::min(response_index_, responses_.size() - 1);
+        ++response_index_;
+        return responses_[index];
+    }
 };
 
 class TranslationAwareLLM : public ILLMClient {
@@ -255,6 +276,7 @@ TEST_CASE("WhitelistStore initializes from settings and persists defaults") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_active_whitelist("MyList");
 
     WhitelistStore store(settings.get_config_dir());
@@ -368,6 +390,7 @@ TEST_CASE("WhitelistStore preserves branching subcategories through save and set
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_active_whitelist("Smart");
 
     const WhitelistEntry entry{
@@ -401,6 +424,7 @@ TEST_CASE("CategorizationService builds numbered whitelist context") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_allowed_categories({"CatA", "CatB"});
     settings.set_allowed_subcategories({});
     DatabaseManager db(settings.get_config_dir());
@@ -418,6 +442,7 @@ TEST_CASE("CategorizationService builds branching whitelist context") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_allowed_categories({"Documents", "Images"});
     settings.set_allowed_subcategories({});
     settings.set_allowed_subcategories_by_category({
@@ -440,6 +465,7 @@ TEST_CASE("CategorizationService preserves Unicode whitelist labels in combined 
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
     settings.set_allowed_categories({"Business ☁️"});
     settings.set_allowed_subcategories({"AB Testing ☁️", "Abroad ☁️"});
@@ -458,10 +484,11 @@ TEST_CASE("CategorizationService preserves Unicode whitelist labels in combined 
     CHECK(context.find("2) Abroad ☁️") != std::string::npos);
 }
 
-TEST_CASE("CategorizationService corrects invalid branching whitelist subcategory pairs") {
+TEST_CASE("CategorizationService leaves invalid branching whitelist pairs unassigned") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
     settings.set_allowed_categories({"Documents", "Images"});
     settings.set_allowed_subcategories({});
@@ -492,16 +519,18 @@ TEST_CASE("CategorizationService corrects invalid branching whitelist subcategor
                                                         factory);
 
     REQUIRE(categorized.size() == 1);
-    CHECK(categorized.front().canonical_category == "Documents");
-    CHECK(categorized.front().canonical_subcategory == "Invoices");
-    CHECK(categorized.front().category == "Documents");
-    CHECK(categorized.front().subcategory == "Invoices");
+    CHECK(categorized.front().canonical_category.empty());
+    CHECK(categorized.front().canonical_subcategory.empty());
+    CHECK(categorized.front().category.empty());
+    CHECK(categorized.front().subcategory.empty());
+    CHECK_FALSE(db.get_categorized_file(data_dir.path().string(), file_name, FileType::File));
 }
 
 TEST_CASE("CategorizationService keeps small whitelists fully injected") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
     settings.set_allowed_categories({"Manuals", "Spreadsheets"});
     settings.set_allowed_subcategories({});
@@ -525,6 +554,7 @@ TEST_CASE("CategorizationService retrieves large branching whitelist candidates"
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
 
     std::vector<std::string> categories;
@@ -555,8 +585,8 @@ TEST_CASE("CategorizationService retrieves large branching whitelist candidates"
         FileType::File);
 
     CHECK(context.find("Selected whitelist is large") != std::string::npos);
-    CHECK(context.find("Documents : Receipts") != std::string::npos);
-    CHECK(context.find("Allowed subcategories for shown category candidates") != std::string::npos);
+    CHECK(context.find("Documents") != std::string::npos);
+    CHECK(context.find("Allowed subcategories by main category") != std::string::npos);
     CHECK(context.find("Documents: Invoices, Receipts") != std::string::npos);
     CHECK(context.find("Project Bucket 17") == std::string::npos);
 }
@@ -565,6 +595,7 @@ TEST_CASE("CategorizationService retrieves candidates instead of injecting large
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
 
     std::vector<std::string> categories;
@@ -593,10 +624,10 @@ TEST_CASE("CategorizationService retrieves candidates instead of injecting large
         FileType::File);
 
     CHECK(context.find("Selected whitelist is large") != std::string::npos);
-    CHECK(context.find("Allowed category candidates") != std::string::npos);
+    CHECK(context.find("Allowed main categories (retrieved subset") != std::string::npos);
     CHECK(context.find("Manuals") != std::string::npos);
     CHECK(context.find("Archive Bucket 34") == std::string::npos);
-    CHECK(context.find("Allowed main categories") == std::string::npos);
+    CHECK(context.find("Allowed main categories") != std::string::npos);
     CHECK(context.find("User-learned category candidates") == std::string::npos);
 }
 
@@ -604,6 +635,7 @@ TEST_CASE("CategorizationService ranks large whitelist candidates without learni
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
 
     std::vector<std::string> categories;
@@ -632,6 +664,7 @@ TEST_CASE("CategorizationService adds relevant learned taxonomy candidates to co
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     UserLearningStore learning_store(settings.get_config_dir());
     REQUIRE(learning_store.is_open());
@@ -662,6 +695,7 @@ TEST_CASE("CategorizationService prefers learned candidates over generic model c
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     UserLearningStore learning_store(settings.get_config_dir());
     REQUIRE(learning_store.is_open());
@@ -708,6 +742,7 @@ TEST_CASE("CategorizationService ignores whitelist-imported candidates when the 
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     UserLearningStore learning_store(settings.get_config_dir());
     REQUIRE(learning_store.is_open());
@@ -747,6 +782,7 @@ TEST_CASE("CategorizationService builds category language context when non-Engli
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_category_language(CategoryLanguage::French);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -754,7 +790,7 @@ TEST_CASE("CategorizationService builds category language context when non-Engli
     const std::string context = CategorizationServiceTestAccess::build_category_language_context(service);
 
     REQUIRE_FALSE(context.empty());
-    REQUIRE(context.find("English only") != std::string::npos);
+    REQUIRE(context.find("in English") != std::string::npos);
     REQUIRE(context.find("French") != std::string::npos);
 }
 
@@ -762,6 +798,7 @@ TEST_CASE("CategorizationService builds category language context for Spanish") 
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_category_language(CategoryLanguage::Spanish);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -769,7 +806,7 @@ TEST_CASE("CategorizationService builds category language context for Spanish") 
     const std::string context = CategorizationServiceTestAccess::build_category_language_context(service);
 
     REQUIRE_FALSE(context.empty());
-    REQUIRE(context.find("English only") != std::string::npos);
+    REQUIRE(context.find("in English") != std::string::npos);
     REQUIRE(context.find("Spanish") != std::string::npos);
 }
 
@@ -777,6 +814,7 @@ TEST_CASE("CategorizationService retries remote categorization once after Backof
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_llm_choice(LLMChoice::Remote_OpenAI);
     settings.set_openai_api_key("test-key");
     DatabaseManager db(settings.get_config_dir());
@@ -832,6 +870,7 @@ TEST_CASE("CategorizationService resolves remote request pacing from settings an
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     EnvVarGuard limit_guard("AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE", std::nullopt);
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_remote_requests_per_minute(20);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -901,6 +940,7 @@ TEST_CASE("CategorizationService parses category output without spaced colon del
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -934,6 +974,7 @@ TEST_CASE("CategorizationService parses labeled category and subcategory lines")
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -967,6 +1008,7 @@ TEST_CASE("CategorizationService extracts the trailing pair from verbose respons
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1002,6 +1044,7 @@ TEST_CASE("CategorizationService prefers the final pair when the model echoes ex
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1039,6 +1082,7 @@ TEST_CASE("CategorizationService strips rationale from subcategory text") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1074,6 +1118,7 @@ TEST_CASE("CategorizationService extracts a short category from natural language
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1109,6 +1154,7 @@ TEST_CASE("CategorizationService ignores trailing note lines after a valid answe
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1145,6 +1191,7 @@ TEST_CASE("CategorizationService progress shows current and categorization paths
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1184,6 +1231,288 @@ TEST_CASE("CategorizationService progress shows current and categorization paths
                                          Utils::abbreviate_user_path(full_path)) != std::string::npos);
     CHECK(progress_messages.front().find("Categorization Path : " +
                                          Utils::abbreviate_user_path(prompt_path)) != std::string::npos);
+}
+
+TEST_CASE("CategorizationService routes into existing folder-tree targets") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir data_dir;
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "10-19 Admin" / "11 Reports"));
+
+    Settings settings;
+    settings.set_sort_folder(data_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "statement.txt";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            std::vector<std::string>{
+                "Category: Admin\nSubcategory: Reports",
+                "{\"targetFolder\":\"10-19 Admin/11 Reports\",\"createFolder\":false}"});
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 2);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "10-19 Admin/11 Reports");
+    CHECK(categorized.front().target_folder_exists);
+    CHECK_FALSE(categorized.front().target_folder_suggested_new);
+    CHECK(categorized.front().category == "Admin");
+    CHECK(categorized.front().subcategory == "Reports");
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+    CHECK(captured_context->find("Preliminary topic labels (supporting clues): Admin / Reports") !=
+          std::string::npos);
+    CHECK(captured_context->find("10-19 Admin/11 Reports") != std::string::npos);
+}
+
+TEST_CASE("CategorizationService accepts suggested folder-tree targets when enabled") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir data_dir;
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "Images" / "Work Screenshots"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "Data and Archives" / "Compressed Archives"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "Other" / "Unsorted Review"));
+
+    Settings settings;
+    settings.set_sort_folder(data_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "invoice_q2_2026.pdf";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            std::vector<std::string>{"Documents : Invoices",
+                R"({"targetFolder":null,"createFolder":false})",
+                R"({"targetFolder":"Documents/Invoices","createFolder":true})"});
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 3);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "Documents/Invoices");
+    CHECK(categorized.front().target_folder_suggested_new);
+    CHECK_FALSE(categorized.front().target_folder_exists);
+    CHECK(categorized.front().folder_tree_allow_new_folders);
+    CHECK(categorized.front().category == "Documents");
+    CHECK(categorized.front().subcategory == "Invoices");
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+
+    const auto catalog = FolderTreeCatalog::Catalog::scan(data_dir.path());
+    const auto route = db.get_folder_tree_routing(file_name,
+                                                  FileType::File,
+                                                  data_dir.path().string(),
+                                                  settings.get_effective_destination_folder(data_dir.path().string()),
+                                                  catalog.fingerprint(),
+                                                  true,
+                                                  "Documents",
+                                                  "Invoices");
+    REQUIRE(route.has_value());
+    CHECK(route->target_folder_relative_path == "Documents/Invoices");
+    CHECK(route->target_folder_suggested_new);
+}
+
+TEST_CASE("CategorizationService uses deterministic structure pattern for new folder routes") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir data_dir;
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "20-29 Work" / "21 Clients"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "20-29 Work" / "23 Meeting Notes"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "30-39 Personal" / "31 Travel"));
+
+    Settings settings;
+    settings.set_sort_folder(data_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "migration_plan.txt";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            std::vector<std::string>{"Work : Proposals",
+                R"({"targetFolder":null,"createFolder":false})",
+                R"({"targetFolder":"20-29 Work/21 Proposals","createFolder":true})"});
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 3);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "20-29 Work/22 Proposals");
+    CHECK(categorized.front().target_folder_suggested_new);
+    CHECK_FALSE(categorized.front().target_folder_exists);
+    CHECK(categorized.front().category == "Work");
+    CHECK(categorized.front().subcategory == "Proposals");
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+}
+
+TEST_CASE("CategorizationService sends detected custom folder conventions to routing LLM") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir data_dir;
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "AA Images"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "AB Photos"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "AC Documents"));
+    REQUIRE(std::filesystem::create_directories(data_dir.path() / "DG Office Apps"));
+
+    Settings settings;
+    settings.set_sort_folder(data_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "nginx_access_logs.zip";
+    const std::string full_path = (data_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            std::vector<std::string>{
+                "Archives : Logs",
+                R"({"targetFolder":null,"createFolder":false})",
+                "{\"targetFolder\":\"DH Archives/Logs\",\"createFolder\":true}"});
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 3);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "DH Archives/Logs");
+    CHECK(categorized.front().target_folder_suggested_new);
+    CHECK_FALSE(categorized.front().target_folder_exists);
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+    CHECK(captured_context->find("Detected folder structure conventions") != std::string::npos);
+    CHECK(captured_context->find("leading alphabetic code prefixes") != std::string::npos);
+}
+
+TEST_CASE("CategorizationService scans destination root for existing folder-tree targets") {
+    TempDir config_dir;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    TempDir source_dir;
+    TempDir destination_dir;
+    REQUIRE(std::filesystem::create_directories(destination_dir.path() / "20-29 Work" / "21 Clients"));
+
+    Settings settings;
+    settings.set_sort_folder(source_dir.path().string());
+    settings.set_destination_folder(destination_dir.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(false);
+    DatabaseManager db(settings.get_config_dir());
+    CategorizationService service(settings, db, nullptr);
+
+    const std::string file_name = "proposal.txt";
+    const std::string full_path = (source_dir.path() / file_name).string();
+    const std::vector<FileEntry> files = {FileEntry{full_path, file_name, FileType::File}};
+
+    std::atomic<bool> stop_flag{false};
+    auto calls = std::make_shared<int>(0);
+    auto captured_path = std::make_shared<std::string>();
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
+        return std::make_unique<PromptCaptureLLM>(
+            captured_path,
+            captured_context,
+            calls,
+            std::vector<std::string>{
+                "Work : Clients",
+                "{\"targetFolder\":\"20-29 Work/21 Clients\",\"createFolder\":false}"});
+    };
+
+    const auto categorized = service.categorize_entries(files,
+                                                        true,
+                                                        stop_flag,
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        {},
+                                                        factory);
+
+    REQUIRE(categorized.size() == 1);
+    CHECK(*calls == 2);
+    CHECK(categorized.front().folder_tree_mode);
+    CHECK(categorized.front().target_folder_relative_path == "20-29 Work/21 Clients");
+    CHECK(categorized.front().target_folder_exists);
+    CHECK(categorized.front().category == "Work");
+    CHECK(categorized.front().subcategory == "Clients");
+    CHECK(captured_context->find(FolderTreeCatalog::kPromptMarker) != std::string::npos);
+    CHECK(captured_context->find("20-29 Work/21 Clients") != std::string::npos);
 }
 
 TEST_CASE("Document prompt helpers use the suggested filename for categorization") {
@@ -1229,6 +1558,7 @@ TEST_CASE("CategorizationService passes image descriptions through prompt overri
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1246,10 +1576,11 @@ TEST_CASE("CategorizationService passes image descriptions through prompt overri
     std::atomic<bool> stop_flag{false};
     auto calls = std::make_shared<int>(0);
     auto captured_path = std::make_shared<std::string>();
-    auto factory = [captured_path, calls]() {
+    auto captured_context = std::make_shared<std::string>();
+    auto factory = [captured_path, captured_context, calls]() {
         return std::make_unique<PromptCaptureLLM>(
             captured_path,
-            std::shared_ptr<std::string>{},
+            captured_context,
             calls,
             "Category: Nature\nSubcategory: Mountains");
     };
@@ -1270,7 +1601,8 @@ TEST_CASE("CategorizationService passes image descriptions through prompt overri
     REQUIRE(categorized.size() == 1);
     CHECK(*calls == 1);
     CHECK(captured_path->find(suggested_name) != std::string::npos);
-    CHECK(captured_path->find("\nImage description: " + description) != std::string::npos);
+    CHECK(captured_path->find('\n') == std::string::npos);
+    CHECK(captured_context->find("Image description: " + description) != std::string::npos);
     CHECK(captured_path->find("legacy_name.jpg") == std::string::npos);
 }
 
@@ -1278,6 +1610,7 @@ TEST_CASE("CategorizationService preserves analysis context for learned behavior
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1319,6 +1652,7 @@ TEST_CASE("CategorizationService adds stable guidance for supported document pro
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -1362,6 +1696,7 @@ TEST_CASE("CategorizationService relaxes document family guidance in more refine
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1388,6 +1723,7 @@ TEST_CASE("CategorizationService normalizes supported document main categories t
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -1484,6 +1820,7 @@ TEST_CASE("CategorizationService preserves topic-specific document main categori
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1524,6 +1861,7 @@ TEST_CASE("CategorizationService preserves explicit whitelist document main cate
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
     settings.set_allowed_categories({"Contracts", "Policies"});
     settings.set_allowed_subcategories({});
@@ -1567,6 +1905,7 @@ TEST_CASE("CategorizationService adds stable guidance for supported image prompt
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -1592,6 +1931,7 @@ TEST_CASE("CategorizationService relaxes image family guidance in more refined m
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1614,6 +1954,7 @@ TEST_CASE("CategorizationService leaves generic software-like prompts unscaffold
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1627,13 +1968,16 @@ TEST_CASE("CategorizationService leaves generic software-like prompts unscaffold
         prompt_path,
         FileType::File);
 
-    CHECK(context.empty());
+    CHECK(context.find("in English") != std::string::npos);
+    CHECK(context.find("Software and archive artifact guidance:") == std::string::npos);
+    CHECK(context.find("Allowed main categories") == std::string::npos);
 }
 
-TEST_CASE("CategorizationService adds artifact guidance for software-like prompts only when whitelist mode is active") {
+TEST_CASE("CategorizationService lets whitelist labels override artifact style preferences") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
     settings.set_allowed_categories({"Software", "Installers", "Drivers", "Operating Systems"});
     settings.set_allowed_subcategories({});
@@ -1650,11 +1994,11 @@ TEST_CASE("CategorizationService adds artifact guidance for software-like prompt
         prompt_path,
         FileType::File);
 
-    CHECK(context.find("Software and archive artifact guidance:") != std::string::npos);
+    CHECK(context.find("Software and archive artifact guidance:") == std::string::npos);
     CHECK(context.find("Allowed main categories") != std::string::npos);
     CHECK(context.find("1) Software") != std::string::npos);
     CHECK(context.find("2) Installers") != std::string::npos);
-    CHECK(context.find("Installer Tools") != std::string::npos);
+    CHECK(context.find("NO_MATCH") != std::string::npos);
     CHECK(context.find("Installer Builders") == std::string::npos);
 }
 
@@ -1662,6 +2006,7 @@ TEST_CASE("CategorizationService structurally canonicalizes artifact family labe
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1723,6 +2068,7 @@ TEST_CASE("CategorizationService preserves non-family artifact semantics from th
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1784,6 +2130,7 @@ TEST_CASE("CategorizationService falls back to General when a broad family subca
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1818,6 +2165,7 @@ TEST_CASE("CategorizationService preserves explicit whitelist software-like main
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
     settings.set_allowed_categories({"Utilities", "Drivers"});
     settings.set_allowed_subcategories({});
@@ -1854,6 +2202,7 @@ TEST_CASE("CategorizationService leaves unknown generic prompts unscaffolded wit
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -1867,13 +2216,16 @@ TEST_CASE("CategorizationService leaves unknown generic prompts unscaffolded wit
         prompt_path,
         FileType::File);
 
-    CHECK(context.empty());
+    CHECK(context.find("in English") != std::string::npos);
+    CHECK(context.find("Software and archive artifact guidance:") == std::string::npos);
+    CHECK(context.find("Allowed main categories") == std::string::npos);
 }
 
 TEST_CASE("CategorizationService uses one-shot categorization prompts for document files") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -1916,7 +2268,8 @@ TEST_CASE("CategorizationService uses one-shot categorization prompts for docume
     CHECK(categorized.front().canonical_subcategory == "PCI DSS");
     CHECK(*calls == 1);
     CHECK(captured_path->find(file_name) != std::string::npos);
-    CHECK(captured_path->find("Document summary: Quick reference to PCI DSS controls for merchants and service providers.") != std::string::npos);
+    CHECK(captured_path->find('\n') == std::string::npos);
+    CHECK(captured_context->find("Document summary: Quick reference to PCI DSS controls for merchants and service providers.") != std::string::npos);
     CHECK(captured_context->find("Document categorization guidance:") != std::string::npos);
     CHECK(captured_context->find("Allowed main categories") != std::string::npos);
     CHECK(captured_context->find("The main category is already fixed to:") == std::string::npos);
@@ -1927,6 +2280,7 @@ TEST_CASE("CategorizationService normalizes supported image main categories to I
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -2002,6 +2356,7 @@ TEST_CASE("CategorizationService preserves content-specific image main categorie
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -2038,12 +2393,13 @@ TEST_CASE("CategorizationService preserves content-specific image main categorie
     CHECK(categorized.front().canonical_subcategory == "Lions");
 }
 
-TEST_CASE("CategorizationService preserves explicit whitelist image main categories when Images is disallowed") {
+TEST_CASE("CategorizationService preserves whitelist image choices even when Images is allowed") {
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
-    settings.set_allowed_categories({"Animals", "Travel"});
+    settings.set_allowed_categories({"Animals", "Travel", "Images"});
     settings.set_allowed_subcategories({});
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -2085,6 +2441,7 @@ TEST_CASE("CategorizationService adds subject-focused guidance for screenshot-li
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -2113,6 +2470,7 @@ TEST_CASE("CategorizationService skips extension-only consistency hints for rich
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_use_consistency_hints(true);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -2169,6 +2527,7 @@ TEST_CASE("CategorizationService stores canonical English labels and persists tr
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_category_language(CategoryLanguage::French);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -2235,6 +2594,7 @@ TEST_CASE("CategorizationService strips inline subcategory artifacts from transl
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     settings.set_category_language(CategoryLanguage::French);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
@@ -2285,6 +2645,7 @@ TEST_CASE("CategorizationService strips inline subcategory label artifacts when 
     TempDir base_dir;
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", base_dir.path().string());
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
     DatabaseManager db(settings.get_config_dir());
     CategorizationService service(settings, db, nullptr);
 
@@ -2312,4 +2673,228 @@ TEST_CASE("CategorizationService strips inline subcategory label artifacts when 
     CHECK(categorized.front().category == "Images");
     CHECK(categorized.front().subcategory == "Funny seals");
     CHECK(*calls == 1);
+}
+
+TEST_CASE("Whitelist no-match and invalid labels remain unassigned without cache entries", "[whitelist][prompt-contract]")
+{
+    for (const std::string response : {"NO_MATCH", "\"NO_MATCH\"", "NO_MATCH.", "```text\nNO_MATCH\n```", "Manuals : Camera Guides", "Finance : Photos"}) {
+        TempDir config, files;
+        EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+        Settings settings;
+        settings.set_sorting_mode(SortingMode::GeneratedCategories);
+        settings.set_use_whitelist(true);
+        settings.set_allowed_categories({"Finance"});
+        settings.set_allowed_subcategories({"Invoices"});
+        DatabaseManager database(settings.get_config_dir());
+        CategorizationService service(settings, database, nullptr);
+        const FileEntry file{(files.path() / "camera.pdf").string(), "camera.pdf", FileType::File};
+        auto calls = std::make_shared<int>(0);
+        std::atomic<bool> stop{false};
+        std::vector<std::string> progress;
+        const auto rows = service.categorize_entries({file}, true, stop,
+            [&](const auto& message) { progress.push_back(message); }, {}, {}, {},
+            [&] { return std::make_unique<FixedResponseLLM>(calls, response); });
+        REQUIRE(rows.size() == 1);
+        CHECK(rows[0].canonical_category.empty());
+        CHECK(rows[0].canonical_subcategory.empty());
+        CHECK(rows[0].taxonomy_id == -1);
+        CHECK_FALSE(database.get_categorized_file(files.path().string(), file.file_name, file.type));
+        CHECK(std::any_of(progress.begin(), progress.end(), [](const auto& message) {
+            return message.find("left unassigned") != std::string::npos;
+        }));
+    }
+}
+
+TEST_CASE("An empty whitelist does not advertise an abstention constraint", "[whitelist][prompt-contract]")
+{
+    TempDir config;
+    EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_use_whitelist(true);
+    settings.set_allowed_categories({});
+    settings.set_allowed_subcategories({});
+    settings.set_allowed_subcategories_by_category({});
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    const auto context = CategorizationServiceTestAccess::build_combined_context(
+        service, {}, "simple.css", "simple.css", FileType::File);
+    CHECK(context.find("NO_MATCH") == std::string::npos);
+    CHECK(context.find("Whitelist rules:") == std::string::npos);
+    CHECK(context.find("labels are unrestricted") != std::string::npos);
+}
+
+TEST_CASE("Whitelist context excludes incompatible learned and recent assignments", "[whitelist][prompt-contract]")
+{
+    TempDir config;
+    EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_use_whitelist(true);
+    settings.set_allowed_categories({"Documents"});
+    settings.set_allowed_subcategories_by_category({{"Documents", {"Other", "Invoices"}}});
+    DatabaseManager database(settings.get_config_dir());
+    UserLearningStore learning(settings.get_config_dir());
+    UserLearningStore::ApprovedMapping mapping;
+    mapping.file_name = "camera_manual.pdf";
+    mapping.file_type = FileType::File;
+    mapping.dir_path = "/reference";
+    mapping.category = "Manuals";
+    mapping.subcategory = "Camera Guides";
+    std::string error;
+    REQUIRE(learning.record_approved_mapping(mapping, &error));
+    CategorizationService service(settings, database, nullptr, &learning);
+    const auto context = CategorizationServiceTestAccess::build_combined_context(
+        service, {}, mapping.file_name, mapping.file_name, FileType::File);
+    CHECK(context.find("Manuals : Camera Guides") == std::string::npos);
+    CHECK(context.find("Other") != std::string::npos);
+    CHECK(context.find("Whitelist rules") != std::string::npos);
+    CHECK(context.find("NO_MATCH") != std::string::npos);
+    CHECK(context.find("Do not answer with a generic") == std::string::npos);
+}
+
+TEST_CASE("Large whitelist with no retrieved match asks for abstention rather than new labels", "[whitelist][prompt-contract]")
+{
+    TempDir config;
+    EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_use_whitelist(true);
+    std::vector<std::string> labels;
+    for (int n = 0; n < 35; ++n) labels.push_back("ZoologyGroup " + std::to_string(n));
+    settings.set_allowed_categories(labels);
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    const auto context = CategorizationServiceTestAccess::build_combined_context(
+        service, {}, "opaque.bin", "opaque.bin", FileType::File);
+    CHECK(context.find("Reply NO_MATCH") != std::string::npos);
+    CHECK(context.find("suggest a new category") == std::string::npos);
+    CHECK(context.find("if you know it") == std::string::npos);
+}
+
+TEST_CASE("Whitelist literals survive aliases, case differences and cache reopen", "[whitelist][prompt-contract]")
+{
+    TempDir config, files;
+    EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_use_whitelist(true);
+    settings.set_use_consistency_hints(false);
+    settings.set_allowed_categories({"Apps"});
+    settings.set_allowed_subcategories({"Installer Builders"});
+    const FileEntry file{(files.path() / "bundle.zip").string(), "bundle.zip", FileType::File};
+    auto calls = std::make_shared<int>(0);
+    const auto run = [&](DatabaseManager& database) {
+        CategorizationService service(settings, database, nullptr);
+        std::atomic<bool> stop{false};
+        return service.categorize_entries({file}, true, stop, {}, {}, {}, {},
+            [&] { return std::make_unique<FixedResponseLLM>(calls, "apps : installer builders"); });
+    };
+    {
+        DatabaseManager database(settings.get_config_dir());
+        const auto rows = run(database);
+        REQUIRE(rows.size() == 1);
+        CHECK(rows[0].canonical_category == "Apps");
+        CHECK(rows[0].canonical_subcategory == "Installer Builders");
+        REQUIRE(*calls == 1);
+        const auto cached = run(database);
+        CHECK(cached[0].canonical_category == "Apps");
+        CHECK(*calls == 1);
+    }
+    {
+        DatabaseManager database(settings.get_config_dir());
+        const auto rows = run(database);
+        REQUIRE(rows.size() == 1);
+        CHECK(rows[0].canonical_category == "Apps");
+        CHECK(rows[0].canonical_subcategory == "Installer Builders");
+        CHECK(*calls == 1);
+    }
+}
+
+TEST_CASE("Whitelist policy rejects legacy coerced caches and changes with the active constraints", "[whitelist][prompt-contract]")
+{
+    TempDir config, files;
+    EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_use_whitelist(true);
+    settings.set_allowed_categories({"Documents"});
+    settings.set_allowed_subcategories({"Invoices", "Receipts"});
+    DatabaseManager database(settings.get_config_dir());
+    const auto legacy = database.resolve_category("Documents", "Invoices");
+    REQUIRE(database.insert_or_update_file_with_categorization(
+        "bill.pdf", "F", files.path().string(), legacy, true));
+    CategorizationService service(settings, database, nullptr);
+    const FileEntry file{(files.path() / "bill.pdf").string(), "bill.pdf", FileType::File};
+    auto calls = std::make_shared<int>(0);
+    std::atomic<bool> stop{false};
+    const auto run = [&] {
+        return service.categorize_entries({file}, true, stop, {}, {}, {}, {},
+            [&] { return std::make_unique<FixedResponseLLM>(calls, "Documents : Receipts"); });
+    };
+    REQUIRE(run().at(0).canonical_subcategory == "Receipts");
+    REQUIRE(*calls == 1);
+    REQUIRE(run().at(0).canonical_subcategory == "Receipts");
+    REQUIRE(*calls == 1);
+    settings.set_allowed_categories({"Documents", "Records"});
+    REQUIRE(run().at(0).canonical_subcategory == "Receipts");
+    CHECK(*calls == 2);
+}
+
+TEST_CASE("Whitelist language rules preserve foreign labels and unrestricted English output", "[whitelist][prompt-contract]")
+{
+    TempDir config;
+    EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_use_whitelist(true);
+    settings.set_allowed_categories({"Animaux"});
+    settings.set_allowed_subcategories({"Chats"});
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    for (auto language : {CategoryLanguage::English, CategoryLanguage::French}) {
+        settings.set_category_language(language);
+        const auto context = CategorizationServiceTestAccess::build_combined_context(
+            service, {}, "cat.png", "cat.png", FileType::File);
+        CHECK(context.find("unrestricted category and subcategory labels in English") != std::string::npos);
+        CHECK(context.find("Copy any provided allowed labels literally") != std::string::npos);
+        CHECK(context.find("1) Animaux") != std::string::npos);
+        CHECK(context.find("1) Chats") != std::string::npos);
+    }
+}
+
+TEST_CASE("Explicit category abstention survives local response cleanup", "[prompt-contract]")
+{
+    CHECK(LocalLLMTestAccess::sanitize_output_for_testing("NO_MATCH") == "NO_MATCH");
+}
+
+TEST_CASE("Whitelist canonical labels remain literal during display translation", "[whitelist][prompt-contract]")
+{
+    TempDir config, files;
+    EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_use_whitelist(true);
+    settings.set_allowed_categories({"Animaux"});
+    settings.set_allowed_subcategories({"Chats"});
+    settings.set_category_language(CategoryLanguage::French);
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    auto path = std::make_shared<std::string>();
+    auto context = std::make_shared<std::string>();
+    auto calls = std::make_shared<int>(0);
+    std::atomic<bool> stop{false};
+    const FileEntry file{(files.path() / "cat.jpg").string(), "cat.jpg", FileType::File};
+    const auto rows = service.categorize_entries({file}, true, stop, {}, {}, {}, {}, [&] {
+        return std::make_unique<PromptCaptureLLM>(path, context, calls,
+            std::vector<std::string>{"animaux : chats", R"({"category":"Animaux","subcategory":"Chats"})"});
+    });
+    REQUIRE(rows.size() == 1);
+    CHECK(rows[0].canonical_category == "Animaux");
+    CHECK(rows[0].canonical_subcategory == "Chats");
+    CHECK(rows[0].category == "Animaux");
+    CHECK(rows[0].subcategory == "Chats");
+    CHECK(path->find("preserve proper nouns, acronyms and identifiers") != std::string::npos);
+    CHECK(path->find("No English") == std::string::npos);
+    CHECK(path->find("do not recategorize") != std::string::npos);
 }

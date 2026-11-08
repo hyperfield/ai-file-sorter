@@ -6,18 +6,52 @@
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
 #include "TestHooks.hpp"
+#include "VisualModelCatalog.hpp"
 #include "Utils.hpp"
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QLabel>
 #include <QPushButton>
+#include <QToolButton>
 
 #include <curl/curl.h>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <thread>
+
+TEST_CASE("API visual selection stays independent of the text model and hides local downloads", "[http-vision]")
+{
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    CustomApiEndpoint vision{"vision", "Image server", "", "http://127.0.0.1:1234/v1", "", "vision-model", true};
+    const auto id = settings.upsert_custom_api_endpoint(vision);
+    settings.set_visual_model_id(http_visual_model_id(id));
+    settings.set_llm_choice(LLMChoice::Remote_Gemini);
+    LLMSelectionDialog dialog(settings);
+    CHECK(dialog.get_selected_llm_choice() == LLMChoice::Remote_Gemini);
+    CHECK(dialog.get_selected_visual_model_id() == http_visual_model_id(id));
+    CHECK(LLMSelectionDialogTestAccess::selected_visual_model_label(dialog) == "Connection: Image server");
+    auto* downloads = dialog.findChild<QToolButton*>(QStringLiteral("modelDownloadsToggle"));
+    REQUIRE(downloads);
+    CHECK_FALSE(downloads->isHidden());
+    downloads->setChecked(true);
+    auto* combo = LLMSelectionDialogTestAccess::visual_model_combo(dialog);
+    REQUIRE(combo);
+    CHECK(combo->isVisibleTo(&dialog));
+    const auto model = LLMSelectionDialogTestAccess::llava_model_entry(dialog);
+    REQUIRE(model.download_button);
+    CHECK(model.status_label->parentWidget()->isHidden());
+    LLMSelectionDialogTestAccess::select_visual_backend(dialog, "gemma-3-4b-it");
+    CHECK(dialog.get_selected_visual_model_id() == "gemma-3-4b-it");
+    LLMSelectionDialogTestAccess::select_visual_backend(dialog, http_visual_model_id(id));
+    CHECK(dialog.get_selected_visual_model_id() == http_visual_model_id(id));
+    CHECK(dialog.get_selected_llm_choice() == LLMChoice::Remote_Gemini);
+}
 
 #ifndef _WIN32
 namespace {
@@ -205,7 +239,7 @@ TEST_CASE("Visual backend selection switches descriptor-driven download state") 
           QStringLiteral("Missing download URL environment variable (GEMMA3_4B_MODEL_URL)."));
 }
 
-TEST_CASE("Visual dialog defaults to recommended Gemma backend") {
+TEST_CASE("Visual dialog defaults to recommended Qwen backend") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
 
@@ -216,9 +250,13 @@ TEST_CASE("Visual dialog defaults to recommended Gemma backend") {
     Settings settings;
     LLMSelectionDialog dialog(settings);
 
-    CHECK(LLMSelectionDialogTestAccess::selected_visual_model_id(dialog) == "gemma-3-4b-it");
+    CHECK(settings.get_visual_model_id() == "qwen3.5-4b");
+    CHECK(LLMSelectionDialogTestAccess::selected_visual_model_id(dialog) == "qwen3.5-4b");
     CHECK(LLMSelectionDialogTestAccess::selected_visual_model_label(dialog) ==
-          "Gemma 3 4B IT (Recommended)");
+          "Qwen3.5 4B (Recommended)");
+    auto* combo = LLMSelectionDialogTestAccess::visual_model_combo(dialog);
+    REQUIRE(combo != nullptr);
+    CHECK(combo->currentIndex() == 0);
 }
 
 TEST_CASE("Visual dialog does not mark another backend's legacy generic mmproj as downloaded") {

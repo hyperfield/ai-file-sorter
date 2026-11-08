@@ -92,13 +92,15 @@ review_file_path_for(const HeadlessAnalysisCommand::Options& options,
  * @param entries Review entries to persist.
  * @param apply_options Apply options to replay later.
  * @param error Receives a diagnostic on failure.
+ * @param preview_result Optional dry-run result in entry order, supplying authoritative planned destinations.
  * @return True when the file was written successfully.
  */
 bool write_review_plan_file(const std::filesystem::path& path,
                             const HeadlessAnalysisCommand::Options& options,
                             const std::vector<CategorizedFile>& entries,
                             const HeadlessReviewApplyService::Options& apply_options,
-                            std::string* error);
+                            std::string* error,
+                            const HeadlessReviewApplyService::Result* preview_result = nullptr);
 
 /**
  * @brief Read and validate a headless review plan JSON file.

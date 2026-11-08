@@ -18,6 +18,7 @@
 
 class CategorizationService;
 class DatabaseManager;
+class FolderStructurePluginManager;
 class ILLMClient;
 class IStorageProvider;
 class ResultsCoordinator;
@@ -29,6 +30,8 @@ namespace spdlog { class logger; }
  * @brief Owns non-GUI services needed to run the analysis workflow from headless integrations.
  */
 class HeadlessAnalysisWorkflowHost {
+    /** @brief Allows focused tests to inspect the effective, non-persistent settings overlay. */
+    friend class HeadlessAnalysisWorkflowHostTestAccess;
 public:
     /**
      * @brief Headless operation semantics applied as an in-memory settings overlay.
@@ -114,6 +117,12 @@ public:
     std::string folder_path() const;
 
     /**
+     * @brief Return the normalized destination root for category moves.
+     * @return UTF-8 destination folder path, falling back to the analyzed folder.
+     */
+    std::string destination_folder() const;
+
+    /**
      * @brief Return whether subcategory folders should be created.
      * @return True when subcategory folders are enabled.
      */
@@ -124,6 +133,12 @@ public:
      * @return True when recursive scanning is enabled.
      */
     bool include_subdirectories() const;
+
+    /**
+     * @brief Return whether existing-folder sorting may suggest new folders.
+     * @return True when new target folders may be created after review approval.
+     */
+    bool suggest_new_folders() const;
 
     /**
      * @brief Return the category language configured for the run.
@@ -298,6 +313,7 @@ private:
     std::unique_ptr<DatabaseManager> db_manager_;
     std::unique_ptr<UserLearningStore> user_learning_store_;
     std::unique_ptr<WhitelistStore> whitelist_store_;
+    std::unique_ptr<FolderStructurePluginManager> folder_structure_plugin_manager_;
     std::shared_ptr<spdlog::logger> core_logger_;
     std::unique_ptr<CategorizationService> categorization_service_;
     std::unique_ptr<ResultsCoordinator> results_coordinator_;

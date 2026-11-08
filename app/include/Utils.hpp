@@ -54,14 +54,23 @@ public:
     static std::string get_default_llm_destination();
     static std::string get_file_name_from_url(std::string url);
     static std::string make_default_path_to_file_from_download_url(std::string url);
+    /**
+     * @brief Check the usable CUDA stack and its own payload, independent of CPU/Vulkan selection.
+     * @return True for a usable driver/runtime and, when present, a loadable CUDA payload.
+     * Callers requiring CUDA inference must also check the registered ggml CUDA device.
+     */
     static bool is_cuda_available();
     static int get_installed_cuda_runtime_version();
     static std::string get_cudart_dll_name();
     static std::string abbreviate_user_path(const std::string& path);
-    static std::filesystem::path ensure_ca_bundle();
     static std::string path_to_utf8(const std::filesystem::path& path);
     static std::filesystem::path utf8_to_path(const std::string& utf8_path);
+    /** @brief Build a native filesystem lookup key while preserving stored path spellings. */
+    static std::string filesystem_comparison_key(const std::string& path);
     static std::string sanitize_path_label(const std::string& value);
+    // Byte-oriented parsers must leave non-ASCII UTF-8 bytes unchanged.
+    static constexpr bool is_ascii_control(unsigned char ch) { return ch < 0x20 || ch == 0x7f; }
+    static constexpr bool is_ascii_space(unsigned char ch) { return ch == ' ' || (ch >= '\t' && ch <= '\r'); }
 
 private:
     static int get_ngl(int vram_mb);

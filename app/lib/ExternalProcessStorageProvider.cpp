@@ -436,9 +436,22 @@ StorageMutationResult ExternalProcessStorageProvider::move_entry(const std::stri
 StorageMutationResult ExternalProcessStorageProvider::undo_move(const std::string& source,
                                                                 const std::string& destination) const
 {
+    return undo_move(source, destination, {});
+}
+
+StorageMutationResult ExternalProcessStorageProvider::undo_move(
+    const std::string& source,
+    const std::string& destination,
+    const std::vector<std::string>& created_directories) const
+{
     QJsonObject request = make_request(manifest_, provider_id_, "undo_move");
     request["source"] = QString::fromStdString(source);
     request["destination"] = QString::fromStdString(destination);
+    QJsonArray created_directories_json;
+    for (const auto& directory : created_directories) {
+        created_directories_json.push_back(QString::fromStdString(directory));
+    }
+    request["created_directories"] = created_directories_json;
 
     QJsonObject response;
     std::string error;

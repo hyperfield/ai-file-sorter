@@ -17,18 +17,6 @@ struct LlmStorageOverrideGuard {
     }
 };
 
-struct CaBundleCacheGuard {
-    CaBundleCacheGuard()
-    {
-        TestHooks::reset_ca_bundle_cache();
-    }
-
-    ~CaBundleCacheGuard()
-    {
-        TestHooks::reset_ca_bundle_cache();
-    }
-};
-
 } // namespace
 
 TEST_CASE("get_file_name_from_url extracts filename") {
@@ -49,19 +37,6 @@ TEST_CASE("LLM storage override changes default download destination") {
     const std::filesystem::path resolved =
         Utils::make_default_path_to_file_from_download_url("https://example.com/models/custom.gguf");
     CHECK(resolved == temp_dir.path() / "custom.gguf");
-}
-
-TEST_CASE("ensure_ca_bundle stages embedded certificate under writable app data") {
-    CaBundleCacheGuard cache_guard;
-    TempDir config_dir;
-    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
-
-    const std::filesystem::path cert_path = Utils::ensure_ca_bundle();
-
-    CHECK(cert_path == config_dir.path() / "AIFileSorter" / "certs" / "cacert.pem");
-    REQUIRE(std::filesystem::exists(cert_path));
-    CHECK(std::filesystem::file_size(cert_path) > 0);
-    CHECK_FALSE(cert_path.string().find("WindowsApps") != std::string::npos);
 }
 
 TEST_CASE("is_cuda_available honors probe overrides") {
@@ -100,6 +75,16 @@ TEST_CASE("sanitize_path_label preserves valid Unicode emoji labels") {
     const std::string label = "AB Testing ☁️";
 
     REQUIRE(Utils::sanitize_path_label(label) == label);
+}
+
+TEST_CASE("sanitize_path_label preserves UTF-8 and removes Unicode controls") {
+    for (const std::string label : {"Økonomi", "会议", "Café", "नमस्ते", "🧪 Results"}) {
+        CHECK(Utils::sanitize_path_label(label) == label);
+    }
+    CHECK(Utils::sanitize_path_label("Cafe\xcc\x81") == "Caf\xc3\xa9");
+    CHECK(Utils::sanitize_path_label(std::string("A\0B", 3)) == "AB");
+    CHECK(Utils::sanitize_path_label("A\xc2\x85" "B") == "AB");
+    CHECK(Utils::sanitize_path_label("  A\xc2\xa0" "B...  ") == "A B");
 }
 
 TEST_CASE("format_size keeps byte values in bytes below one kilobyte") {

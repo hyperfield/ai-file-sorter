@@ -257,6 +257,10 @@ else
     fi
 fi
 
+if [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]]; then
+    QT_FLAGS="$QT_FLAGS -include arm_acle.h"
+fi
+
 LRELEASE="$(find_qt6_lrelease || true)"
 LUPDATE="$(find_qt6_lupdate || true)"
 
@@ -280,7 +284,8 @@ for ts_file in "${TS_FILES[@]}"; do
     cp "$ts_file" "$sync_tmp_dir/"
 done
 
-"$LUPDATE" "${LUPDATE_SOURCES[@]}" -ts "$sync_tmp_dir"/aifilesorter_*.ts -no-obsolete >/dev/null
+"$LUPDATE" "-I$ROOT_DIR/app/include" "${LUPDATE_SOURCES[@]}" \
+    -ts "$sync_tmp_dir"/aifilesorter_*.ts -no-obsolete >/dev/null
 
 if rg -n '<translation type="unfinished"' "$sync_tmp_dir"/aifilesorter_*.ts >/dev/null; then
     echo "Current GUI source contains strings missing from the translation catalogs" >&2
@@ -291,5 +296,5 @@ fi
 "$LRELEASE" "$ROOT_DIR/app/resources/i18n/aifilesorter_fr.ts" -qm "$BUILD_DIR/i18n/aifilesorter_fr.qm"
 
 # shellcheck disable=SC2086
-g++ -std=c++20 -fPIC $QT_FLAGS "$SRC" "$ROOT_DIR/app/lib/TranslationManager.cpp" -o "$OUTPUT" $QT_LIB_FLAGS
+"${CXX:-c++}" -std=c++20 -fPIC $QT_FLAGS "$SRC" "$ROOT_DIR/app/lib/TranslationManager.cpp" -o "$OUTPUT" $QT_LIB_FLAGS
 QT_QPA_PLATFORM=offscreen "$OUTPUT"

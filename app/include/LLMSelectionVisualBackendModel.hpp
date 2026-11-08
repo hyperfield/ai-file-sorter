@@ -34,12 +34,16 @@ QString visual_backend_combo_label(const VisualModelDescriptor& backend,
  * @param custom_llms Configured custom local LLMs.
  * @param recommended_label Localized text for the recommended marker.
  * @param custom_label_template Localized template containing `%1` for the custom LLM name.
+ * @param api_endpoints Configured API connections, filtered to vision-capable entries.
+ * @param api_label_template Localized template containing `%1` for the connection name.
  * @return Ordered combo items.
  */
 std::vector<LLMSelectionVisualBackendItem> build_visual_backend_items(
     const std::vector<CustomLLM>& custom_llms,
     const QString& recommended_label,
-    const QString& custom_label_template);
+    const QString& custom_label_template,
+    const std::vector<CustomApiEndpoint>& api_endpoints = {},
+    const QString& api_label_template = QStringLiteral("%1"));
 
 /**
  * @brief Pick the best selectable visual backend id.

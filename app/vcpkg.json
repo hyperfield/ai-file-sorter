@@ -1,12 +1,17 @@
 {
   "name": "ai-file-sorter",
-  "version-string": "0.1.0",
+  "version-string": "2.0.0",
   "description": "AI File Sorter (Qt6) - Windows build dependencies",
   "builtin-baseline": "3b9d086009cc1c2256e9c28ad44a00036fbd9b26",
   "dependencies": [
     "qtbase",
     "qttools",
-    "curl",
+    {
+      "name": "curl",
+      "$comment": "Pinned curl ssl+sspi selects Schannel on Windows. Keep alternate TLS/http3 features disabled and verify the active packaged DLL at runtime.",
+      "default-features": false,
+      "features": ["non-http", "ssl", "sspi"]
+    },
     "jsoncpp",
     "sqlite3",
     "openssl",

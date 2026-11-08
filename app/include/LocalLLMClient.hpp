@@ -1,9 +1,13 @@
 #pragma once
 
 #include "ILLMClient.hpp"
+#include "ILLMRequestControl.hpp"
+#include "LocalInferenceOptions.hpp"
 #include "Types.hpp"
 #include "llama.h"
 #include <functional>
+#include <atomic>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -11,8 +15,10 @@
 
 namespace spdlog { class logger; }
 
-class LocalLLMClient : public ILLMClient {
+class LocalLLMClient : public ILLMClient, public ILLMRequestControl {
 public:
+    /** @brief Select the request's sampling policy independently of its prompt wording. */
+    enum class RequestKind { General, ExistingFolderSelection };
     /**
      * @brief Per-client local runtime options.
      */
@@ -21,6 +27,12 @@ public:
          * @brief Force this local client to load and run on CPU regardless of process GPU settings.
          */
         bool force_cpu_backend{false};
+        /** Require this exact execution backend for compatibility measurements. */
+        std::string required_backend;
+        /** @brief Injected controls, or empty to resolve opt-in environment settings. */
+        std::optional<LocalInferenceOptions> inference;
+        /** @brief Maximum adaptive document context, or zero for the shared environment/default policy. */
+        int document_context_limit_tokens{0};
     };
 
     /**
@@ -63,14 +75,49 @@ public:
     std::string generate_response(const std::string& prompt,
                                   int n_predict,
                                   bool apply_sanitizer = true,
-                                  const std::string& system_prompt = {});
+                                  const std::string& system_prompt = {},
+                                  const LLMResponseConstraint& constraint = {},
+                                  RequestKind kind = RequestKind::General);
     std::string categorize_file(const std::string& file_name,
                                 const std::string& file_path,
                                 FileType file_type,
                                 const std::string& consistency_context) override;
+    /**
+     * @brief Categorize with a per-request schema enforced by the native grammar sampler.
+     * @param file_name Item name.
+     * @param file_path Source path without embedded evidence.
+     * @param file_type Item kind.
+     * @param consistency_context Complete routing instructions and content evidence.
+     * @param constraint Structured response contract; empty leaves generation unconstrained.
+     * @return Unsanitized structured reply for folder routing.
+     * @throws ResponseConstraintError If the requested constraint cannot be installed.
+     */
+    std::string categorize_file_constrained(const std::string& file_name,
+        const std::string& file_path, FileType file_type, const std::string& consistency_context,
+        const LLMResponseConstraint& constraint) override;
     std::string complete_prompt(const std::string& prompt,
                                 int max_tokens) override;
+    /**
+     * @brief Count the complete native chat template and document response reserve.
+     * @param prompt User completion task including document evidence.
+     * @param max_tokens Requested output reserve before inference overrides.
+     * @return Exact token count, ordinary context, and model/runtime document ceiling.
+     */
+    std::optional<CompletionBudget> completion_budget(const std::string& prompt, int max_tokens) const override;
+    /**
+     * @brief Grow only this document request's context within model and allocation limits.
+     * @param prompt Full user task and evidence to retain.
+     * @param max_tokens Requested maximum completion tokens.
+     * @return Raw document completion; ordinary context settings are restored afterward.
+     * @throws PromptBudgetError When the caller must split the document evidence.
+     */
+    std::string complete_document_prompt(const std::string& prompt, int max_tokens) override;
     void set_prompt_logging_enabled(bool enabled) override;
+    /**
+     * @brief Set or clear the cooperative deadline for a timed inference request.
+     * @param deadline Monotonic deadline, or empty to disable cancellation.
+     */
+    void set_request_deadline(std::optional<Clock::time_point> deadline) noexcept override;
     /**
      * @brief Registers a status callback for runtime events.
      * @param callback Callback to invoke when status events occur.
@@ -83,6 +130,16 @@ public:
     void set_fallback_decision_callback(FallbackDecisionCallback callback);
 
 private:
+    std::string generate_response_with_options(const std::string& prompt, int n_predict,
+        bool apply_sanitizer, const std::string& system_prompt, const LLMResponseConstraint& constraint,
+        const LocalInferenceOptions& request_options);
+    /**
+     * @brief Check the request deadline without touching backend objects from another thread.
+     * @param client Owning LocalLLMClient, passed through the llama.cpp callback.
+     * @return True after its request deadline expires.
+     */
+    static bool request_expired(void* client);
+    std::atomic<Clock::duration::rep> request_deadline_{std::numeric_limits<Clock::duration::rep>::max()};
     void load_model_if_needed();
     void configure_llama_logging(const std::shared_ptr<spdlog::logger>& logger) const;
     llama_model_params prepare_model_params(const std::shared_ptr<spdlog::logger>& logger);
@@ -102,8 +159,11 @@ private:
     llama_sampler* smpl;
     std::string sanitize_output(const std::string& output);
     llama_context_params ctx_params;
+    int document_context_limit_tokens_{0};
     bool prompt_logging_enabled{false};
     Options options_;
+    ggml_backend_dev_t required_devices_[2]{nullptr, nullptr};
+    LocalInferenceOptions inference_;
     StatusCallback status_callback_;
     FallbackDecisionCallback fallback_decision_callback_;
     std::vector<Status> pending_statuses_;

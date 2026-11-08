@@ -1,7 +1,9 @@
 #include "DatabaseTaxonomyNormalizer.hpp"
 
+#include <QList>
+#include <QString>
+
 #include <algorithm>
-#include <cctype>
 #include <optional>
 #include <sstream>
 #include <string_view>
@@ -58,13 +60,7 @@ struct SemanticFamily {
 
 std::string trim_copy(std::string value)
 {
-    auto is_space = [](unsigned char ch) { return std::isspace(ch); };
-    value.erase(value.begin(), std::find_if(value.begin(), value.end(),
-                                            [&](unsigned char ch) { return !is_space(ch); }));
-    value.erase(std::find_if(value.rbegin(), value.rend(),
-                             [&](unsigned char ch) { return !is_space(ch); }).base(),
-                value.end());
-    return value;
+    return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())).trimmed().toStdString();
 }
 
 std::optional<CanonicalCategoryLabel> canonicalize_broad_main_label(const std::string& normalized_label)
@@ -337,29 +333,42 @@ CanonicalCategoryLabel canonicalize_category_label(const std::string& normalized
 
 std::string normalize_label(const std::string& input)
 {
-    std::string result;
-    result.reserve(input.size());
+    const auto characters = QString::fromUtf8(input.data(), static_cast<qsizetype>(input.size()))
+                                .normalized(QString::NormalizationForm_C)
+                                .toCaseFolded()
+                                .normalized(QString::NormalizationForm_C)
+                                .toUcs4();
+    std::u32string result;
+    result.reserve(characters.size());
 
     bool last_was_space = true;
-    for (unsigned char ch : input) {
-        if (std::isalnum(ch)) {
-            result.push_back(static_cast<char>(std::tolower(ch)));
+    bool allow_mark = false;
+    for (char32_t ch : characters) {
+        const auto category = QChar::category(ch);
+        const bool is_mark = category == QChar::Mark_NonSpacing ||
+                             category == QChar::Mark_SpacingCombining ||
+                             category == QChar::Mark_Enclosing;
+        if (QChar::isLetterOrNumber(ch)) {
+            result.push_back(ch);
             last_was_space = false;
-        } else if (std::isspace(ch)) {
+            allow_mark = true;
+        } else if (is_mark && allow_mark) {
+            result.push_back(ch);
+        } else if (QChar::isSpace(ch)) {
             if (!last_was_space) {
-                result.push_back(' ');
+                result.push_back(U' ');
                 last_was_space = true;
             }
+            allow_mark = false;
+        } else {
+            allow_mark = false;
         }
     }
 
-    while (!result.empty() && result.front() == ' ') {
-        result.erase(result.begin());
-    }
-    while (!result.empty() && result.back() == ' ') {
+    if (!result.empty() && result.back() == U' ') {
         result.pop_back();
     }
-    return result;
+    return QString::fromUcs4(result.data(), static_cast<qsizetype>(result.size())).toStdString();
 }
 
 std::string strip_trailing_stopwords(const std::string& normalized)
@@ -471,8 +480,10 @@ double string_similarity(const std::string& a, const std::string& b)
         return 0.0;
     }
 
-    const size_t m = a.size();
-    const size_t n = b.size();
+    const auto left = QString::fromUtf8(a.data(), static_cast<qsizetype>(a.size())).toUcs4();
+    const auto right = QString::fromUtf8(b.data(), static_cast<qsizetype>(b.size())).toUcs4();
+    const size_t m = static_cast<size_t>(left.size());
+    const size_t n = static_cast<size_t>(right.size());
     std::vector<size_t> prev(n + 1), curr(n + 1);
 
     for (size_t j = 0; j <= n; ++j) {
@@ -482,7 +493,7 @@ double string_similarity(const std::string& a, const std::string& b)
     for (size_t i = 1; i <= m; ++i) {
         curr[0] = i;
         for (size_t j = 1; j <= n; ++j) {
-            size_t cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+            size_t cost = (left[i - 1] == right[j - 1]) ? 0 : 1;
             curr[j] = std::min({prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost});
         }
         std::swap(prev, curr);

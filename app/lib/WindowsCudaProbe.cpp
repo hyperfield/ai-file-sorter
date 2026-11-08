@@ -1,4 +1,5 @@
 #include "WindowsCudaProbe.hpp"
+#include "WindowsCudaRuntimeSelection.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -14,6 +15,46 @@
 #endif
 
 namespace WindowsCudaProbe {
+
+#ifdef _WIN32
+namespace {
+std::filesystem::path current_executable_path() {
+    std::wstring buffer(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length == 0 || length >= buffer.size()) {
+        return {};
+    }
+    buffer.resize(length);
+    return std::filesystem::path(buffer);
+}
+}  // namespace
+#endif
+
+std::optional<std::filesystem::path> resolve_backend_directory(
+    const std::filesystem::path& executable_path, const std::optional<std::filesystem::path>& preferred_directory) {
+    std::vector<std::filesystem::path> candidates;
+    if (preferred_directory && !preferred_directory->empty()) {
+        candidates.push_back(*preferred_directory);
+    }
+    auto native_executable = executable_path;
+#ifdef _WIN32
+    if (native_executable.empty()) {
+        native_executable = current_executable_path();
+    }
+#endif
+    if (!native_executable.empty()) {
+        const auto root = native_executable.parent_path();
+        candidates.push_back(root / "lib" / "ggml" / "wcuda");
+        candidates.push_back(root / "ggml" / "wcuda");
+    }
+    for (const auto& directory : candidates) {
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(directory / "ggml-cuda.dll", ec)) {
+            return directory.lexically_normal();
+        }
+    }
+    return std::nullopt;
+}
 
 #ifdef _WIN32
 namespace {
@@ -78,209 +119,13 @@ std::wstring normalize_key(const std::filesystem::path& path)
     return to_lower_copy(path.lexically_normal().wstring());
 }
 
-enum class RuntimeDirectorySource {
-    ToolkitHint,
-    Path,
-};
-
-enum class RuntimePathKind {
-    ToolkitBinX64,
-    ToolkitBin,
-    ToolkitRoot,
-    Generic,
-    PhysX,
-};
+using RuntimeDirectorySource = WindowsCudaRuntimeSelection::DirectorySource;
+using RuntimeCandidate = WindowsCudaRuntimeSelection::Candidate;
 
 struct RuntimeDirectoryCandidate {
     std::filesystem::path path;
     RuntimeDirectorySource source{RuntimeDirectorySource::Path};
 };
-
-struct ParsedRuntimeToken {
-    int token{0};
-    int rank{0};
-};
-
-constexpr std::wstring_view kToolkitRootMarker = L"\\nvidia gpu computing toolkit\\cuda\\";
-constexpr std::wstring_view kPhysXRootMarker = L"\\nvidia corporation\\physx\\common";
-
-int normalize_runtime_version_rank(int token_value, std::size_t digit_count)
-{
-    if (token_value <= 0 || digit_count == 0) {
-        return 0;
-    }
-
-    if (digit_count >= 3) {
-        const int divisor = digit_count == 3 ? 10 : 100;
-        const int major = token_value / divisor;
-        const int minor = token_value % divisor;
-        return major * 100 + minor;
-    }
-
-    if (digit_count == 2) {
-        if (token_value >= 50) {
-            const int major = token_value / 10;
-            const int minor = token_value % 10;
-            return major * 100 + minor;
-        }
-        return token_value * 100;
-    }
-
-    return token_value * 100;
-}
-
-int runtime_directory_source_priority(RuntimeDirectorySource source)
-{
-    switch (source) {
-    case RuntimeDirectorySource::ToolkitHint:
-        return 0;
-    case RuntimeDirectorySource::Path:
-        return 1;
-    }
-    return 2;
-}
-
-int runtime_path_kind_priority(RuntimePathKind kind)
-{
-    switch (kind) {
-    case RuntimePathKind::ToolkitBinX64:
-        return 0;
-    case RuntimePathKind::ToolkitBin:
-        return 1;
-    case RuntimePathKind::ToolkitRoot:
-        return 2;
-    case RuntimePathKind::Generic:
-        return 3;
-    case RuntimePathKind::PhysX:
-        return 4;
-    }
-    return 5;
-}
-
-std::optional<ParsedRuntimeToken> parse_runtime_version_token_info(const std::filesystem::path& path)
-{
-    const std::wstring name = to_lower_copy(path.filename().wstring());
-    constexpr std::wstring_view prefix = L"cudart64_";
-    constexpr std::wstring_view suffix = L".dll";
-    if (!name.starts_with(prefix) || !name.ends_with(suffix) || name.size() <= prefix.size() + suffix.size()) {
-        return std::nullopt;
-    }
-
-    const std::wstring token = name.substr(prefix.size(), name.size() - prefix.size() - suffix.size());
-    if (token.empty() || !std::all_of(token.begin(), token.end(), [](wchar_t ch) { return std::iswdigit(ch) != 0; })) {
-        return std::nullopt;
-    }
-
-    try {
-        const int token_value = std::stoi(token);
-        return ParsedRuntimeToken{token_value, normalize_runtime_version_rank(token_value, token.size())};
-    } catch (...) {
-        return std::nullopt;
-    }
-}
-
-std::optional<int> parse_toolkit_version_rank(const std::filesystem::path& path)
-{
-    const std::wstring key = normalize_key(path);
-    const size_t marker_pos = key.find(kToolkitRootMarker);
-    if (marker_pos == std::wstring::npos) {
-        return std::nullopt;
-    }
-
-    size_t cursor = marker_pos + kToolkitRootMarker.size();
-    if (cursor >= key.size() || key[cursor] != L'v') {
-        return std::nullopt;
-    }
-    ++cursor;
-
-    size_t major_start = cursor;
-    while (cursor < key.size() && std::iswdigit(key[cursor]) != 0) {
-        ++cursor;
-    }
-    if (cursor == major_start) {
-        return std::nullopt;
-    }
-
-    int major = 0;
-    try {
-        major = std::stoi(key.substr(major_start, cursor - major_start));
-    } catch (...) {
-        return std::nullopt;
-    }
-
-    int minor = 0;
-    if (cursor < key.size() && key[cursor] == L'.') {
-        ++cursor;
-        size_t minor_start = cursor;
-        while (cursor < key.size() && std::iswdigit(key[cursor]) != 0) {
-            ++cursor;
-        }
-        if (cursor > minor_start) {
-            try {
-                minor = std::stoi(key.substr(minor_start, cursor - minor_start));
-            } catch (...) {
-                minor = 0;
-            }
-        }
-    }
-
-    return major * 100 + minor;
-}
-
-RuntimePathKind classify_runtime_path(const std::filesystem::path& path)
-{
-    const std::wstring key = normalize_key(path.parent_path());
-    if (key.find(kPhysXRootMarker) != std::wstring::npos) {
-        return RuntimePathKind::PhysX;
-    }
-    if (key.find(kToolkitRootMarker) != std::wstring::npos) {
-        if (key.find(L"\\bin\\x64") != std::wstring::npos) {
-            return RuntimePathKind::ToolkitBinX64;
-        }
-        if (key.find(L"\\bin") != std::wstring::npos) {
-            return RuntimePathKind::ToolkitBin;
-        }
-        return RuntimePathKind::ToolkitRoot;
-    }
-    return RuntimePathKind::Generic;
-}
-
-struct RuntimeCandidate {
-    std::filesystem::path path;
-    int version_token{0};
-    int version_rank{0};
-    RuntimeDirectorySource source{RuntimeDirectorySource::Path};
-    RuntimePathKind path_kind{RuntimePathKind::Generic};
-};
-
-std::vector<RuntimeCandidate> sort_runtime_candidates(std::vector<RuntimeCandidate> candidates)
-{
-    std::sort(candidates.begin(), candidates.end(), [](const RuntimeCandidate& lhs, const RuntimeCandidate& rhs) {
-        const int lhs_source_priority = runtime_directory_source_priority(lhs.source);
-        const int rhs_source_priority = runtime_directory_source_priority(rhs.source);
-        if (lhs_source_priority != rhs_source_priority) {
-            return lhs_source_priority < rhs_source_priority;
-        }
-
-        const int lhs_kind_priority = runtime_path_kind_priority(lhs.path_kind);
-        const int rhs_kind_priority = runtime_path_kind_priority(rhs.path_kind);
-        if (lhs_kind_priority != rhs_kind_priority) {
-            return lhs_kind_priority < rhs_kind_priority;
-        }
-
-        if (lhs.version_rank != rhs.version_rank) {
-            return lhs.version_rank > rhs.version_rank;
-        }
-
-        if (lhs.version_token != rhs.version_token) {
-            return lhs.version_token > rhs.version_token;
-        }
-
-        return normalize_key(lhs.path) < normalize_key(rhs.path);
-    });
-
-    return candidates;
-}
 
 void append_unique(std::vector<RuntimeDirectoryCandidate>& paths,
                    const std::filesystem::path& candidate,
@@ -412,9 +257,16 @@ void add_default_cuda_roots(std::vector<RuntimeDirectoryCandidate>& directories)
     }
 }
 
-std::vector<RuntimeDirectoryCandidate> candidate_runtime_directories()
-{
+std::vector<RuntimeDirectoryCandidate> candidate_runtime_directories(
+    const std::optional<std::filesystem::path>& ggml_directory) {
     std::vector<RuntimeDirectoryCandidate> directories;
+    if (ggml_directory) {
+        append_unique(directories, *ggml_directory, RuntimeDirectorySource::Bundled);
+    }
+    const auto packaged_directory = resolve_backend_directory(current_executable_path());
+    if (packaged_directory) {
+        append_unique(directories, *packaged_directory, RuntimeDirectorySource::Bundled);
+    }
     add_cuda_env_roots(directories);
     add_default_cuda_roots(directories);
 
@@ -425,50 +277,44 @@ std::vector<RuntimeDirectoryCandidate> candidate_runtime_directories()
     return directories;
 }
 
-std::vector<RuntimeCandidate> candidate_runtime_libraries()
-{
-    std::vector<RuntimeCandidate> candidates;
-
-    for (const auto& directory : candidate_runtime_directories()) {
-        std::error_code ec;
-        for (const auto& entry : std::filesystem::directory_iterator(
-                 directory.path,
-                 kDirectoryIteratorOptions,
-                 ec)) {
-            if (ec) {
-                break;
-            }
-            std::error_code entry_ec;
-            if (!entry.is_regular_file(entry_ec) || entry_ec) {
-                continue;
-            }
-
-            const auto version_info = parse_runtime_version_token_info(entry.path());
-            if (!version_info.has_value()) {
-                continue;
-            }
-
-            const std::wstring key = normalize_key(entry.path());
-            const auto duplicate = std::find_if(candidates.begin(), candidates.end(), [&](const RuntimeCandidate& candidate) {
-                return normalize_key(candidate.path) == key;
-            });
-            if (duplicate == candidates.end()) {
-                int version_rank = version_info->rank;
-                if (const auto toolkit_rank = parse_toolkit_version_rank(entry.path())) {
-                    version_rank = *toolkit_rank;
-                }
-                candidates.push_back(RuntimeCandidate{
-                    entry.path().lexically_normal(),
-                    version_info->token,
-                    version_rank,
-                    directory.source,
-                    classify_runtime_path(entry.path()),
-                });
-            }
+void append_runtime_candidates(std::vector<RuntimeCandidate>& candidates, const RuntimeDirectoryCandidate& directory) {
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(directory.path, kDirectoryIteratorOptions, ec)) {
+        if (ec) {
+            break;
+        }
+        std::error_code entry_ec;
+        if (!entry.is_regular_file(entry_ec) || entry_ec) {
+            continue;
+        }
+        const auto parsed = WindowsCudaRuntimeSelection::candidate_for_path(entry.path(), directory.source);
+        if (!parsed) {
+            continue;
+        }
+        const auto key = normalize_key(entry.path());
+        const auto duplicate =
+            std::find_if(candidates.begin(), candidates.end(),
+                         [&](const RuntimeCandidate& candidate) { return normalize_key(candidate.path) == key; });
+        if (duplicate == candidates.end()) {
+            candidates.push_back(*parsed);
         }
     }
+}
 
-    return sort_runtime_candidates(std::move(candidates));
+std::vector<RuntimeCandidate> candidate_runtime_libraries(const std::optional<std::filesystem::path>& ggml_directory) {
+    std::vector<RuntimeCandidate> candidates;
+    for (const auto& directory : candidate_runtime_directories(ggml_directory)) {
+        append_runtime_candidates(candidates, directory);
+    }
+    candidates = WindowsCudaRuntimeSelection::rank_candidates(std::move(candidates));
+    if (!candidates.empty() && candidates.front().source == RuntimeDirectorySource::Bundled) {
+        // A failing bundled runtime must not be masked by an unrelated toolkit/PhysX
+        // runtime that can initialize while the actual backend needs a newer driver.
+        std::erase_if(candidates, [](const RuntimeCandidate& candidate) {
+            return candidate.source != RuntimeDirectorySource::Bundled;
+        });
+    }
+    return candidates;
 }
 
 LibraryHandle load_library_from_path(const std::filesystem::path& path)
@@ -574,17 +420,16 @@ std::vector<DllDirectoryCookie> add_user_directories(const std::vector<std::file
     return cookies;
 }
 
-bool can_load_cuda_backend(const std::filesystem::path& ggml_directory,
-                           const std::filesystem::path& runtime_directory)
-{
+std::uint32_t cuda_backend_load_error(const std::filesystem::path& ggml_directory,
+                                      const std::filesystem::path& runtime_directory) {
     if (ggml_directory.empty()) {
-        return false;
+        return ERROR_PATH_NOT_FOUND;
     }
 
     const std::filesystem::path backend_path = ggml_directory / L"ggml-cuda.dll";
     std::error_code ec;
     if (!std::filesystem::exists(backend_path, ec)) {
-        return false;
+        return ERROR_FILE_NOT_FOUND;
     }
 
     const auto cookies = add_user_directories({ggml_directory, runtime_directory});
@@ -594,11 +439,10 @@ bool can_load_cuda_backend(const std::filesystem::path& ggml_directory,
         backend_path.c_str(),
         nullptr,
         LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS));
-    return backend.valid();
+    return backend.valid() ? ERROR_SUCCESS : GetLastError();
 }
 
-ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_directory)
-{
+ProbeResult probe_driver() {
     ProbeResult result;
 
     LibraryHandle driver(LoadLibraryW(L"nvcuda.dll"));
@@ -624,7 +468,45 @@ ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_director
         }
     }
 
-    const auto candidates = candidate_runtime_libraries();
+    return result;
+}
+
+void record_runtime(ProbeResult& result, const RuntimeCandidate& candidate, int device_count) {
+    result.runtime_library_path = candidate.path;
+    result.runtime_version_token = candidate.version_token;
+    result.runtime_usable = true;
+    result.device_count = device_count;
+}
+
+bool try_runtime(ProbeResult& result, const RuntimeCandidate& candidate,
+                 const std::optional<std::filesystem::path>& ggml_directory) {
+    int device_count = 0;
+    if (!runtime_has_usable_device(candidate.path, &device_count)) {
+        return false;
+    }
+
+    const bool preferred_runtime = !result.runtime_usable;
+    if (preferred_runtime) {
+        record_runtime(result, candidate, device_count);
+    }
+    const auto load_error = ggml_directory && !ggml_directory->empty()
+                                ? cuda_backend_load_error(*ggml_directory, candidate.path.parent_path())
+                                : ERROR_SUCCESS;
+    if (load_error == ERROR_SUCCESS) {
+        record_runtime(result, candidate, device_count);
+        result.backend_load_error = 0;
+        result.backend_loadable = true;
+        return true;
+    }
+    if (preferred_runtime) {
+        result.backend_load_error = load_error;
+    }
+    return false;
+}
+
+ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_directory) {
+    ProbeResult result = probe_driver();
+    const auto candidates = candidate_runtime_libraries(ggml_directory);
     if (candidates.empty()) {
         result.failure_reason = "no_cuda_runtime_found";
         return result;
@@ -633,25 +515,7 @@ ProbeResult probe_impl(const std::optional<std::filesystem::path>& ggml_director
     for (const auto& candidate : candidates) {
         result.runtime_present = true;
 
-        int device_count = 0;
-        if (!runtime_has_usable_device(candidate.path, &device_count)) {
-            continue;
-        }
-
-        result.runtime_library_path = candidate.path;
-        result.runtime_version_token = candidate.version_token;
-        result.runtime_usable = true;
-        if (device_count > 0) {
-            result.device_count = device_count;
-        }
-
-        if (!ggml_directory.has_value() || ggml_directory->empty()) {
-            result.backend_loadable = true;
-            return result;
-        }
-
-        if (can_load_cuda_backend(*ggml_directory, candidate.path.parent_path())) {
-            result.backend_loadable = true;
+        if (try_runtime(result, candidate, ggml_directory)) {
             return result;
         }
     }
@@ -675,6 +539,17 @@ ProbeResult probe(const std::optional<std::filesystem::path>& ggml_directory)
     (void) ggml_directory;
     return ProbeResult{};
 #endif
+}
+
+bool can_select_cuda_backend(const ProbeResult& result, bool backend_payload_present)
+{
+    return result.driver_present &&
+           result.driver_initialized &&
+           result.device_count > 0 &&
+           result.runtime_present &&
+           result.runtime_usable &&
+           backend_payload_present &&
+           result.backend_loadable;
 }
 
 std::optional<std::filesystem::path> best_runtime_library_path()
@@ -704,53 +579,39 @@ std::string best_runtime_library_name()
 #ifdef AI_FILE_SORTER_TEST_BUILD
 namespace TestAccess {
 
+#ifdef _WIN32
+std::vector<std::filesystem::path> runtime_candidates_for_directory(const std::filesystem::path& directory) {
+    std::vector<std::filesystem::path> paths;
+    for (const auto& candidate : candidate_runtime_libraries(directory)) {
+        paths.push_back(candidate.path);
+    }
+    return paths;
+}
+#endif
+
 int runtime_version_rank(std::string_view file_name)
 {
-#ifdef _WIN32
-    const auto parsed = parse_runtime_version_token_info(std::filesystem::path(std::string(file_name)));
-    return parsed.has_value() ? parsed->rank : 0;
-#else
-    (void) file_name;
-    return 0;
-#endif
+    const auto candidate = WindowsCudaRuntimeSelection::candidate_for_path(
+        std::filesystem::path(std::string(file_name)));
+    return candidate ? candidate->version_rank : 0;
 }
 
 std::vector<std::filesystem::path> rank_runtime_candidates(
     const std::vector<std::filesystem::path>& runtime_paths)
 {
-    std::vector<std::filesystem::path> ranked_paths;
-#ifdef _WIN32
-    std::vector<RuntimeCandidate> candidates;
+    std::vector<WindowsCudaRuntimeSelection::Candidate> candidates;
     candidates.reserve(runtime_paths.size());
-
     for (const auto& path : runtime_paths) {
-        const auto version_info = parse_runtime_version_token_info(path);
-        if (!version_info.has_value()) {
-            continue;
+        if (const auto candidate = WindowsCudaRuntimeSelection::candidate_for_path(path)) {
+            candidates.push_back(*candidate);
         }
-
-        int version_rank = version_info->rank;
-        if (const auto toolkit_rank = parse_toolkit_version_rank(path)) {
-            version_rank = *toolkit_rank;
-        }
-
-        candidates.push_back(RuntimeCandidate{
-            path.lexically_normal(),
-            version_info->token,
-            version_rank,
-            RuntimeDirectorySource::Path,
-            classify_runtime_path(path),
-        });
     }
 
-    candidates = sort_runtime_candidates(std::move(candidates));
+    std::vector<std::filesystem::path> ranked_paths;
     ranked_paths.reserve(candidates.size());
-    for (const auto& candidate : candidates) {
+    for (const auto& candidate : WindowsCudaRuntimeSelection::rank_candidates(std::move(candidates))) {
         ranked_paths.push_back(candidate.path);
     }
-#else
-    ranked_paths = runtime_paths;
-#endif
     return ranked_paths;
 }
 

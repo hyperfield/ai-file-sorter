@@ -9,6 +9,9 @@ def main():
     parser.add_argument('--mode', choices=['dev', 'install'], default='dev')
     parser.add_argument('--install-app-dir', default='')
     parser.add_argument('--binary', required=True)
+    parser.add_argument('--llama-provider',
+                        choices=['precompiled', 'bundled-source', 'system'],
+                        default='precompiled')
     parser.add_argument('--template', default='scripts/run_aifilesorter.sh.in')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
@@ -20,6 +23,7 @@ def main():
         app_decl = f'APP_DIR="{args.install_app_dir}"'
     content = template.replace('@APP_DIR_DECLARATION@', app_decl)
     content = content.replace('@WRAPPED_BINARY@', args.binary)
+    content = content.replace('@LLAMA_PROVIDER@', args.llama_provider)
     Path(args.output).write_text(content)
 
 if __name__ == '__main__':

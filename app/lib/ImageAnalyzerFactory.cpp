@@ -1,4 +1,5 @@
 #include "ImageAnalyzerFactory.hpp"
+#include "HttpImageAnalyzer.hpp"
 
 #include "GgufFileValidation.hpp"
 #include "LlavaImageAnalyzer.hpp"
@@ -44,7 +45,7 @@ void validate_visual_artifact_file(const std::filesystem::path& path, const char
     }
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 std::string trim_copy(std::string value)
 {
     const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
@@ -111,6 +112,23 @@ int visual_gpu_preflight_timeout_ms()
     return kDefaultTimeoutMs;
 }
 
+QProcessEnvironment visual_gpu_preflight_environment()
+{
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_SKIP_GPU_PREFLIGHT"),
+                       QStringLiteral("1"));
+    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_USE_GPU"),
+                       QStringLiteral("1"));
+
+    const std::string storage_override = Utils::get_llm_storage_directory_override();
+    if (!storage_override.empty()) {
+        environment.insert(QStringLiteral("AI_FILE_SORTER_LLM_STORAGE_DIR"),
+                           QString::fromStdString(storage_override));
+    }
+
+    return environment;
+}
+
 QString visual_gpu_probe_argument(const VisualLlmRuntime::Backend& backend)
 {
     if (!backend.descriptor || !backend.descriptor->id || backend.descriptor->id[0] == '\0') {
@@ -136,7 +154,7 @@ std::string collect_probe_output(QProcess& process)
     return trim_copy(combined.toStdString());
 }
 
-void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
+void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend, const std::string& required_backend)
 {
     auto logger = Logger::get_logger("core_logger");
     const std::string executable_path = Utils::get_executable_path();
@@ -149,11 +167,11 @@ void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
 
     const int timeout_ms = visual_gpu_preflight_timeout_ms();
     QProcess process;
-    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
-    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_SKIP_GPU_PREFLIGHT"),
-                       QStringLiteral("1"));
-    environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_USE_GPU"),
-                       QStringLiteral("1"));
+    auto environment = visual_gpu_preflight_environment();
+    if (!required_backend.empty()) {
+        environment.insert(QStringLiteral("AI_FILE_SORTER_VISUAL_REQUIRED_BACKEND"),
+                           QString::fromStdString(required_backend));
+    }
     process.setProcessEnvironment(environment);
     process.setProgram(QString::fromStdString(executable_path));
     process.setArguments({visual_gpu_probe_argument(backend)});
@@ -193,11 +211,27 @@ void run_visual_gpu_preflight(const VisualLlmRuntime::Backend& backend)
 
 } // namespace
 
+#if defined(AI_FILE_SORTER_TEST_BUILD) && (defined(_WIN32) || defined(__APPLE__))
+QProcessEnvironment ImageAnalyzerFactoryTestAccess::visual_gpu_preflight_environment()
+{
+    return ::visual_gpu_preflight_environment();
+}
+#endif
+
 std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRuntime::Backend& backend,
                                                             ImageAnalyzerSettings settings)
 {
     if (!backend.descriptor) {
         throw std::runtime_error("Visual backend descriptor is missing.");
+    }
+    if (backend.descriptor->architecture == VisualModelArchitecture::HttpChatCompletion) {
+        if (!backend.api_endpoint) {
+            throw std::runtime_error("Visual API connection configuration is missing.");
+        }
+        if (!settings.required_backend.empty()) {
+            throw std::runtime_error("Local GPU backend tests cannot use an API connection.");
+        }
+        return std::make_unique<HttpImageAnalyzer>(*backend.api_endpoint, std::move(settings));
     }
 
     const auto model_path =
@@ -208,9 +242,9 @@ std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRunti
     validate_visual_artifact_file(model_path, "model");
     validate_visual_artifact_file(mmproj_path, "multimodal projector");
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     if (settings.use_gpu && !should_skip_visual_gpu_preflight()) {
-        run_visual_gpu_preflight(backend);
+        run_visual_gpu_preflight(backend, settings.required_backend);
     }
 #endif
 
@@ -222,6 +256,8 @@ std::unique_ptr<ImageAnalyzer> ImageAnalyzerFactory::create(const VisualLlmRunti
             backend.descriptor->prompt_policy,
             std::move(settings));
     }
+    case VisualModelArchitecture::HttpChatCompletion:
+        break;
     }
 
     throw std::runtime_error("Unsupported visual model architecture.");

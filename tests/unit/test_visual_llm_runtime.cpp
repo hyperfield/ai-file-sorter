@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "TestHelpers.hpp"
+#include "Settings.hpp"
 #include "Utils.hpp"
 #include "VisualLlmRuntime.hpp"
 #include "VisualModelCatalog.hpp"
@@ -8,6 +9,24 @@
 #include <filesystem>
 #include <fstream>
 #include <vector>
+
+TEST_CASE("Visual runtime resolves API connections without artifacts and rejects missing or disabled connections", "[http-vision]")
+{
+    CustomApiEndpoint endpoint{"vision", "My server", "", "http://127.0.0.1:1234/v1", "", "vision-model", true};
+    const auto id = http_visual_model_id(endpoint.id);
+    std::string error;
+    const auto backend = VisualLlmRuntime::resolve_active_backend(id, {}, {endpoint}, &error);
+    REQUIRE(backend);
+    REQUIRE(backend->api_endpoint);
+    CHECK(backend->api_endpoint->model == endpoint.model);
+    CHECK(backend->artifacts.empty());
+    CHECK(error.empty());
+    CHECK_FALSE(VisualLlmRuntime::resolve_active_backend(id, {}, {}, &error));
+    CHECK(error.find("missing") != std::string::npos);
+    endpoint.image_analysis_enabled = false;
+    CHECK_FALSE(VisualLlmRuntime::resolve_active_backend(id, {}, {endpoint}, &error));
+    CHECK_FALSE(VisualLlmRuntime::resolve_active_backend(id, &error));
+}
 
 namespace {
 
@@ -43,6 +62,11 @@ struct VisualRuntimeTempEnv {
     }
 };
 
+struct LlmStorageOverrideGuard {
+    std::string previous = Utils::get_llm_storage_directory_override();
+    ~LlmStorageOverrideGuard() { Utils::set_llm_storage_directory_override(previous); }
+};
+
 } // namespace
 
 TEST_CASE("Default visual model descriptor exposes the MTMD backend catalog") {
@@ -51,16 +75,16 @@ TEST_CASE("Default visual model descriptor exposes the MTMD backend catalog") {
 
     const auto& descriptor = default_visual_model_descriptor();
 
-    CHECK(std::string(descriptor.id) == "gemma-3-4b-it");
-    CHECK(std::string(descriptor.display_name) == "Gemma 3 4B IT");
+    CHECK(std::string(descriptor.id) == "qwen3.5-4b");
+    CHECK(std::string(descriptor.display_name) == "Qwen3.5 4B");
     CHECK(descriptor.architecture == VisualModelArchitecture::MtmdProjector);
     CHECK(descriptor.prompt_policy == VisualPromptPolicy::StructuredVisionInstruct);
     REQUIRE(descriptor.artifacts.size() == 2);
     CHECK(descriptor.artifacts[0].kind == VisualModelArtifactKind::Model);
-    CHECK(std::string(descriptor.artifacts[0].url_env) == "GEMMA3_4B_MODEL_URL");
+    CHECK(std::string(descriptor.artifacts[0].url_env) == "QWEN35_4B_MODEL_URL");
     CHECK(std::string(descriptor.artifacts[0].local_storage_name) == "model.gguf");
     CHECK(descriptor.artifacts[1].kind == VisualModelArtifactKind::Mmproj);
-    CHECK(std::string(descriptor.artifacts[1].url_env) == "GEMMA3_4B_MMPROJ_URL");
+    CHECK(std::string(descriptor.artifacts[1].url_env) == "QWEN35_4B_MMPROJ_URL");
     CHECK(std::string(descriptor.artifacts[1].local_storage_name) == "mmproj.gguf");
 
     const auto* llava = find_visual_model_descriptor("llava-v1.6-mistral-7b");
@@ -83,10 +107,10 @@ TEST_CASE("Default visual model descriptor exposes the MTMD backend catalog") {
 
 TEST_CASE("VisualLlmRuntime resolves the active backend through descriptor artifacts") {
     VisualRuntimeTempEnv env;
-    const std::string model_url = "https://example.com/gemma-3-4b-it-Q4_K_M.gguf";
-    const std::string mmproj_url = "https://example.com/mmproj-gemma-3-4b-it-Q4_K_M.gguf";
-    EnvVarGuard model_guard("GEMMA3_4B_MODEL_URL", model_url);
-    EnvVarGuard mmproj_guard("GEMMA3_4B_MMPROJ_URL", mmproj_url);
+    const std::string model_url = "https://example.com/Qwen3.5-4B-Q4_K_M.gguf";
+    const std::string mmproj_url = "https://example.com/mmproj-Qwen3.5-4B-Q4_K_M.gguf";
+    EnvVarGuard model_guard("QWEN35_4B_MODEL_URL", model_url);
+    EnvVarGuard mmproj_guard("QWEN35_4B_MMPROJ_URL", mmproj_url);
 
     const auto& descriptor = default_visual_model_descriptor();
     const auto model_path = visual_artifact_storage_path(descriptor, descriptor.artifacts[0]);
@@ -99,7 +123,7 @@ TEST_CASE("VisualLlmRuntime resolves the active backend through descriptor artif
     REQUIRE(backend.has_value());
     CHECK(error.empty());
     REQUIRE(backend->descriptor != nullptr);
-    CHECK(std::string(backend->descriptor->id) == "gemma-3-4b-it");
+    CHECK(std::string(backend->descriptor->id) == "qwen3.5-4b");
     REQUIRE(backend->artifacts.size() == 2);
     REQUIRE(backend->path_for(VisualModelArtifactKind::Model).has_value());
     REQUIRE(backend->path_for(VisualModelArtifactKind::Mmproj).has_value());
@@ -110,6 +134,100 @@ TEST_CASE("VisualLlmRuntime resolves the active backend through descriptor artif
     REQUIRE(legacy_paths.has_value());
     CHECK(legacy_paths->model_path == model_path);
     CHECK(legacy_paths->mmproj_path == mmproj_path);
+}
+
+TEST_CASE("VisualLlmRuntime resolves the Qwen model and matching projector") {
+    VisualRuntimeTempEnv env;
+    EnvVarGuard model_guard("QWEN35_4B_MODEL_URL",
+                           std::string("https://example.com/Qwen3.5-4B-Q4_K_M.gguf"));
+    EnvVarGuard mmproj_guard("QWEN35_4B_MMPROJ_URL",
+                            std::string("https://example.com/mmproj-F16.gguf"));
+    const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+    REQUIRE(descriptor != nullptr);
+    CHECK(descriptor->prompt_policy == VisualPromptPolicy::StructuredVisionInstruct);
+    REQUIRE(descriptor->artifacts.size() == 2);
+    for (const auto& artifact : descriptor->artifacts) {
+        write_gguf_file(visual_artifact_storage_path(*descriptor, artifact));
+    }
+
+    std::string error;
+    const auto backend = VisualLlmRuntime::resolve_active_backend("qwen3.5-4b", &error);
+    REQUIRE(backend.has_value());
+    CHECK(error.empty());
+    CHECK(backend->descriptor == descriptor);
+    CHECK(backend->path_for(VisualModelArtifactKind::Model)
+          == visual_artifact_storage_path(*descriptor, descriptor->artifacts[0]));
+    CHECK(backend->path_for(VisualModelArtifactKind::Mmproj)
+          == visual_artifact_storage_path(*descriptor, descriptor->artifacts[1]));
+    CHECK(std::string(default_visual_model_descriptor().id) == "qwen3.5-4b");
+}
+
+TEST_CASE("Qwen projector lookup rejects ambiguous legacy files without matching metadata") {
+    VisualRuntimeTempEnv env;
+    const std::string url = "https://example.com/qwen/mmproj-F16.gguf";
+    const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+    REQUIRE(descriptor != nullptr);
+    const auto& artifact = descriptor->artifacts[1];
+    const auto legacy = std::filesystem::path(Utils::get_default_llm_destination()) / "mmproj-F16.gguf";
+    write_gguf_file(legacy);
+    CHECK_FALSE(resolve_visual_artifact_path(*descriptor, artifact, url).has_value());
+    write_download_metadata(legacy, "https://example.com/other/mmproj-F16.gguf");
+    CHECK_FALSE(resolve_visual_artifact_path(*descriptor, artifact, url).has_value());
+    write_download_metadata(legacy, url);
+    CHECK(resolve_visual_artifact_path(*descriptor, artifact, url) == legacy);
+}
+
+TEST_CASE("VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage") {
+    LlmStorageOverrideGuard storage_guard;
+    TempDir config_dir;
+    TempDir default_storage_dir;
+    TempDir custom_storage_dir;
+    EnvVarGuard home_guard("HOME", default_storage_dir.path().string());
+    EnvVarGuard appdata_guard("APPDATA", default_storage_dir.path().string());
+    EnvVarGuard localappdata_guard("LOCALAPPDATA", default_storage_dir.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config_dir.path().string());
+    EnvVarGuard storage_env_guard("AI_FILE_SORTER_LLM_STORAGE_DIR", std::nullopt);
+    EnvVarGuard legacy_storage_env_guard("AI_FILE_SORTER_LLM_DIR", std::nullopt);
+    EnvVarGuard model_guard("GEMMA3_4B_MODEL_URL",
+                            std::string("https://example.com/gemma-3-4b-it-Q4_K_M.gguf"));
+    EnvVarGuard mmproj_guard("GEMMA3_4B_MMPROJ_URL",
+                             std::string("https://example.com/mmproj-gemma-3-4b-it-Q4_K_M.gguf"));
+
+    Settings settings;
+    settings.load();
+    settings.set_llm_storage_dir(custom_storage_dir.path().string());
+    settings.set_visual_model_id("gemma-3-4b-it");
+    REQUIRE(settings.save());
+
+    const auto* descriptor = find_visual_model_descriptor("gemma-3-4b-it");
+    REQUIRE(descriptor != nullptr);
+    REQUIRE(descriptor->artifacts.size() == 2);
+    const auto model_path = custom_storage_dir.path() / descriptor->id /
+                            descriptor->artifacts[0].local_storage_name;
+    const auto mmproj_path = custom_storage_dir.path() / descriptor->id /
+                             descriptor->artifacts[1].local_storage_name;
+    write_gguf_file(model_path);
+    write_gguf_file(mmproj_path);
+
+    Utils::set_llm_storage_directory_override("");
+    REQUIRE(Utils::get_llm_storage_directory_override().empty());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_llm_storage_dir() == custom_storage_dir.path().string());
+
+    std::string error;
+    const auto backend = VisualLlmRuntime::resolve_active_backend(
+        reloaded.get_visual_model_id(),
+        reloaded.get_custom_llms(),
+        &error);
+
+    REQUIRE(backend.has_value());
+    CHECK(error.empty());
+    REQUIRE(backend->path_for(VisualModelArtifactKind::Model).has_value());
+    REQUIRE(backend->path_for(VisualModelArtifactKind::Mmproj).has_value());
+    CHECK(*backend->path_for(VisualModelArtifactKind::Model) == model_path);
+    CHECK(*backend->path_for(VisualModelArtifactKind::Mmproj) == mmproj_path);
 }
 
 TEST_CASE("VisualLlmRuntime resolves custom visual LLM artifacts") {
@@ -164,12 +282,12 @@ TEST_CASE("VisualLlmRuntime rejects custom visual LLMs without MMProj") {
 
 TEST_CASE("VisualLlmRuntime reports missing backend URLs before resolving artifacts") {
     VisualRuntimeTempEnv env;
-    EnvVarGuard model_guard("GEMMA3_4B_MODEL_URL", std::nullopt);
-    EnvVarGuard mmproj_guard("GEMMA3_4B_MMPROJ_URL", std::nullopt);
+    EnvVarGuard model_guard("QWEN35_4B_MODEL_URL", std::nullopt);
+    EnvVarGuard mmproj_guard("QWEN35_4B_MMPROJ_URL", std::nullopt);
 
     std::string error;
     CHECK_FALSE(VisualLlmRuntime::resolve_active_backend({}, &error).has_value());
-    CHECK(error == "Missing visual LLM download URLs. Check GEMMA3_4B_MODEL_URL and GEMMA3_4B_MMPROJ_URL.");
+    CHECK(error == "Missing visual LLM download URLs. Check QWEN35_4B_MODEL_URL and QWEN35_4B_MMPROJ_URL.");
 }
 
 TEST_CASE("VisualLlmRuntime resolves a non-default backend by id") {
@@ -276,10 +394,10 @@ TEST_CASE("VisualLlmRuntime does not misattribute a legacy generic mmproj from a
 
 TEST_CASE("VisualLlmRuntime rejects invalid preferred GGUF artifacts") {
     VisualRuntimeTempEnv env;
-    const std::string model_url = "https://example.com/gemma-3-4b-it-Q4_K_M.gguf";
-    const std::string mmproj_url = "https://example.com/mmproj-gemma-3-4b-it-Q4_K_M.gguf";
-    EnvVarGuard model_guard("GEMMA3_4B_MODEL_URL", model_url);
-    EnvVarGuard mmproj_guard("GEMMA3_4B_MMPROJ_URL", mmproj_url);
+    const std::string model_url = "https://example.com/Qwen3.5-4B-Q4_K_M.gguf";
+    const std::string mmproj_url = "https://example.com/mmproj-Qwen3.5-4B-Q4_K_M.gguf";
+    EnvVarGuard model_guard("QWEN35_4B_MODEL_URL", model_url);
+    EnvVarGuard mmproj_guard("QWEN35_4B_MMPROJ_URL", mmproj_url);
 
     const auto& descriptor = default_visual_model_descriptor();
     const auto model_path = visual_artifact_storage_path(descriptor, descriptor.artifacts[0]);

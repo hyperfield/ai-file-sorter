@@ -28,6 +28,13 @@ public:
     void set_storage_provider(IStorageProvider& storage_provider);
 
     /**
+     * @brief Build a lookup key without changing the stored filesystem name.
+     * @param path Filename or full path returned by the active storage provider.
+     * @return Key accounting for the active provider's filename comparison rules.
+     */
+    std::string cache_key(const std::string& path) const;
+
+    /**
      * @brief Lists entries in a directory using the provided scan options.
      * @param directory Directory path to scan.
      * @param options File scan options (files, directories, hidden files).

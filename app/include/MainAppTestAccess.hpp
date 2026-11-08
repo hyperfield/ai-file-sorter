@@ -12,14 +12,17 @@
 #include <QCheckBox>
 #include <QToolButton>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
+class FolderStructurePluginManager;
 class MainApp;
 class Settings;
 class QAction;
+class QComboBox;
 class QMenu;
 class QLineEdit;
 class QPushButton;
@@ -65,11 +68,43 @@ public:
      */
     static QPushButton* browse_button(MainApp& app);
     /**
+     * @brief Access the destination folder browse button.
+     * @param app MainApp instance.
+     * @return Pointer to the button, or nullptr if unavailable.
+     */
+    static QPushButton* destination_browse_button(MainApp& app);
+    /**
+     * @brief Access the legacy analyzed-folder destination checkbox.
+     * @param app MainApp instance.
+     * @return Pointer to the checkbox, or nullptr if unavailable.
+     */
+    static QCheckBox* use_analyzed_folder_as_destination_checkbox(MainApp& app);
+    /**
      * @brief Access the main analyze button.
      * @param app MainApp instance.
      * @return Pointer to the button, or nullptr if unavailable.
      */
     static QPushButton* analyze_button(MainApp& app);
+    /**
+     * @brief Runs the GUI analysis connection validation with a supplied network probe.
+     * @param app MainApp instance.
+     * @param network_available Probe returning whether public internet is available.
+     * @return A validation error, or no value when analysis may start.
+     */
+    static std::optional<std::string> analysis_connection_error(
+        const MainApp& app, const std::function<bool()>& network_available);
+    /**
+     * @brief Access the sorting mode selector.
+     * @param app MainApp instance.
+     * @return Pointer to the selector, or nullptr if unavailable.
+     */
+    static QComboBox* sorting_mode_selector(MainApp& app);
+    /**
+     * @brief Access the starter folder structure creation button.
+     * @param app MainApp instance.
+     * @return Pointer to the button, or nullptr if unavailable.
+     */
+    static QPushButton* create_folder_structure_button(MainApp& app);
     /**
      * @brief Access the Settings -> Clear cache action.
      * @param app MainApp instance.
@@ -95,11 +130,17 @@ public:
      */
     static QMenu* settings_menu(MainApp& app);
     /**
-     * @brief Access the development-only Plugins menu.
+     * @brief Access the Plugins menu.
      * @param app MainApp instance.
      * @return Pointer to the Plugins menu, or nullptr if hidden.
      */
     static QMenu* plugins_menu(MainApp& app);
+    /**
+     * @brief Access the folder-structure plugin management action.
+     * @param app MainApp instance.
+     * @return Pointer to the action, or nullptr if hidden.
+     */
+    static QAction* manage_folder_structure_plugins_action(MainApp& app);
     /**
      * @brief Access the development-only storage plugin management action.
      * @param app MainApp instance.
@@ -118,6 +159,20 @@ public:
      * @return Pointer to the action, or nullptr if hidden.
      */
     static QAction* run_large_whitelist_llm_test_action(MainApp& app);
+    /**
+     * @brief Check whether a folder root would trigger the Johnny.Decimal plugin offer.
+     * @param app MainApp instance.
+     * @param root Folder tree root to inspect.
+     * @return True when the app would offer Johnny.Decimal support for the root.
+     */
+    static bool should_offer_johnny_decimal_plugin_for_root(MainApp& app, const QString& root);
+    /**
+     * @brief Replace the app folder-structure plugin manager for focused tests.
+     * @param app MainApp instance.
+     * @param manager Replacement plugin manager.
+     */
+    static void set_folder_structure_plugin_manager(MainApp& app,
+                                                    std::shared_ptr<FolderStructurePluginManager> manager);
     /**
      * @brief Access the \"Categorize files\" checkbox.
      * @param app MainApp instance.

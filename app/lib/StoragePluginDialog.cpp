@@ -1,5 +1,6 @@
 #include "StoragePluginDialog.hpp"
 
+#include "PluginBuildConfig.hpp"
 #include "StoragePluginManager.hpp"
 
 #include <QCoreApplication>
@@ -64,6 +65,7 @@ StoragePluginDialog::StoragePluginDialog(std::shared_ptr<StoragePluginManager> p
     import_button_ = button_row->addButton(dialog_tr("Install from File…"), QDialogButtonBox::ActionRole);
     install_button_ = button_row->addButton(dialog_tr("Install"), QDialogButtonBox::ActionRole);
     uninstall_button_ = button_row->addButton(dialog_tr("Uninstall"), QDialogButtonBox::ActionRole);
+    check_updates_button_->setVisible(PluginBuildConfig::remote_catalogs_enabled());
     button_row->setCenterButtons(true);
     layout->addWidget(button_row);
 
@@ -86,7 +88,9 @@ StoragePluginDialog::StoragePluginDialog(std::shared_ptr<StoragePluginManager> p
 
     populate_plugins();
     update_selection_state();
-    start_catalog_refresh(false);
+    if (PluginBuildConfig::remote_catalogs_enabled()) {
+        start_catalog_refresh(false);
+    }
 }
 
 void StoragePluginDialog::populate_plugins()
@@ -196,6 +200,10 @@ void StoragePluginDialog::update_selection_state()
 
 void StoragePluginDialog::start_catalog_refresh(bool interactive)
 {
+    if (!PluginBuildConfig::remote_catalogs_enabled()) {
+        return;
+    }
+
     if (!plugin_manager_ || refresh_in_progress_.exchange(true)) {
         return;
     }

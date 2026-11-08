@@ -27,6 +27,7 @@ struct BackendProbeGuard {
 TEST_CASE("LlavaImageAnalyzer uses conservative default visual batch sizing") {
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(false, "vulkan") == 512);
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "metal") == 1024);
+    CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "MTL") == 1024);
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "vulkan") == 512);
 #if defined(_WIN32)
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "cuda") == 512);
@@ -102,7 +103,7 @@ TEST_CASE("LlavaImageAnalyzer exposes structured multimodal prompt policy") {
         VisualPromptPolicy::StructuredVisionInstruct,
         "Invoice with handwritten totals and customer notes.");
     CHECK(filename_prompt.find("maximum 3 words") != std::string::npos);
-    CHECK(filename_prompt.find("lowercase letters only") != std::string::npos);
+    CHECK(filename_prompt.find("lowercase letters and numbers only") != std::string::npos);
     CHECK(filename_prompt.find("Output only the filename stem.") != std::string::npos);
 }
 

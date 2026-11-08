@@ -1,12 +1,13 @@
 <!-- markdownlint-disable MD046 -->
 # AI File Sorter
 
-[![Code Version](https://img.shields.io/badge/Code-1.9.2-blue)](#)
+[![Code Version](https://img.shields.io/badge/Code-2.0.0-blue)](#)
 [![Release Version](https://img.shields.io/github/v/release/hyperfield/ai-file-sorter?label=Release)](#)
 ![filesorter.app Downloads](https://filesorter.app/download-stats/badge.svg)
 [![SourceForge Downloads](https://img.shields.io/sourceforge/dt/ai-file-sorter.svg?label=SourceForge%20downloads)](https://sourceforge.net/projects/ai-file-sorter/files/latest/download)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/2c646c836a9844be964fbf681649c3cd)](https://app.codacy.com/gh/hyperfield/ai-file-sorter/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Donate](https://img.shields.io/badge/Support%20AI%20File%20Sorter-orange)](https://filesorter.app/donate/)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsors-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/hyperfield)
 
 <p align="center">
   <img src="app/resources/images/icon_256x256.png" alt="AI File Sorter logo" width="128" height="128">
@@ -24,7 +25,7 @@
 AI File Sorter is a cross-platform desktop application that uses AI to organize files and suggest cleaner, more consistent names for images, documents, and supported audio/video files. It is designed to reduce clutter, improve consistency, and make files easier to find later, whether for review, archiving, or long-term storage.
 
 <p align="center">
-  <img src="images/screenshots/aifs-main.png" alt="AI File Sorter main window on Windows" width="900">
+  <img src="images/screenshots/aifs-main-window-win.png" alt="AI File Sorter on Windows with 60 mixed files and an existing destination library" width="900">
 </p>
 
 The app can analyze picture files locally with built-in visual LLM backends and suggest meaningful, human-readable names. For example, a generic file like IMG_2048.jpg can be renamed to something descriptive such as clouds_over_lake.jpg. It can also analyze supported document files and propose clearer names based on their text content. AI File Sorter can also clean up messy audio and video filenames by using the metadata already stored inside supported media files. If tags such as year, artist, album, or title are available, the app can turn them into a clear suggestion like `2024_artist_album_title.mp3`, which you can review, edit, or ignore before any change is applied.
@@ -35,8 +36,16 @@ Instead of relying only on fixed rules, the app combines AI suggestions with opt
 
 Categories (and optional subcategories) are suggested for each file, and for supported file types, rename suggestions are provided as well. Once you confirm, the required folders are created automatically and files are sorted accordingly.
 
+You can also sort into an existing folder structure, choose a separate destination,
+and decide whether the app may suggest new folders. Starter structures and optional
+folder-structure plugins help you set up and maintain archives such as Johnny.Decimal.
+
 Privacy-first by design:
-AI File Sorter can run entirely on your device. When you use a local model, your files, filenames, images, and metadata stay on your computer, and no telemetry is sent. An internet connection is only needed if you choose to use a remote model.
+AI File Sorter can run entirely on your device. With local text and visual models and online photo place lookup disabled, analysis inputs stay on your computer, and no telemetry is sent.
+
+Enabling **Add photo date and place to filename (if available)** sends photo GPS coordinates, rounded to three decimal places, to OpenStreetMap's Nominatim service to obtain place names, even with local models. The provider can also see your IP address and request time. This lookup sends no photo files, filenames, or capture dates. Date-only category enrichment stays local.
+
+API connections send analysis data to the configured server; selecting an API visual backend also sends image contents there. A server on your own computer can work without public internet access.
 
 ---
 
@@ -46,6 +55,23 @@ AI File Sorter can run entirely on your device. When you use a local model, your
 2. Files (and image content, when applicable) are analyzed using the selected local or remote model  
 3. Category and rename suggestions are generated  
 4. You review and adjust if needed before anything is changed  
+
+### Sorting stray files into existing folders
+
+This Windows walkthrough follows 60 files from Downloads into an existing library.
+It shows folder routing, a destination correction, a dry-run preview, and confirmed
+moves. Pauses at the key steps make the 44-second loop easier to follow; long
+processing waits are omitted.
+
+<p align="center">
+  <a href="images/screenshots/ai-file-sorter-win.gif">
+    <img src="images/screenshots/ai-file-sorter-win.gif" alt="Animated Windows walkthrough: route 60 files into existing folders, review a destination, preview the moves, and confirm sorting" width="900">
+  </a>
+</p>
+
+See the [Windows screenshot gallery](images/screenshots/README.md) for all eight
+steps in English and French, including model selection, analysis, review, and
+the organized library.
 
 ---
 
@@ -62,23 +88,26 @@ This keeps the first run low risk: your files stay on your computer when you use
 [![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9npk4dzd6r6s)
 
 <p align="center">
-  <img src="images/screenshots/aifs-analyzing.png" alt="AI File Sorter analysis progress dialog on Windows" width="49%" align="top" style="vertical-align: top;">
+  <img src="images/screenshots/aifs-progress-dialog-win.png" alt="AI File Sorter analyzing the contents of the 60-file Windows collection" width="49%" align="top" style="vertical-align: top;">
   <img src="images/screenshots/aifs-done-linux.png" alt="AI File Sorter review and confirm results on Linux" width="49%" align="top" style="vertical-align: top;">
 </p>
 
 <p align="center">
   <img src="images/screenshots/aifs-benchmark-dialog-macos.png" alt="AI File Sorter compatibility benchmark on macOS" width="49%" align="top" style="vertical-align: top;">
-  <img src="images/screenshots/aifs-done-2.png" alt="AI File Sorter review and confirm results with mixed file types on Windows" width="49%" align="top" style="vertical-align: top;">
+  <img src="images/screenshots/aifs-review-dialog-win.png" alt="AI File Sorter reviewing filenames and existing destination folders on Windows" width="49%" align="top" style="vertical-align: top;">
 </p>
 
 ---
 
 - [AI File Sorter](#ai-file-sorter)
+  - [Sorting stray files into existing folders](#sorting-stray-files-into-existing-folders)
   - [Safe First Run](#safe-first-run)
   - [Technical reference](#technical-reference)
   - [Changelog](#changelog)
   - [Features](#features)
   - [Categorization](#categorization)
+    - [Sorting modes and destinations](#sorting-modes-and-destinations)
+    - [Folder structures and plugins](#folder-structures-and-plugins)
     - [Categorization modes](#categorization-modes)
     - [Category language selection](#category-language-selection)
     - [Category whitelists](#category-whitelists)
@@ -131,6 +160,25 @@ the main entry page, use these technical references:
 
 ## Changelog
 
+## [2.0.0] - Unreleased
+
+- Sort into an existing folder structure by default, with a separate destination, optional new-folder suggestions, and explanations for folder choices.
+- Refined folder routing, categorization, filename suggestions, and whitelist handling for more consistent results.
+- Create starter structures and add optional Johnny.Decimal tools for numbered folders, archive indexes, and validation reports.
+- Start with a broader Downloads layout and choose the language of new folder names independently of your category language.
+- Use **Qwen3.5 4B** by default for local text and image analysis, with simpler, grouped model drop-downs.
+- Fixed custom API connections, including local LM Studio and Ollama servers, being blocked by an unrelated internet connectivity check.
+- Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
+- Analyze larger and densely formatted documents more reliably, and preserve completed categories when content analysis is unavailable.
+- Compare downloaded text and image-analysis models in the system compatibility check, with saved results and retries for individual models and backends.
+- Use the new sorting settings and destination previews with **AI File Sorter for File Explorer 1.1.0**.
+- Storage integrations, including OneDrive support, now use separately installed, verified plugins.
+- Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
+- Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
+- Fixed Windows startup failures with incompatible Vulkan loaders by validating the loader before importing GPU libraries and allowing CPU fallback.
+- Pinned Ubuntu release builds to 24.04, generated Debian dependencies from the shipped binaries, and added package installation and startup checks in a clean runtime container.
+- Fixed Linux launcher discovery of packaged CPU, CUDA, and Vulkan runtime directories.
+
 ## [1.9.2] - 2026-08-14
 
 - Fixed a Windows startup crash in Qt GUI theme refresh handling.
@@ -171,6 +219,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 ## Features
 
 - **AI-powered categorization**: Sort files using either local AI models on your computer or remote models with your own API key.
+- **Flexible destinations**: Generate category folders or sort into an existing folder structure, with a separate destination and optional new-folder suggestions.
+- **Folder structures and plugins**: Create starter layouts and add optional Johnny.Decimal guidance, numbered-folder tools, archive indexes, and validation reports.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
 - **Robust categorization**: Built-in rules and category matching help keep results more consistent across runs.
 - **Configurable categorization controls**: Use whitelists, taxonomy normalization, consistency modes, and review-time edits to steer categories and subcategories.
@@ -178,14 +228,17 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Category whitelists**: Define named whitelists of allowed categories/subcategories, including smart branching lists where each main category has its own allowed subcategories. Manage them under **Settings → Manage category whitelists…**, then toggle/select them in the main window when you want to constrain model output for a session.
 - **Category and rename languages**: Categories are chosen in English behind the scenes and then shown in your selected category language. Suggested filenames for images, documents, and supported audio/video files are localized the same way. The available languages depend on the selected local model.
 - **Custom local LLMs**: Register your own local GGUF models directly from the **Select LLM** dialog. Add a matching MMProj file to make a custom model available for image analysis as well.
-- **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends such as the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
+- **Grouped model selection**: The **Select LLM** dialog has a **Local LLMs** tab for built-in models and custom GGUF files, and an **API connections** tab for Gemini, OpenAI, and custom OpenAI-compatible endpoints. Each tab uses a dropdown and shows the selected option's description and settings.
+- **Image content analysis (Visual LLM)**: Analyze supported picture files with built-in visual backends including the default Qwen3.5 4B, Gemma 3 4B IT, and LLaVA 1.6 Mistral 7B, with special handling for screenshots and UI captures so categories describe on-screen content more accurately (rename-only mode supported).
 - **Image date-to-category suffix (optional)**: Append image creation date metadata to image category names when available.
 - **Document content analysis (Text LLM)**: Analyze supported document files to summarize content and suggest filenames; uses the same selected LLM (local or remote).
+- **Filename length controls**: Set independent maximum word limits for image and document name suggestions, from 3 to 6 words, defaulting to 3.
 - **Audio/video metadata filename suggestions**: Turn embedded media tags into clean, library-style filenames for supported audio and video files, with full review before anything is renamed.
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
 - **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Simplified Chinese, Spanish, Swedish, and Turkish.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
+- **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 2.0.0. Legacy 1.0.x Explorer jobs retain generated-category sorting so their review destinations and category edits remain compatible.
 - **Local Database Caching**: Speeds up repeated categorization, preserves approved labels and rename suggestions, and provides recent-category hints for consistency.
 - **Local learning from approved reviews**: Approved category decisions can be stored locally and reused as hints for future runs without modifying the underlying model.
 - **Cache maintenance tools**: Use **Settings → Clear cache…** to inspect and clear categorization cache, image location cache, and logs, or **Settings → Reset learned behavior…** to remove the separate learned-review database.
@@ -201,6 +254,38 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 ---
 
 ## Categorization
+
+### Sorting modes and destinations
+
+Choose whether the app should generate category folders or place files into an
+existing folder structure. You can use the analyzed folder as the destination or
+select a separate destination folder.
+
+In existing-folder mode, the app considers the destination's folder names and
+structure when choosing a target. Enable **Suggest new folders when needed** if
+you want it to propose missing folders. Review the target folder and routing
+explanation before applying changes; rename-only entries stay in their source folder.
+
+When you select existing-folder sorting with another local model, the app recommends
+**Qwen3.5 4B** for more reliable folder choices. **Gemma 1.1 7B** and models accessed
+through an API are also suitable choices and do not trigger this advisory. The
+recommendation is informational; you can keep your current model. The app also
+checks after accepting an LLM selection while existing-folder sorting is active.
+
+Open **Sorting rules...** to adjust categorization preferences and the separate
+image and document filename word limits. Both limits range from 3 to 6 words and
+default to 3. You can edit each suggested name during review.
+
+### Folder structures and plugins
+
+Use **Create folder structure...** to preview and create an available starter
+layout. Johnny.Decimal support includes tools for creating the next numbered
+folder, browsing an archive index, and checking the archive for structural issues.
+
+Optional folder-structure plugins provide additional guidance for supported
+archives. Install and manage them from the **Plugins** menu. The app can suggest
+Johnny.Decimal support when it recognizes a matching archive; some plugins require
+a separate license and activation.
 
 ### Categorization modes
 
@@ -226,7 +311,8 @@ More consistent
 
 - Category labels are chosen in English first behind the scenes, then shown in the category language you selected under **Settings → Category language**.
 - Suggested filenames for image, document, and supported audio/video rename flows are also localized into the selected **Settings → Category language** target before review/apply.
-- The list is model-dependent for built-in local models. **Gemma 3 4B IT** and **Custom** local models expose the full app-supported category-language list, **Mistral 7B** exposes a smaller supported subset, and **Gemma 1.1 7B** stays English-only.
+- Image and document naming prompts initially request English descriptive words while preserving proper nouns and identifiers. The desktop app can then localize the suggestions before review.
+- The list is model-dependent for built-in local models. **Gemma 3 4B IT**, **Qwen3.5 4B**, and **Custom** local models expose the full app-supported category-language list. Legacy **Mistral 7B** configurations expose a smaller supported subset, and **Gemma 1.1 7B** stays English-only.
 - When the supported list is long, the menu is grouped into alphabetical submenus to keep it usable on smaller screens.
 
 ### Category whitelists
@@ -246,13 +332,17 @@ More consistent
 
 Image analysis can run locally to understand what a picture shows and suggest a better category or filename. It does not require an API key.
 
-As of 1.9.0, **Gemma 3 4B IT** is the default visual backend. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
+**Qwen3.5 4B** is the default local text and visual backend and appears first in model selection, marked **Recommended**. Its description highlights high precision and its suitability for sorting into existing folder structures. The app also gives screenshots, webpage captures, dashboards, forms, mockups, and other UI-like images extra prompt guidance so categories describe what is shown on screen instead of misclassifying the image as the software artifact itself.
 
-The app currently exposes two built-in visual backends: the default Gemma 3 4B IT and LLaVA 1.6 Mistral 7B. In the current embedded runtime, all supported local visual backends require two GGUF files: the main text model and a matching `mmproj` projector file.
+The app exposes three built-in visual backends: the default Qwen3.5 4B, Gemma 3 4B IT, and LLaVA 1.6 Mistral 7B. All supported local visual backends require two GGUF files: the main text model and a matching `mmproj` projector file.
 
 The Gemma 3 4B IT GGUF is also available as a built-in local text/categorization model. When used only for categorization or document analysis, it runs as a normal text model and does not need `mmproj`. If you already downloaded the Gemma 3 text GGUF for image analysis, the local text-model entry reuses that same file automatically. The extra `mmproj` file is only required for visual image analysis.
 
 Custom local GGUF models can also be used for image analysis when their custom LLM entry includes a matching MMProj file. Those entries appear in the **Visual model** selector as custom visual backends and use the files you selected instead of the built-in download controls.
+
+You can also use a vision-capable **OpenAI-compatible API connection**, including a local llama.cpp, LM Studio, or Ollama server. Add or edit the connection in **Select LLM**, check **Vision-capable model**, then expand **Downloads** and choose **Connection: &lt;name&gt;** in **Image analysis models → Visual model**. Click **OK** and enable image-content analysis in the main window. The text/categorization model and visual model are selected independently. Existing API connections require this explicit vision opt-in. Enabling **Vision-capable model** opens an **OK / Cancel** notice explaining that images will be sent to the configured server. **Cancel** leaves the option off. Saved enabled connections do not prompt again during scans.
+
+For an API visual backend, AI File Sorter sends the image contents to that connection; the server must already have a vision model and any required projector loaded. No local GGUF or MMProj download is required in AI File Sorter. Requests use `/chat/completions` with an embedded PNG image, resized to at most 1536 pixels on its longest side with orientation applied and source metadata removed. A second, text-only request creates the filename from the description. Original file extensions and the configured filename word limit are preserved. API keys are optional for servers that do not require authentication, and `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT` applies to each request (60 seconds by default).
 
 ### Required visual LLM files
 
@@ -261,7 +351,9 @@ The **Select LLM** dialog includes an "Image analysis models" section with backe
 - **Visual text model (GGUF)**: The language model that produces the description and the filename suggestion.
 - **Matching `mmproj` file (GGUF)**: The multimodal projector that maps image embeddings into the model token space so the backend can accept images.
 
-Both files are required for the selected backend. If either one is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL` or `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+Both files are required for a local visual backend. API visual backends use the server's model instead. If either local file is missing, image analysis is disabled and the app will prompt to open the **Select LLM** dialog to download them. The download URLs can be overridden with backend-specific environment variables such as `LLAVA_MODEL_URL` / `LLAVA_MMPROJ_URL`, `GEMMA3_4B_MODEL_URL` / `GEMMA3_4B_MMPROJ_URL`, or `QWEN35_4B_MODEL_URL` / `QWEN35_4B_MMPROJ_URL` (see [Environment variables](#environment-variables)).
+
+Download sections show file size, status, and actions. Expand **See details** for a file's download URL, local path, model identifier, file type, runtime, and download URL setting. Details are collapsed by default, and long values wrap within the dialog.
 
 The same dialog also includes **Model storage**, which changes where built-in local text and visual model downloads are stored. Leave it empty to use the platform default.
 
@@ -272,7 +364,7 @@ Image analysis adds six related checkboxes to the main window:
 - **Analyze picture files by content**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
 - **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
 - **Add image creation date (if available) to category name**: Appends `YYYY-MM-DD` from image metadata to the category label when available. Disabled when rename-only is enabled.
-- **Add photo date and place to filename (if available)**: Adds metadata-based date/place prefixes to suggested image filenames when available.
+- **Add photo date and place to filename (if available)**: Adds date/place prefixes when available. Dates are read locally; online place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service. Leave this option off to keep photo locations local, including when adding dates to category names.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
 - **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
@@ -287,11 +379,11 @@ Document analysis uses the same selected LLM (local or remote) to extract text f
 ### Supported document formats
 
 - Plain text: `.txt`, `.md`, `.rtf`, `.csv`, `.tsv`, `.json`, `.xml`, `.yml`/`.yaml`, `.ini`/`.cfg`/`.conf`, `.log`, `.html`/`.htm`, `.tex`, `.rst`
-- PDF: `.pdf` (embedded PDFium by default; CLI fallback via `pdftotext` is available only if you explicitly configure `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF`)
+- PDF: `.pdf` (embedded PDFium by default for upstream builds; distro builds default to the `pdftotext` CLI fallback)
 - Office/OpenOffice: `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp` (embedded libzip+pugixml in bundled builds; CLI fallback uses `unzip` if you build without vendored libs)
 - Legacy binary formats like `.doc`, `.xls`, `.ppt` are not currently supported.
 
-Source builds: embedded extractors are used by default. If the vendored PDFium artifacts are missing for your target platform, CMake now fails loudly instead of silently disabling PDF content extraction. You can opt back into the old CLI fallback with `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF`.
+Source builds: embedded extractors are used by default. If the vendored PDFium artifacts are missing for your target platform, CMake now fails loudly instead of silently disabling PDF content extraction. Use `-DAI_FILE_SORTER_PDF_BACKEND=pdftotext` for the CLI fallback, `system-pdfium` for a distro-provided PDFium, or `auto` to try PDFium and fall back to `pdftotext`.
 
 ### Main window options (documents)
 
@@ -320,18 +412,28 @@ Let AI File Sorter turn embedded media tags into clean, consistent filenames for
 
 The **System compatibility check** runs a quick benchmark that estimates how well your system can handle:
 
-- **Categorization** with the selected local LLMs
+- **Categorization** with downloaded built-in models and registered custom GGUF models
 - **Document analysis** by content
 - **Image analysis** (visual LLM)
 
-You can launch it from the menu (**File → System compatibility check…**). It only runs if at least one local or visual LLM is downloaded, and it won’t auto-rerun if it's already been run.
+You can launch it from the menu (**File → System compatibility check…**). It runs when any built-in, custom GGUF, or visual model is available, regardless of the selected text or visual model. A completed check prevents future automatic prompts; stopping an initial check does not mark it completed. You can rerun it manually after changing models or hardware.
 
 What it does:
 
-- Detects available CPU threads and GPU backends (e.g., Vulkan/CUDA)
-- Times a small categorization and document-analysis workload per default model
-- Times a single image-analysis pass if visual LLM files are present
+- Detects available CPU threads and GPU backends (CUDA, Vulkan, and Metal)
+- Times a small categorization and document-analysis workload per available local text model
+- Times an image-analysis pass for every installed built-in or custom visual model with both a valid model file and its matching projector
 - Reports speed tiers (optimal / acceptable / a bit long) and suggests a recommended local LLM
+
+Results are tracked separately for every model/backend pair, including every available image-analysis model. Custom visual rows show the registered model's name. Changing the selected visual model does not discard other models' measurements or prevent their retries. Failed pairs are excluded from recommendations; a successful CPU, CUDA, Vulkan, or Metal result for the same model remains eligible. Recommendations show the backend alongside the model name. In existing-folder sorting mode, local recommendations are limited to Qwen3.5 4B and Gemma 1.1 7B. The benchmark measures local performance, not API service speed or folder-routing accuracy.
+
+Use the **Backend** dropdown to choose a specific backend or **All available backends**. **Automatic** tries the preferred GPU first and tests CPU separately if the GPU attempt fails. Explicit backend tests never count a silent CPU fallback as a GPU success. Only backends available in the running app can be measured.
+
+Select a row in the results table to **Retry selected**, or use **Retry failed** to rerun only failed pairs. **Try chosen backend** tests the selected model using the backend chosen above. Retrying replaces that pair's latest measurement and preserves other pairs. Results and retry choices survive reopening the dialog. Changed or removed model files invalidate their previous measurements when the next check starts.
+
+The check shares the analysis runtime lock and cannot run alongside active analysis. Finish the active job before starting the check. **Stop Benchmark** or Escape requests a stop after the current step, with temporary files cleaned up when the worker finishes.
+
+Qwen3.5 4B uses the same default speed targets as Gemma 4B: 2/5 seconds per categorization and 4/7 seconds per document for the optimal/acceptable limits. Override these with `BENCH_CAT_LOCAL_QWEN35_4B_OPTIMAL_MAX`, `BENCH_CAT_LOCAL_QWEN35_4B_ACCEPTABLE_MAX`, `BENCH_DOC_LOCAL_QWEN35_4B_OPTIMAL_MAX`, and `BENCH_DOC_LOCAL_QWEN35_4B_ACCEPTABLE_MAX`. Values must be finite positive seconds.
 
 Tip: quit CPU/GPU‑intensive apps before running the check for more accurate results.
 
@@ -339,12 +441,12 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 
 ## Requirements
 
-- **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section.
+- **Operating System**: Linux, macOS, or Windows. Linux/macOS source builds use the Makefile flow below; Windows source builds use the native Qt/MSVC + CMake flow in the Windows section. HTTPS uses maintained platform trust: distribution CA certificates on Linux, Secure Transport on macOS, and Schannel with strict revocation on Windows. The app ships no static CA bundle. Windows builds verify the active linked backend and loaded DLL path.
 - **Compiler**: A C++20-capable compiler (`g++` or `clang++` on Linux/macOS, MSVC 2022 on Windows).
 - **Qt 6**: Core, Gui, Widgets modules and the Qt resource compiler (`qt6-base-dev` / `qt6-tools` on Linux, `brew install qt` on macOS, or a Qt 6 MSVC kit / `qtbase` via vcpkg on Windows).
 - **Libraries**: `curl`, `sqlite3`, `fmt`, `spdlog`, `libmediainfo` (required for full source builds), and the prebuilt `llama` libraries shipped under `app/lib/precompiled` on Linux/Windows or `app/lib/precompiled-*` for macOS variant builds. On Windows, these non-Qt libraries are supplied through the `app/vcpkg.json` manifest.
 - **MediaInfo policy**: MediaInfo must be installed through a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`). The build rejects vendored MediaInfo submodules and checked-in binaries.
-- **Document analysis libraries** (vendored): PDFium, libzip, and pugixml. PDFium is required by default so packaged/source builds keep PDF extraction embedded on Windows, macOS, and Linux; set `-DAI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND=OFF` only if you intentionally want the `pdftotext` fallback.
+- **Document analysis libraries**: PDFium, libzip, and pugixml. PDFium is embedded by default for upstream builds so PDF extraction stays in-process on Windows, macOS, and Linux. Set `-DAI_FILE_SORTER_PDF_BACKEND=pdftotext` for the CLI fallback or `-DAI_FILE_SORTER_PDF_BACKEND=system-pdfium` when a distro ships a compatible PDFium package.
 - **Optional GPU backends**: CUDA 12.x for NVIDIA cards or a Vulkan 1.2+ runtime. On Windows installer/standalone builds, `aifilesorter.exe` auto-detects the best available backend and now prefers CUDA over Vulkan when both are available, falling back to CPU/OpenBLAS automatically. On Linux, the same applies through `run_aifilesorter.sh`; when a dedicated CPU runtime bundle is absent, the launcher can also reuse the staged Vulkan payload for CPU/OpenBLAS fallback, so CUDA is never required to run the app.
 - **Git** (optional): For cloning this repository. Archives can also be downloaded.
 - **Remote model credentials** (optional): Required only when using ChatGPT, Gemini, or a custom OpenAI-compatible API endpoint.
@@ -356,6 +458,10 @@ Tip: quit CPU/GPU‑intensive apps before running the check for more accurate re
 File categorization with local LLMs is completely free of charge. If you prefer to use a remote workflow (ChatGPT, Gemini, or a custom OpenAI-compatible endpoint) you will need your own API credentials or endpoint configuration with a suitable quota or local server setup (see [Using your OpenAI API key](#using-your-openai-api-key), [Using your Gemini API key](#using-your-gemini-api-key), or [Using a custom OpenAI-compatible API](#using-a-custom-openai-compatible-api)).
 
 ### Linux
+
+HTTPS uses the distribution's certificate trust store. Install and keep the
+`ca-certificates` package updated, including when running a tarball or a manual
+source install. Debian and RPM packages declare this runtime dependency.
 
 #### Prebuilt Debian/Ubuntu package
 
@@ -388,9 +494,9 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    - Debian / Ubuntu:
     ```bash
     sudo apt update && sudo apt install -y \
-      build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
-      libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev libmediainfo-dev \
-      zlib1g-dev patchelf
+      build-essential cmake git qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools \
+      libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev libfmt-dev libspdlog-dev libmediainfo-dev \
+      libwebp7 zlib1g-dev patchelf dpkg-dev
     ```
    - Fedora / RHEL:
 
@@ -509,8 +615,17 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 4. **Build the llama runtime variants** (run once per backend you plan to ship/test)
 
+   The submodule is pinned to llama.cpp `b11669` (`620d2225`). Rebuild all shipped
+   runtime variants after updating it; do not mix old and new `llama`, `llama-common`,
+   `ggml`, or `mtmd` libraries. Native chat formatting uses the embedded Jinja
+   template with thinking disabled. Qwen3.5 4B is the default local text and visual
+   model; image analysis also requires its matching projector.
+
    The Linux helper accepts either `cuda=on` / `vulkan=on` / `blas=on` or the GNU-style
    `--cuda=on` / `--vulkan=on` / `--blas=on` forms.
+   It defaults to four build workers. Set `AI_FILE_SORTER_LINUX_RUNTIME_JOBS=8`
+   to use eight, and compile the app with `make -j8`. Variant build directories
+   are retained for incremental rebuilds.
 
    ```bash
    # CPU / OpenBLAS
@@ -556,7 +671,31 @@ File categorization with local LLMs is completely free of charge. If you prefer 
    `./app/scripts/build_llama_linux.sh cuda=off vulkan=on`). Use
    `./app/scripts/package_deb.sh --cpu-only` for a smaller CPU-only package, or
    `--include-vulkan` / `--include-cuda` if you want the script to fail when a specific
-   staged variant is missing.
+   staged variant is missing. Use `--include-all` for a combined CPU + Vulkan + CUDA
+   package that requires all three staged variants. The installed launcher selects
+   the runtime at startup, so separate GPU downloads are optional.
+
+   Ubuntu release packages target **Ubuntu 24.04 / Linux Mint 22**. Build the app
+   and every bundled llama/ggml runtime on that baseline; compiling on a newer
+   distribution and repacking the files does not lower their library requirements.
+   The Ubuntu CI container is pinned to `ubuntu:24.04` and uses GCC 12 as the
+   host compiler for Noble's CUDA 12 toolkit. MediaInfo's development package
+   requires the GnuTLS curl development package on this baseline.
+   For a manual CUDA build on Ubuntu 24.04, install `g++-12` and set
+   `NVCC_CCBIN=/usr/bin/g++-12` when running `build_llama_linux.sh`.
+
+   Debian packaging requires `dpkg-dev`, `binutils`, `pkg-config`, Python 3, and
+   the build dependencies above. `app/scripts/deb_dependencies.py` validates
+   every staged ELF file against the build system's glibc, C++ and Qt ABIs,
+   then runs `dpkg-shlibdeps` across the executable and bundled libraries.
+   CUDA toolkit/driver libraries remain optional so the package can run on CPU-only
+   machines. For CUDA acceleration with the Ubuntu 24.04 build, install the CUDA 12
+   runtime packages `libcudart12` and `libcublas12` alongside a compatible NVIDIA
+   driver; the full CUDA development toolkit is not required. The CI package check
+   installs the generated `.deb` into a separate
+   Ubuntu 24.04 container with runtime dependencies only, checks bundled CPU
+   library dependencies with the system loader, and runs `--self-test` and
+   `--headless-help` through the installed launcher.
 
 8. **Build an RPM package (optional; Fedora / RHEL)**
 
@@ -573,9 +712,18 @@ File categorization with local LLMs is completely free of charge. If you prefer 
 
 ### macOS
 
-Apple Silicon Macs running macOS 15 or later are supported for macOS source builds and release bundles.
+Apple Silicon Macs running macOS 26 or later are supported for macOS source builds and release bundles.
 
-1. **Install Xcode command-line tools** (`xcode-select --install`).
+HTTPS uses Apple's certificate trust service. The selected libcurl must use
+Secure Transport; both CMake and Make check the actual linked runtime and reject
+unsupported builds. Use the macOS SDK/system libcurl. AppleSecTrust support in an
+OpenSSL build is insufficient because native verification can be supplemented by
+OpenSSL CA anchors. Remove a cached Homebrew `CURL_ROOT` when reconfiguring.
+Release packaging also runs the signed application's
+`--self-test=tls` with its packaged libraries and no developer library search
+overrides. Linux/macOS builds do not embed or install a separate CA bundle.
+
+1. **Install Xcode command-line tools** (`xcode-select --install`) with a macOS 26 or newer SDK.
 2. **Install Homebrew** (if required).
 3. **Install dependencies**
 
@@ -591,7 +739,7 @@ Apple Silicon Macs running macOS 15 or later are supported for macOS source buil
    ```
 
 4. **Clone the repository and submodules** (same commands as Linux).
-   > The macOS build pins `MACOSX_DEPLOYMENT_TARGET=15.0` so the Mach-O `LC_BUILD_VERSION` matches the supported Apple Silicon floor. Raise it if you intentionally want a newer floor.
+   > The macOS build defaults to a minimum deployment target of `26.0` in Make, CMake, and release bundles. This is required by the standard library's floating-point `std::from_chars` used for inference controls. Set `MACOSX_DEPLOYMENT_TARGET` (or `CMAKE_OSX_DEPLOYMENT_TARGET` for CMake) to select a newer minimum.
 
 5. **Build vendored libzip** (generates `zipconf.h` and `libzip.a`)
 
@@ -621,6 +769,7 @@ Apple Silicon Macs running macOS 15 or later are supported for macOS source buil
    ./app/scripts/build_llama_macos.sh --arm64   # Apple Silicon
    ```
    The macOS app and `.app` bundles use the runtime staged under `app/lib/precompiled*`; they do not need Homebrew `ggml` or `llama.cpp` libraries.
+   The runtime helper defaults to four build workers; set `AI_FILE_SORTER_MACOS_RUNTIME_JOBS=8` for eight.
    If you have older `ggml` / `llama.cpp` copies installed in generic library locations, prefer unlinking or removing them instead of relying on them implicitly.
 7. **Compile the application**
 
@@ -641,8 +790,18 @@ Apple Silicon Macs running macOS 15 or later are supported for macOS source buil
 
    These targets rebuild the llama.cpp runtime before compiling the app.
    `sudo make install` places the macOS runtime libraries under `/usr/local/lib/aifilesorter` to avoid collisions with unrelated system or Homebrew ggml libraries.
-   The commands above build the raw executable only; they do **not** currently create a distributable `.app` bundle or `.dmg`.
-   This repository does not yet ship a documented or automated macOS bundle/DMG packaging target in `README.md`, so any `.app` / `.dmg` release packaging must be handled as a separate macOS-hosted release step.
+   Create an ad hoc signed `.app` on macOS with Python 3.10 or newer:
+
+   ```bash
+   bash scripts/create_macos_bundle.sh --default
+   ```
+
+   Set `EXECUTABLE_SRC` and `BUNDLE_OUTPUT_DIR` for a CMake executable or a separate
+   output directory. The packager copies the linked dependency closure, verifies
+   architectures, removes developer search paths, and checks actual loaded images
+   from `/` with all `DYLD_*` overrides removed. System library references remain
+   system references. Developer ID signing, notarization, and DMG creation are
+   separate release steps.
    Each variant uses distinct build directories to avoid cross-arch collisions:
    - llama.cpp libs: `app/lib/precompiled-m1`, `app/lib/precompiled-m2`
    - object files: `app/obj/arm64`
@@ -711,6 +870,8 @@ Option A - CMake + vcpkg (recommended)
 5. Build the bundled `llama.cpp` runtime variants (run from the same **x64 Native Tools** / **Visual Studio Developer PowerShell** shell). Invoke the script once per backend you need. The script accepts `cuda=on|off`, `vulkan=on|off`, `blas=on|off`, `vcpkgroot=<path>`, `openblasroot=<path>`, and `cudaarch=<value>`. `vcpkgroot=<path>` is optional and only needed when auto-discovery misses your install. `blas` defaults to `AUTO`: it is enabled automatically for CPU-only builds and disabled automatically for CUDA/Vulkan builds unless you force it on. For Windows builds, the helper now keeps the shared ggml runtime generic and SSE4.2-safe instead of forcing AVX2 across every DLL. For CUDA builds, the helper prefers a valid `CUDA_PATH` and otherwise auto-selects the newest installed toolkit it can validate under `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA`. Make sure `nvcc --version` and `nvidia-smi` succeed in this same shell before running `cuda=on`. Make sure the MSYS2 OpenBLAS install from step 1 is present before running the CPU-only variant (or pass `openblasroot=<path>` explicitly):
 
    ```powershell
+   # Optional: override the default four build workers
+   $env:AI_FILE_SORTER_WINDOWS_RUNTIME_JOBS = "8"
    # CPU / OpenBLAS only
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=off
    # CUDA (requires matching NVIDIA toolkit/driver)
@@ -721,7 +882,20 @@ Option A - CMake + vcpkg (recommended)
    app\scripts\build_llama_windows.ps1 cuda=off vulkan=on
    ```
   
-  Each run emits the appropriate `llama.dll` / `ggml*.dll` pair under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. Windows ggml runtimes built by this helper target SSE4.2 and leave AVX, AVX2, BMI2, and newer x86 extensions disabled so the packaged DLLs remain usable on older x64 CPUs. If the vendored `llama.cpp` UI assets are missing, the helper downloads a prebuilt UI bundle before configuring and removes the temporary extracted assets after the build completes. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
+  Each run emits `llama.dll`, `llama-common.dll`, `mtmd.dll`, and `ggml*.dll` under `app\lib\precompiled\<cpu|cuda|vulkan|vulkan-blas>` and copies the runtime DLLs into the Windows runtime directories used by the app (`app\lib\ggml\wocuda`, `app\lib\ggml\wcuda`, or `app\lib\ggml\wvulkan`). Rebuild every shipped variant from the pinned submodule before rebuilding the application. The helper also stages OpenSSL runtime DLLs and, for OpenBLAS-backed builds, the MinGW companion DLLs needed beside `libopenblas.dll`. Windows ggml runtimes built by this helper target SSE4.2 and leave AVX, AVX2, BMI2, and newer x86 extensions disabled so the packaged DLLs remain usable on older x64 CPUs. Only runtime libraries are built; server/UI assets are not downloaded. For Vulkan builds, install the latest LunarG Vulkan SDK (or the vendor's runtime), ensure `vulkaninfo` succeeds in the same shell, and then run the script. The Windows launcher `aifilesorter.exe` auto-selects the best backend at launch: CUDA is preferred, Vulkan is used when CUDA is unavailable, and CPU remains the fallback.
+
+   CUDA builds also stage the matching `cudart64_*.dll`, `cublas64_*.dll`, and
+   `cublasLt64_*.dll` redistributables plus `CUDA-EULA.txt` under `lib/ggml/wcuda`.
+   The shared staging helper reads the backend's imported cuBLAS DLL name and
+   copies a complete matching set from the selected toolkit's `bin/x64` or `bin`.
+   Application packaging can reuse the staged set without a toolkit installed;
+   older incomplete runtime builds need a matching toolkit through `CUDA_PATH`
+   or a runtime rebuild. Packaging fails if the CUDA libraries or license are missing.
+   Detection uses the bundled runtime instead of unrelated toolkits or PhysX copies,
+   and retains Vulkan/CPU fallback when the bundled runtime cannot initialize.
+   End users need a compatible NVIDIA display driver, rather than a development
+   toolkit. See [NVIDIA's deployment guidance](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#cuda-toolkit-library-redistribution).
+   The CUDA 13.3 libraries add about 500 MiB before compression to the CUDA payload.
 
 6. Build the Qt6 application using the helper script (still in the VS shell). The helper stages runtime DLLs via `windeployqt` and shares one dependency install tree across builds:
 
@@ -959,8 +1133,10 @@ Visual LLM:
 
 - `LLAVA_MODEL_URL` - download URL for the LLaVA 1.6 Mistral 7B text model.
 - `LLAVA_MMPROJ_URL` - download URL for the LLaVA 1.6 Mistral 7B mmproj file.
-- `GEMMA3_4B_MODEL_URL` - download URL for the default/recommended Gemma 3 4B IT text model.
-- `GEMMA3_4B_MMPROJ_URL` - download URL for the default/recommended Gemma 3 4B IT mmproj file.
+- `GEMMA3_4B_MODEL_URL` - download URL for the Gemma 3 4B IT text model.
+- `GEMMA3_4B_MMPROJ_URL` - download URL for the Gemma 3 4B IT mmproj file.
+- `QWEN35_4B_MODEL_URL` - download URL for the default/recommended Qwen3.5 4B text model.
+- `QWEN35_4B_MMPROJ_URL` - download URL for the default/recommended Qwen3.5 4B mmproj file.
 - `AI_FILE_SORTER_VISUAL_USE_GPU` - force visual encoder GPU usage (`1`) or CPU (`0`). Defaults to auto; Vulkan may fall back to CPU if VRAM is low.
 
 Timeouts and logging:
@@ -1058,6 +1234,7 @@ Headless self-test mode:
 
 - `--self-test` runs deterministic self-tests from the production executable and exits with a pass/fail status instead of opening the main window.
 - `--self-test=whitelist` runs the deterministic large-whitelist suite explicitly. `--self-test=whitelists` is accepted as an alias.
+- On Linux/macOS, `--self-test=tls` checks the linked TLS runtime and trust configuration without contacting a server. The default `--self-test` includes this check.
 - The headless whitelist suite uses temporary app data, a large synthetic category list, learned-behavior fixtures, and a deterministic LLM stub. It verifies that large whitelists are reduced to relevant candidates, learned categories can outrank generic model output, and Unicode labels such as emoji survive the flow.
 - The full Catch2 unit suite extends this coverage with smart branching whitelist persistence, prompt construction, and valid category/subcategory pair enforcement.
 - On Windows GUI builds, add `--console-log` if you want to see the self-test output in the launching console.
@@ -1185,6 +1362,8 @@ Prefer an OpenAI-compatible endpoint such as **LM Studio**, **Ollama**, or your 
 4. Save the endpoint, select it from the list, and click **OK**.
 5. The endpoint configuration is stored locally in your AI File Sorter config and can be edited or removed later from the same dialog.
 
+Local and private-network API servers do not require public internet access. AI File Sorter connects directly to the configured custom endpoint and reports any connection errors from that request.
+
 Use this option for local servers or remote providers that follow the OpenAI-style API shape. Response time can be tuned with `AI_FILE_SORTER_CUSTOM_LLM_TIMEOUT`; rate-limited providers can be paced with `AI_FILE_SORTER_REMOTE_REQUESTS_PER_MINUTE` or `[Settings] RemoteRequestsPerMinute` (see [Environment variables](#environment-variables)).
 
 ---
@@ -1220,7 +1399,7 @@ For log locations, rotation details, and common troubleshooting notes, see [TROU
 
 ## Help and onboarding
 
-If you want an in-app walkthrough before your first run, open **Help → Quick Start Guide**. The Quick Start guide is localized and covers a safe small-folder trial, the review flow, undo, local learning, and the most common settings you may want to change.
+If you want an in-app walkthrough before your first run, open **Help → Quick Start Guide**. The localized guide covers model setup, the local compatibility check and retries, sorting into new or existing folders, a safe small-folder trial, dry-run previews, review and confirmation, undo, and local learning.
 
 If something looks wrong or you want troubleshooting tips, open **Help → FAQ**.
 
@@ -1268,7 +1447,8 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 ## Contributing
 
 - Fork the repository and submit pull requests.
-- Report issues or suggest features on the GitHub issue tracker.
+- Report ordinary bugs or suggest features on the GitHub issue tracker.
+- Report suspected security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 - Follow the existing code style and documentation format.
 
 ---
@@ -1312,8 +1492,8 @@ Suggested support levels:
 - **$30**: Help fund release maintenance, signing/listing costs, and user support.
 - **$100+**: Sponsor heavier development work or commercial/organizational use.
 
-You can still choose any amount from **$1 and up**. Donation codes are supporter markers that hide the periodic support reminder; they are not used to take away the free local core.
+You can still choose any amount from **$1 and up**. Donation codes are supporter markers that hide the periodic support reminder; they are not used to take away the free local core. On Windows, installing the File Explorer extension also hides that reminder.
 
-- **[Donate](https://filesorter.app/donate/)**
+- **[Donate](https://filesorter.app/donate/)** · **[Sponsor on GitHub](https://github.com/sponsors/hyperfield)**
 
 ---

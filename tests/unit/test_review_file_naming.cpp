@@ -98,3 +98,41 @@ TEST_CASE("ReviewFileNaming uses parenthetical suffixes for move collisions")
     CHECK(first == "report (1).pdf");
     CHECK(second == "report (2).pdf");
 }
+
+TEST_CASE("ReviewFileNaming uses explicit folder-tree target directories")
+{
+    TempDir temp_dir;
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "10-19 Admin" / "11 Reports"));
+
+    CategorizedFile file;
+    file.file_path = temp_dir.path().string();
+    file.file_name = "report.pdf";
+    file.type = FileType::File;
+    file.category = "10-19 Admin";
+    file.subcategory = "11 Reports";
+    file.folder_tree_mode = true;
+    file.target_folder_relative_path = "10-19 Admin/11 Reports";
+
+    const auto target =
+        ReviewFileNaming::build_suggested_target_dir(file, temp_dir.path().string(), false);
+
+    CHECK(target == temp_dir.path() / "10-19 Admin" / "11 Reports");
+}
+
+TEST_CASE("ReviewFileNaming uses the destination root for generated category folders")
+{
+    TempDir temp_dir;
+    const std::filesystem::path destination_root = temp_dir.path() / "sorted";
+
+    CategorizedFile file;
+    file.file_path = (temp_dir.path() / "incoming").string();
+    file.file_name = "report.pdf";
+    file.type = FileType::File;
+    file.category = "Documents";
+    file.subcategory = "Reports";
+
+    const auto target =
+        ReviewFileNaming::build_suggested_target_dir(file, destination_root.string(), true);
+
+    CHECK(target == destination_root / "Documents" / "Reports");
+}

@@ -10,6 +10,7 @@ namespace {
 
 constexpr std::string_view kLegacyDefaultLlavaBackendId = "llava-v1.6-mistral-7b";
 constexpr std::string_view kCustomVisualModelIdPrefix = "custom:";
+constexpr std::string_view kHttpVisualPrefix = "http-vision:";
 
 std::optional<std::string> read_cached_download_url(const std::filesystem::path& candidate)
 {
@@ -32,7 +33,8 @@ std::optional<std::string> read_cached_download_url(const std::filesystem::path&
 bool is_shared_legacy_filename(const std::filesystem::path& candidate)
 {
     const auto filename = candidate.filename().string();
-    return filename == "mmproj-model.gguf" || filename == "mmproj-model-f16.gguf";
+    return filename == "mmproj-model.gguf" || filename == "mmproj-model-f16.gguf"
+        || filename == "mmproj-F16.gguf";
 }
 
 bool is_default_llava_mmproj_without_metadata_compatible(
@@ -84,6 +86,24 @@ std::optional<std::filesystem::path> legacy_path_from_url(std::string_view downl
 const std::vector<VisualModelDescriptor>& visual_model_descriptors()
 {
     static const std::vector<VisualModelDescriptor> descriptors = {
+        {
+            "qwen3.5-4b",
+            "Qwen3.5 4B",
+            VisualModelArchitecture::MtmdProjector,
+            VisualPromptPolicy::StructuredVisionInstruct,
+            {
+                {VisualModelArtifactKind::Model,
+                 "Qwen3.5 4B (text model)",
+                 "QWEN35_4B_MODEL_URL",
+                 "model.gguf",
+                 {}},
+                {VisualModelArtifactKind::Mmproj,
+                 "Qwen3.5 4B mmproj (vision encoder)",
+                 "QWEN35_4B_MMPROJ_URL",
+                 "mmproj.gguf",
+                 {"mmproj-F16.gguf"}},
+            },
+        },
         {
             "llava-v1.6-mistral-7b",
             "LLaVA 1.6 Mistral 7B",
@@ -144,9 +164,9 @@ const VisualModelDescriptor* find_visual_model_descriptor(std::string_view id)
 
 const VisualModelDescriptor& default_visual_model_descriptor()
 {
-    const auto* gemma = find_visual_model_descriptor("gemma-3-4b-it");
-    if (gemma) {
-        return *gemma;
+    const auto* qwen = find_visual_model_descriptor("qwen3.5-4b");
+    if (qwen) {
+        return *qwen;
     }
     return visual_model_descriptors().front();
 }
@@ -237,4 +257,31 @@ std::optional<std::filesystem::path> resolve_visual_artifact_path(
     }
 
     return std::nullopt;
+}
+
+const VisualModelDescriptor& http_visual_model_descriptor()
+{
+    static const VisualModelDescriptor descriptor{
+        "http-vision", "OpenAI-compatible vision API", VisualModelArchitecture::HttpChatCompletion,
+        VisualPromptPolicy::StructuredVisionInstruct, {}};
+    return descriptor;
+}
+
+std::string http_visual_model_id(std::string_view endpoint_id)
+{
+    return endpoint_id.empty() ? std::string() : std::string(kHttpVisualPrefix) + std::string(endpoint_id);
+}
+
+std::optional<std::string> http_endpoint_id_from_visual_model_id(std::string_view visual_model_id)
+{
+    if (visual_model_id.size() <= kHttpVisualPrefix.size() ||
+        visual_model_id.substr(0, kHttpVisualPrefix.size()) != kHttpVisualPrefix) {
+        return std::nullopt;
+    }
+    return std::string(visual_model_id.substr(kHttpVisualPrefix.size()));
+}
+
+bool is_http_visual_model_id(std::string_view visual_model_id)
+{
+    return http_endpoint_id_from_visual_model_id(visual_model_id).has_value();
 }

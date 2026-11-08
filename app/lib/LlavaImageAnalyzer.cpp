@@ -1,9 +1,14 @@
 #include "LlavaImageAnalyzer.hpp"
+#include "ImageFilenamePolicy.hpp"
+#include "ContentAnalysisUnavailable.hpp"
 
 #include "ImageDecodeUtils.hpp"
+#include "GgmlRuntimePaths.hpp"
 #include "Logger.hpp"
 #include "LlamaModelParams.hpp"
+#include "NativeChatTemplate.hpp"
 #include "Utils.hpp"
+#include "VisualInputBudget.hpp"
 
 #include <QByteArray>
 #include <QImage>
@@ -68,8 +73,6 @@ MTMD_API void mtmd_helper_log_set(ggml_log_callback log_callback, void* user_dat
 #endif
 
 namespace {
-constexpr size_t kMaxFilenameWords = 3;
-constexpr size_t kMaxFilenameLength = 50;
 constexpr int32_t kDefaultVisualCpuBatchSize = 512;
 constexpr int32_t kDefaultVisualGpuBatchSize = 512;
 constexpr int32_t kDefaultMetalVisualBatchSize = 1024;
@@ -80,7 +83,6 @@ constexpr int32_t kVisualMinimumContextTokens = 1024;
 constexpr int32_t kVisualGpuLayerRetryScaleNumerator = 3;
 constexpr int32_t kVisualGpuLayerRetryScaleDenominator = 4;
 constexpr int32_t kMinimumVisualGpuLayerRetryCount = 1;
-constexpr std::size_t kEstimatedPromptBufferBytes = 4096;
 constexpr std::size_t kGeneratedResponseReserveBytes = 256;
 constexpr std::size_t kTokenPieceBufferBytes = 256;
 constexpr double kBytesPerMiB = 1024.0 * 1024.0;
@@ -172,14 +174,18 @@ PromptRequest build_description_request(VisualPromptPolicy policy) {
     return {"", ""};
 }
 
-PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view description) {
+PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view description,
+                                     size_t max_words = kDefaultFilenameWords) {
     switch (policy) {
     case VisualPromptPolicy::LegacyLlava: {
         std::ostringstream oss;
         oss << "Based on the description below, generate a specific and descriptive filename for the image.\n"
-            << "Limit the filename to a maximum of 3 words. Use nouns and avoid starting with verbs like "
+            << "Use English descriptive words regardless of the description's language.\n"
+            << "Preserve proper nouns and identifiers without translating them.\n"
+            << "Limit the filename to a maximum of " << max_words
+            << " words. Use concise descriptive words and avoid starting with verbs like "
             << "'depicts', 'shows', 'presents', etc.\n"
-            << "Do not include any data type words like 'image', 'jpg', 'png', 'webp', etc. Use only letters and "
+            << "Do not include any data type words like 'image', 'jpg', 'png', 'webp', etc. Use only letters and numbers; "
             << "connect words with underscores.\n\n"
             << "Description: " << description << "\n\n"
             << "Example:\n"
@@ -195,10 +201,12 @@ PromptRequest build_filename_request(VisualPromptPolicy policy, std::string_view
         oss << "Create a short filename stem from this image description.\n"
             << "Description: " << description << "\n\n"
             << "Rules:\n"
-            << "- maximum 3 words\n"
-            << "- lowercase letters only\n"
+            << "- use English descriptive words regardless of the description's language\n"
+            << "- preserve proper nouns and identifiers without translating them\n"
+            << "- maximum " << max_words << " words\n"
+            << "- lowercase letters and numbers only\n"
             << "- join words with underscores\n"
-            << "- prefer concrete nouns\n"
+            << "- use concise descriptive words that identify the subject\n"
             << "- do not include a file extension\n"
             << "- do not include quotes or extra commentary\n\n"
             << "Output only the filename stem.";
@@ -346,40 +354,11 @@ std::string trim_copy(const std::string& value) {
     return result;
 }
 
-QString sanitize_utf8_text(const std::string& value) {
-    QString cleaned = QString::fromUtf8(value.c_str());
-    cleaned.remove(QChar::ReplacementCharacter);
-    return cleaned.normalized(QString::NormalizationForm_C);
-}
 
 double elapsed_ms(const std::chrono::steady_clock::time_point start,
                   const std::chrono::steady_clock::time_point end) {
     return std::chrono::duration<double, std::milli>(end - start).count();
 }
-
-std::vector<std::string> split_words(const QString& value) {
-    std::vector<std::string> words;
-    QString current;
-    for (const QChar ch : value) {
-        if (ch.isLetterOrNumber()) {
-            current.append(ch.toLower());
-        } else if (!current.isEmpty()) {
-            words.emplace_back(current.toUtf8().toStdString());
-            current.clear();
-        }
-    }
-    if (!current.isEmpty()) {
-        words.emplace_back(current.toUtf8().toStdString());
-    }
-    return words;
-}
-
-const std::unordered_set<std::string> kStopwords = {
-    "a", "an", "and", "are", "as", "at", "based", "be", "by", "category", "describes",
-    "description", "depicts", "details", "document", "file", "filename", "for", "from",
-    "gif", "has", "image", "in", "is", "it", "jpeg", "jpg", "of", "on", "only",
-    "photo", "picture", "png", "shows", "the", "this", "to", "txt", "unknown", "webp", "with"
-};
 
 bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     if (needle.empty()) {
@@ -400,7 +379,8 @@ int32_t resolve_default_visual_batch_size(bool gpu_enabled, std::string_view bac
     if (!gpu_enabled) {
         return kDefaultVisualCpuBatchSize;
     }
-    if (case_insensitive_contains(backend_name, "metal")) {
+    if (case_insensitive_contains(backend_name, "metal") ||
+        case_insensitive_contains(backend_name, "mtl")) {
         return kDefaultMetalVisualBatchSize;
     }
 #if defined(_WIN32)
@@ -1142,38 +1122,83 @@ struct ChunkDeleter {
 using BitmapPtr = std::unique_ptr<mtmd_bitmap, BitmapDeleter>;
 using ChunkPtr = std::unique_ptr<mtmd_input_chunks, ChunkDeleter>;
 
-template <typename LoadedBitmap>
-mtmd_bitmap* unwrap_loaded_bitmap(LoadedBitmap&& loaded_bitmap) {
-    if constexpr (std::is_convertible_v<std::decay_t<LoadedBitmap>, mtmd_bitmap*>) {
-        return loaded_bitmap;
-    } else {
-        return loaded_bitmap.bitmap;
+struct PreparedVisualInput {
+    BitmapPtr resized_bitmap;
+    ChunkPtr chunks;
+};
+
+BitmapPtr bitmap_from_image(mtmd_context* vision_ctx, const QImage& image)
+{
+    QByteArray bytes;
+    if (!ImageDecodeUtils::encode_image_as_png_bytes(image, bytes)) {
+        throw std::runtime_error("Could not encode resized visual input");
     }
+    auto wrapper = mtmd_helper_bitmap_init_from_buf(vision_ctx,
+        reinterpret_cast<const unsigned char*>(bytes.constData()),
+        static_cast<std::size_t>(bytes.size()), false, mtmd_helper_init_opt_default());
+    if (!wrapper.bitmap) {
+        throw std::runtime_error("Could not load resized visual input");
+    }
+    return BitmapPtr(wrapper.bitmap);
 }
 
-template <typename Context, typename Byte>
-auto load_bitmap_from_buf_compat(Context* vision_ctx, const Byte* data, size_t size, int)
-    -> decltype(mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size)) {
-    return mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size);
+QImage bitmap_image_view(const mtmd_bitmap* bitmap)
+{
+    constexpr uint32_t kRgbChannels = 3;
+    const auto width = mtmd_bitmap_get_nx(bitmap);
+    const auto height = mtmd_bitmap_get_ny(bitmap);
+    if (width == 0 || height == 0 || width > INT_MAX / kRgbChannels || height > INT_MAX) {
+        throw std::runtime_error("Invalid visual input dimensions");
+    }
+    return QImage(mtmd_bitmap_get_data(bitmap), static_cast<int>(width), static_cast<int>(height),
+                  static_cast<int>(width * kRgbChannels), QImage::Format_RGB888);
 }
 
-template <typename Context, typename Byte>
-auto load_bitmap_from_buf_compat(Context* vision_ctx, const Byte* data, size_t size, long)
-    -> decltype(mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size, false)) {
-    return mtmd_helper_bitmap_init_from_buf(vision_ctx, data, size, false);
+PreparedVisualInput prepare_visual_input(mtmd_context* vision_ctx, mtmd_bitmap* bitmap,
+    const std::string& prompt, std::size_t context_tokens, int32_t max_tokens)
+{
+    if (max_tokens <= 0) {
+        throw std::invalid_argument("Visual generation requires a positive output token budget");
+    }
+    PreparedVisualInput prepared;
+    mtmd_input_text text{prompt.c_str(), prompt.size(), true, true};
+    auto tokenize = [&](const mtmd_bitmap* input_bitmap) {
+        prepared.chunks.reset(mtmd_input_chunks_init());
+        if (!prepared.chunks) {
+            throw std::runtime_error("Failed to allocate visual input chunks");
+        }
+        const mtmd_bitmap* bitmaps[] = {input_bitmap};
+        const auto result = mtmd_tokenize(vision_ctx, prepared.chunks.get(), &text,
+            input_bitmap ? bitmaps : nullptr, input_bitmap ? 1 : 0);
+        if (result != 0) {
+            throw std::runtime_error("mtmd_tokenize failed with code " + std::to_string(result));
+        }
+        return mtmd_helper_get_n_tokens(prepared.chunks.get());
+    };
+    const auto initial_tokens = tokenize(bitmap);
+    const auto output_tokens = static_cast<std::size_t>(max_tokens);
+    if (VisualInputBudget::fits(initial_tokens, output_tokens, context_tokens)) {
+        return prepared;
+    }
+    if (!bitmap) {
+        throw std::runtime_error("Complete visual text prompt and generation exceed the model context");
+    }
+    const auto original = bitmap_image_view(bitmap);
+    const auto fitted = VisualInputBudget::fit(original, initial_tokens, output_tokens, context_tokens,
+        [&](const QImage& candidate) {
+            auto resized = bitmap_from_image(vision_ctx, candidate);
+            const auto tokens = tokenize(resized.get());
+            prepared.resized_bitmap = std::move(resized);
+            return tokens;
+        });
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->info("Fitted visual input {}x{} -> {}x{}: prompt tokens {} -> {}, output {}, context {}.",
+            original.width(), original.height(), fitted.image.width(), fitted.image.height(),
+            initial_tokens, fitted.prompt_tokens, output_tokens, context_tokens);
+    }
+    return prepared;
 }
 
-template <typename Context>
-auto load_bitmap_from_file_compat(Context* vision_ctx, const char* path, int)
-    -> decltype(mtmd_helper_bitmap_init_from_file(vision_ctx, path)) {
-    return mtmd_helper_bitmap_init_from_file(vision_ctx, path);
-}
-
-template <typename Context>
-auto load_bitmap_from_file_compat(Context* vision_ctx, const char* path, long)
-    -> decltype(mtmd_helper_bitmap_init_from_file(vision_ctx, path, false)) {
-    return mtmd_helper_bitmap_init_from_file(vision_ctx, path, false);
-}
 
 BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
                                               const std::string& image_path_utf8) {
@@ -1188,7 +1213,7 @@ BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
         if (!decode_error.empty()) {
             message += " (" + decode_error + ")";
         }
-        throw std::runtime_error(message);
+        throw ContentAnalysisUnavailable(message);
     }
 
     QByteArray png_bytes;
@@ -1197,12 +1222,13 @@ BitmapPtr load_webp_bitmap_as_supported_image(mtmd_context* vision_ctx,
                                  image_path_utf8);
     }
 
-    auto loaded_bitmap = load_bitmap_from_buf_compat(
+    auto loaded_bitmap = mtmd_helper_bitmap_init_from_buf(
         vision_ctx,
         reinterpret_cast<const unsigned char*>(png_bytes.constData()),
         static_cast<size_t>(png_bytes.size()),
-        0);
-    return BitmapPtr(unwrap_loaded_bitmap(loaded_bitmap));
+        false,
+        mtmd_helper_init_opt_default());
+    return BitmapPtr(loaded_bitmap.bitmap);
 }
 
 BitmapPtr load_visual_bitmap(mtmd_context* vision_ctx,
@@ -1217,8 +1243,9 @@ BitmapPtr load_visual_bitmap(mtmd_context* vision_ctx,
     }
 
     auto loaded_bitmap =
-        load_bitmap_from_file_compat(vision_ctx, image_path_utf8.c_str(), 0);
-    return BitmapPtr(unwrap_loaded_bitmap(loaded_bitmap));
+        mtmd_helper_bitmap_init_from_file(vision_ctx, image_path_utf8.c_str(), false,
+                                         mtmd_helper_init_opt_default());
+    return BitmapPtr(loaded_bitmap.bitmap);
 }
 
 llama_token greedy_sample(const float* logits, int vocab_size, float temperature) {
@@ -1235,70 +1262,6 @@ llama_token greedy_sample(const float* logits, int vocab_size, float temperature
     return static_cast<llama_token>(best_index);
 }
 
-bool format_visual_prompt(llama_model* model,
-                          std::string_view system_prompt,
-                          std::string_view user_prompt,
-                          std::string& final_prompt) {
-    if (!model) {
-        return false;
-    }
-
-    const char* tmpl = llama_model_chat_template(model, nullptr);
-    if (!tmpl || tmpl[0] == '\0') {
-        final_prompt.clear();
-        if (!system_prompt.empty()) {
-            final_prompt.append(system_prompt);
-            final_prompt.append("\n\n");
-        }
-        final_prompt.append(user_prompt);
-        return true;
-    }
-
-    std::vector<std::string> owned_messages;
-    owned_messages.reserve(system_prompt.empty() ? 1 : 2);
-    std::vector<llama_chat_message> messages;
-    messages.reserve(system_prompt.empty() ? 1 : 2);
-
-    if (!system_prompt.empty()) {
-        owned_messages.emplace_back(system_prompt);
-        messages.push_back({"system", owned_messages.back().c_str()});
-    }
-
-    owned_messages.emplace_back(user_prompt);
-    messages.push_back({"user", owned_messages.back().c_str()});
-
-    std::size_t estimated_size = kEstimatedPromptBufferBytes;
-    for (const auto& message : owned_messages) {
-        estimated_size += message.size() * 2;
-    }
-
-    std::vector<char> formatted_prompt(estimated_size);
-    int actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-    if (actual_len < 0) {
-        return false;
-    }
-
-    if (actual_len >= static_cast<int>(formatted_prompt.size())) {
-        formatted_prompt.resize(static_cast<std::size_t>(actual_len) + 1);
-        actual_len = llama_chat_apply_template(tmpl,
-                                               messages.data(),
-                                               messages.size(),
-                                               true,
-                                               formatted_prompt.data(),
-                                               static_cast<int32_t>(formatted_prompt.size()));
-        if (actual_len < 0 || actual_len >= static_cast<int>(formatted_prompt.size())) {
-            return false;
-        }
-    }
-
-    final_prompt.assign(formatted_prompt.data(), static_cast<std::size_t>(actual_len));
-    return true;
-}
 
 #else
 
@@ -1364,8 +1327,12 @@ std::string filename_system_prompt(VisualPromptPolicy policy) {
     return build_filename_request(policy, "example description").system_prompt;
 }
 
-std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description) {
-    return build_filename_request(policy, description).user_prompt;
+std::string filename_user_prompt(VisualPromptPolicy policy, std::string_view description, size_t max_words) {
+    return build_filename_request(policy, description, max_words).user_prompt;
+}
+
+std::string sanitize_filename(const std::string& value, size_t max_words) {
+    return LlavaImageAnalyzer::sanitize_filename(value, max_words, ImageFilenamePolicy::kMaxFilenameLength);
 }
 
 bool can_transcode_webp_for_visual_analysis(const std::filesystem::path& path) {
@@ -1417,6 +1384,7 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
 
     auto logger = Logger::get_logger("core_logger");
     const std::string backend_name = resolve_backend_name();
+    GgmlRuntimePaths::ensure_ggml_backends_loaded(logger);
     const auto cleanup = [this]() {
         if (vision_ctx_) {
             mtmd_free(vision_ctx_);
@@ -1433,6 +1401,7 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
     };
 
     llama_model_params model_params = llama_model_default_params();
+    std::array<ggml_backend_dev_t, 2> required_devices{};
     const std::string model_path_utf8 = Utils::path_to_utf8(model_path);
     const std::string mmproj_path_utf8 = Utils::path_to_utf8(mmproj_path);
     if (settings_.use_gpu) {
@@ -1440,6 +1409,20 @@ LlavaImageAnalyzer::LlavaImageAnalyzer(const std::filesystem::path& model_path,
             build_visual_model_params_for_path(model_path_utf8, mmproj_path_utf8, logger);
     } else {
         model_params.n_gpu_layers = 0;
+    }
+
+    if (!settings_.required_backend.empty()) {
+        if (settings_.required_backend != "cpu") {
+            required_devices[0] = GgmlRuntimePaths::find_gpu_device(settings_.required_backend);
+            if (!required_devices[0] || model_params.n_gpu_layers == 0) {
+                throw std::runtime_error("Requested visual backend " + settings_.required_backend
+                    + " cannot run this model with the current GPU settings.");
+            }
+        } else {
+            model_params.n_gpu_layers = 0;
+        }
+        model_params.devices = required_devices.data();
+        model_params.split_mode = LLAMA_SPLIT_MODE_NONE;
     }
 
     auto try_load_visual_model = [&](const llama_model_params& params) -> bool {
@@ -1681,7 +1664,7 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
     const auto bitmap_started = std::chrono::steady_clock::now();
     BitmapPtr bitmap = load_visual_bitmap(vision_ctx_, image_path, image_path_utf8);
     if (!bitmap) {
-        throw std::runtime_error("Failed to load image for visual analysis: " + image_path_utf8);
+        throw ContentAnalysisUnavailable("Failed to load image for visual analysis: " + image_path_utf8);
     }
     ImageAnalysisDiagnostics diagnostics;
     diagnostics.available = true;
@@ -1697,7 +1680,7 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
                                                settings_.n_predict,
                                                &diagnostics.description_pass);
 
-    const auto filename_request = build_filename_request(prompt_policy_, description);
+    const auto filename_request = build_filename_request(prompt_policy_, description, settings_.max_filename_words);
     const std::string raw_filename = infer_text(nullptr,
                                                 filename_request.system_prompt,
                                                 filename_request.user_prompt,
@@ -1707,9 +1690,9 @@ ImageAnalysisResult LlavaImageAnalyzer::analyze(const std::filesystem::path& ima
     if (logger) {
         logger->info("Visual raw filename: {}", raw_filename);
     }
-    std::string filename_base = sanitize_filename(raw_filename, kMaxFilenameWords, kMaxFilenameLength);
+    std::string filename_base = sanitize_filename(raw_filename, settings_.max_filename_words, ImageFilenamePolicy::kMaxFilenameLength);
     if (filename_base.empty()) {
-        filename_base = sanitize_filename(description, kMaxFilenameWords, kMaxFilenameLength);
+        filename_base = sanitize_filename(description, settings_.max_filename_words, ImageFilenamePolicy::kMaxFilenameLength);
     }
     if (filename_base.empty()) {
         filename_base = "image_" + slugify(Utils::path_to_utf8(image_path.stem()));
@@ -1805,27 +1788,9 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
 
     const auto inference_started = std::chrono::steady_clock::now();
 
-    std::string formatted_prompt;
-    if (!format_visual_prompt(model_, system_prompt, user_prompt, formatted_prompt) || formatted_prompt.empty()) {
-        formatted_prompt = user_prompt;
-    }
-
-    ChunkPtr chunks(mtmd_input_chunks_init());
-    if (!chunks) {
-        throw std::runtime_error("Failed to allocate mtmd input chunks");
-    }
-
-    mtmd_input_text text{};
-    text.text = formatted_prompt.c_str();
-    text.add_special = true;
-    text.parse_special = true;
-
-    const mtmd_bitmap* bitmaps[] = { bitmap };
-    const mtmd_bitmap** bitmap_ptr = nullptr;
-    int32_t bitmap_count = 0;
-    if (bitmap) {
-        bitmap_ptr = bitmaps;
-        bitmap_count = 1;
+    const std::string formatted_prompt = NativeChatTemplate::format(model_, system_prompt, user_prompt);
+    if (formatted_prompt.empty()) {
+        throw std::runtime_error("The visual model produced an empty chat prompt");
     }
 
 #if defined(AI_FILE_SORTER_MTMD_LOG_CALLBACK)
@@ -1846,18 +1811,11 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
 #endif
 
     const auto tokenize_started = std::chrono::steady_clock::now();
-    const int32_t tokenize_res = mtmd_tokenize(
-        vision_ctx_,
-        chunks.get(),
-        &text,
-        bitmap_ptr,
-        bitmap_count);
+    auto prepared = prepare_visual_input(vision_ctx_, bitmap, formatted_prompt,
+        llama_n_ctx(context_), max_tokens);
     const auto tokenize_finished = std::chrono::steady_clock::now();
     if (diagnostics) {
         diagnostics->tokenize_ms = elapsed_ms(tokenize_started, tokenize_finished);
-    }
-    if (tokenize_res != 0) {
-        throw std::runtime_error("mtmd_tokenize failed with code " + std::to_string(tokenize_res));
     }
 
 #if defined(AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
@@ -1882,9 +1840,14 @@ std::string LlavaImageAnalyzer::infer_text(mtmd_bitmap* bitmap,
     llama_pos new_n_past = 0;
     const auto eval_started = std::chrono::steady_clock::now();
     auto eval_chunks = [&](int32_t n_batch) {
+        if (!VisualInputBudget::fits(mtmd_helper_get_n_tokens(prepared.chunks.get()),
+                static_cast<std::size_t>(max_tokens), llama_n_ctx(context_))) {
+            prepared = prepare_visual_input(vision_ctx_, bitmap, formatted_prompt,
+                llama_n_ctx(context_), max_tokens);
+        }
         return mtmd_helper_eval_chunks(vision_ctx_,
                                        context_,
-                                       chunks.get(),
+                                       prepared.chunks.get(),
                                        0 /* n_past */,
                                        0 /* seq_id */,
                                        n_batch,
@@ -1980,67 +1943,8 @@ std::string LlavaImageAnalyzer::infer_text(void* bitmap,
 
 std::string LlavaImageAnalyzer::sanitize_filename(const std::string& value,
                                                   size_t max_words,
-                                                  size_t max_length) const {
-    QString cleaned = sanitize_utf8_text(value).trimmed();
-    const QString prefix = QStringLiteral("filename:");
-    if (cleaned.startsWith(prefix, Qt::CaseInsensitive)) {
-        cleaned = cleaned.mid(prefix.size()).trimmed();
-    }
-    const int newline = cleaned.indexOf('\n');
-    if (newline != -1) {
-        cleaned = cleaned.left(newline);
-    }
-    const int carriage = cleaned.indexOf('\r');
-    if (carriage != -1) {
-        cleaned = cleaned.left(carriage);
-    }
-    if (cleaned.size() >= 2) {
-        const QChar first = cleaned.front();
-        const QChar last = cleaned.back();
-        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-            cleaned = cleaned.mid(1, cleaned.size() - 2);
-        }
-    }
-
-    auto words = split_words(cleaned);
-    std::vector<std::string> filtered;
-    filtered.reserve(words.size());
-    std::unordered_set<std::string> seen;
-    for (const auto& word : words) {
-        if (word.empty()) {
-            continue;
-        }
-        if (kStopwords.find(word) != kStopwords.end()) {
-            continue;
-        }
-        if (seen.insert(word).second) {
-            filtered.push_back(word);
-        }
-        if (filtered.size() >= max_words) {
-            break;
-        }
-    }
-
-    if (filtered.empty()) {
-        return std::string();
-    }
-
-    QString joined;
-    for (size_t i = 0; i < filtered.size(); ++i) {
-        if (i > 0) {
-            joined.append('_');
-        }
-        joined.append(QString::fromUtf8(filtered[i].c_str()));
-    }
-
-    if (joined.size() > static_cast<int>(max_length)) {
-        joined = joined.left(static_cast<int>(max_length));
-    }
-    while (!joined.isEmpty() && joined.endsWith('_')) {
-        joined.chop(1);
-    }
-
-    return joined.toUtf8().toStdString();
+                                                  size_t max_length) {
+    return ImageFilenamePolicy::sanitize_filename(value, max_words, max_length);
 }
 
 std::string LlavaImageAnalyzer::trim(std::string value) {
@@ -2048,33 +1952,10 @@ std::string LlavaImageAnalyzer::trim(std::string value) {
 }
 
 std::string LlavaImageAnalyzer::slugify(const std::string& value) {
-    const QString input = sanitize_utf8_text(value);
-    QString slug;
-    slug.reserve(input.size());
-    bool last_sep = false;
-    for (const QChar ch : input) {
-        if (ch.isLetterOrNumber()) {
-            slug.append(ch.toLower());
-            last_sep = false;
-        } else if (!last_sep && !slug.isEmpty()) {
-            slug.append('_');
-            last_sep = true;
-        }
-    }
-    if (!slug.isEmpty() && slug.endsWith('_')) {
-        slug.chop(1);
-    }
-    if (slug.isEmpty()) {
-        slug = QStringLiteral("item");
-    }
-    return slug.toUtf8().toStdString();
+    return ImageFilenamePolicy::slugify(value);
 }
 
 std::string LlavaImageAnalyzer::normalize_filename(const std::string& base,
                                                    const std::filesystem::path& original_path) {
-    const std::string ext = Utils::path_to_utf8(original_path.extension());
-    if (base.empty()) {
-        return Utils::path_to_utf8(original_path.filename());
-    }
-    return ext.empty() ? base : base + ext;
+    return ImageFilenamePolicy::normalize_filename(base, original_path);
 }

@@ -7,6 +7,14 @@ $useBlas = "AUTO" # AUTO = enable BLAS for CPU-only builds by default
 $vcpkgRootArg = $null
 $openBlasRootArg = $null
 $cudaArchArg = $null
+$buildJobs = 4
+if ($env:AI_FILE_SORTER_WINDOWS_RUNTIME_JOBS) {
+    $parsedJobs = 0
+    if (-not [int]::TryParse($env:AI_FILE_SORTER_WINDOWS_RUNTIME_JOBS, [ref]$parsedJobs) -or $parsedJobs -lt 1) {
+        throw "AI_FILE_SORTER_WINDOWS_RUNTIME_JOBS must be a positive integer."
+    }
+    $buildJobs = $parsedJobs
+}
 foreach ($arg in $args) {
     if ($arg -match "^cuda=(on|off)$") {
         $useCuda = $Matches[1].ToUpper()
@@ -30,11 +38,13 @@ if ($useCuda -eq "ON" -and $useVulkan -eq "ON") {
 Write-Output "`nCUDA Support: $useCuda`n"
 Write-Output "Vulkan Support: $useVulkan`n"
 Write-Output "BLAS Support: $useBlas (AUTO enables for CPU-only builds)`n"
+Write-Output "Build parallelism: $buildJobs`n"
 if ($cudaArchArg) {
     Write-Output "CUDA Architectures Override: $cudaArchArg`n"
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+. (Join-Path $scriptDir 'stage_windows_cuda_runtime.ps1')
 $llamaDir = Join-Path $scriptDir "..\include\external\llama.cpp"
 
 if (-not (Test-Path $llamaDir)) {
@@ -1141,7 +1151,7 @@ if ($useVulkan -eq "ON") {
 # Write-Host "Using OpenBLAS lib: $openBlasLib"
 
 $llamaBuildDir = Get-LlamaBuildDirectory -LlamaRoot $llamaDir
-$uiDistState = Ensure-LlamaUiDist -LlamaRoot $llamaDir -CMakeExecutable $cmakeExe
+$uiDistState = $null
 $gitSafeDirectoryState = $null
 
 # Build Windows ggml runtimes so they remain compatible with older x64 CPUs
@@ -1168,6 +1178,13 @@ $cmakeArgs = @(
     (New-CMakeCacheArg -Name "OPENSSL_SSL_LIBRARY" -Type "FILEPATH" -Value (Convert-ToCMakePath $openSslSslLib)),
     (New-CMakeCacheArg -Name "OPENSSL_CRYPTO_LIBRARY" -Type "FILEPATH" -Value (Convert-ToCMakePath $openSslCryptoLib)),
     "-DBUILD_SHARED_LIBS=ON",
+    "-DLLAMA_BUILD_COMMON=ON",
+    "-DLLAMA_BUILD_MTMD=ON",
+    "-DLLAMA_BUILD_TOOLS=OFF",
+    "-DLLAMA_BUILD_APP=OFF",
+    "-DLLAMA_BUILD_EXAMPLES=OFF",
+    "-DLLAMA_BUILD_TESTS=OFF",
+    "-DMTMD_VIDEO=OFF",
     "-DGGML_OPENCL=OFF",
     "-DGGML_VULKAN=$useVulkan",
     "-DGGML_SYCL=OFF",
@@ -1250,7 +1267,7 @@ try {
         throw "CMake configure failed with exit code $LASTEXITCODE"
     }
 
-    & $cmakeExe --build $llamaBuildDir --config Release -- /m
+    & $cmakeExe --build $llamaBuildDir --config Release --parallel $buildJobs
     if ($LASTEXITCODE -ne 0) {
         throw "CMake build failed with exit code $LASTEXITCODE"
     }
@@ -1311,6 +1328,11 @@ foreach ($dll in $dllList) {
     }
 }
 
+if ($useCuda -eq "ON") {
+    Copy-WindowsCudaRuntime -RuntimeDirectory $variantBin -ToolkitRoots @($cudaRoot)
+    Copy-WindowsCudaRuntime -RuntimeDirectory $runtimeDir -SourceDirectories @($variantBin) -ToolkitRoots @()
+}
+
 if ($enableBlas -and $openBlasDll -and (Test-Path $openBlasDll)) {
     $libOpenBlasName = "libopenblas.dll"
     Copy-Item $openBlasDll -Destination (Join-Path $variantBin $libOpenBlasName) -Force
@@ -1346,7 +1368,7 @@ if ($useVulkan -eq "ON" -and $vulkanDllPath -and (Test-Path $vulkanDllPath)) {
     Copy-Item $vulkanDllPath -Destination $runtimeDir -Force
 }
 
-$importLibNames = @("llama.lib", "ggml.lib", "ggml-base.lib", "ggml-cpu.lib", "mtmd.lib")
+$importLibNames = @("llama.lib", "llama-common.lib", "ggml.lib", "ggml-base.lib", "ggml-cpu.lib", "mtmd.lib")
 $optionalLibs = @("ggml-blas.lib", "ggml-openblas.lib")
 if ($useCuda -eq "ON") {
     $importLibNames += "ggml-cuda.lib"

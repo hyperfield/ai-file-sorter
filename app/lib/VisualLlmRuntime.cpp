@@ -118,6 +118,23 @@ std::optional<VisualLlmRuntime::Backend> resolve_custom_visual_backend(
     return VisualLlmRuntime::Backend{&descriptor, std::move(artifacts)};
 }
 
+std::optional<VisualLlmRuntime::Backend> resolve_http_visual_backend(
+    std::string_view endpoint_id,
+    const std::vector<CustomApiEndpoint>& api_endpoints,
+    std::string* error)
+{
+    const auto it = std::find_if(api_endpoints.begin(), api_endpoints.end(), [&](const auto& endpoint) {
+        return endpoint.id == endpoint_id;
+    });
+    if (it == api_endpoints.end() || !is_valid_custom_api_endpoint(*it) || !it->image_analysis_enabled) {
+        if (error) {
+            *error = "The selected image-analysis API connection is missing or is not enabled for vision.";
+        }
+        return std::nullopt;
+    }
+    return VisualLlmRuntime::Backend{&http_visual_model_descriptor(), {}, *it};
+}
+
 } // namespace
 
 std::optional<std::filesystem::path> VisualLlmRuntime::Backend::path_for(VisualModelArtifactKind kind) const
@@ -156,6 +173,18 @@ std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backen
     const std::vector<CustomLLM>& custom_llms,
     std::string* error)
 {
+    return resolve_active_backend(backend_id, custom_llms, {}, error);
+}
+
+std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backend(
+    std::string_view backend_id,
+    const std::vector<CustomLLM>& custom_llms,
+    const std::vector<CustomApiEndpoint>& api_endpoints,
+    std::string* error)
+{
+    if (const auto endpoint_id = http_endpoint_id_from_visual_model_id(backend_id)) {
+        return resolve_http_visual_backend(*endpoint_id, api_endpoints, error);
+    }
     if (is_custom_visual_model_id(backend_id)) {
         return resolve_custom_visual_backend(backend_id, custom_llms, error);
     }

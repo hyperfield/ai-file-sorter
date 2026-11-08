@@ -1,4 +1,8 @@
 #include "DocumentTextAnalyzer.hpp"
+#include "ContentAnalysisUnavailable.hpp"
+#include "DocumentXmlTextExtractor.hpp"
+#include "DocumentSummaryService.hpp"
+#include "Logger.hpp"
 
 #include "ILLMClient.hpp"
 #include "Utils.hpp"
@@ -15,17 +19,7 @@
 #if defined(AI_FILE_SORTER_USE_LIBZIP)
 #include <zip.h>
 #endif
-#if defined(AI_FILE_SORTER_USE_PUGIXML)
-#include <pugixml.hpp>
-#endif
 
-#if __has_include(<jsoncpp/json/json.h>)
-#include <jsoncpp/json/json.h>
-#elif __has_include(<json/json.h>)
-#include <json/json.h>
-#else
-#error "jsoncpp headers not found. Install jsoncpp development files."
-#endif
 
 #include <array>
 #include <algorithm>
@@ -103,72 +97,6 @@ std::vector<std::string> split_words(const QString& value) {
         words.emplace_back(current.toUtf8().toStdString());
     }
     return words;
-}
-
-std::string strip_xml_tags(const std::string& xml) {
-    std::string output;
-    output.reserve(xml.size());
-    bool in_tag = false;
-    for (char ch : xml) {
-        if (ch == '<') {
-            in_tag = true;
-            continue;
-        }
-        if (ch == '>') {
-            in_tag = false;
-            continue;
-        }
-        if (!in_tag) {
-            output.push_back(ch);
-        }
-    }
-    return output;
-}
-
-void replace_all(std::string& value, std::string_view from, std::string_view to) {
-    if (from.empty()) {
-        return;
-    }
-    size_t pos = 0;
-    while ((pos = value.find(from.data(), pos, from.size())) != std::string::npos) {
-        value.replace(pos, from.size(), to.data(), to.size());
-        pos += to.size();
-    }
-}
-
-std::string decode_basic_entities(std::string value) {
-    replace_all(value, "&amp;", "&");
-    replace_all(value, "&lt;", "<");
-    replace_all(value, "&gt;", ">");
-    replace_all(value, "&quot;", "\"");
-    replace_all(value, "&apos;", "'");
-    return value;
-}
-
-#if defined(AI_FILE_SORTER_USE_PUGIXML)
-void append_node_text(const pugi::xml_node& node, std::string& out) {
-    if (node.type() == pugi::node_pcdata || node.type() == pugi::node_cdata) {
-        out.append(node.value());
-        out.push_back(' ');
-    }
-    for (const auto& child : node.children()) {
-        append_node_text(child, out);
-    }
-}
-#endif
-
-std::string extract_xml_text(const std::string& xml) {
-#if defined(AI_FILE_SORTER_USE_PUGIXML)
-    pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load_string(xml.c_str(), pugi::parse_default | pugi::parse_ws_pcdata);
-    if (result) {
-        std::string out;
-        out.reserve(xml.size());
-        append_node_text(doc, out);
-        return out;
-    }
-#endif
-    return strip_xml_tags(xml);
 }
 
 std::optional<std::string> run_process(const QString& program,
@@ -277,13 +205,36 @@ std::string read_file_prefix(const std::filesystem::path& path, size_t max_chars
     return buffer;
 }
 
-std::string truncate_excerpt(const std::string& text, size_t max_chars) {
-    if (text.size() <= max_chars) {
-        return text;
-    }
-    const size_t head = max_chars * 3 / 4;
-    const size_t tail = max_chars - head;
-    return text.substr(0, head) + "\n...\n" + text.substr(text.size() - tail);
+std::size_t utf8_prefix_boundary(const std::string& text, std::size_t end)
+{
+    while (end && end < text.size() && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
+    return end;
+}
+
+std::size_t complete_utf8_size(const std::string& text)
+{
+    if (text.empty()) return 0;
+    auto start = text.size() - 1;
+    while (start && (static_cast<unsigned char>(text[start]) & 0xc0) == 0x80) --start;
+    const auto lead = static_cast<unsigned char>(text[start]);
+    const std::size_t width = (lead & 0xf8) == 0xf0 ? 4 : (lead & 0xf0) == 0xe0 ? 3 : (lead & 0xe0) == 0xc0 ? 2 : 1;
+    return text.size() - start < width ? start : text.size();
+}
+
+std::string truncate_excerpt(const std::string& text, size_t max_chars)
+{
+    constexpr std::string_view kExcerptGap = "\n...\n";
+    constexpr std::size_t kHeadNumerator = 3;
+    constexpr std::size_t kHeadDenominator = 4;
+    // Readers may stop inside a UTF-8 code point; omit that incomplete point.
+    const auto size = complete_utf8_size(text);
+    if (size <= max_chars) return text.substr(0, size);
+    if (max_chars <= kExcerptGap.size()) return text.substr(0, utf8_prefix_boundary(text, max_chars));
+    const auto available = max_chars - kExcerptGap.size();
+    const auto head = utf8_prefix_boundary(text, available * kHeadNumerator / kHeadDenominator);
+    auto tail = size - (available - head);
+    while (tail < size && (static_cast<unsigned char>(text[tail]) & 0xc0) == 0x80) ++tail;
+    return text.substr(0, head) + std::string(kExcerptGap) + text.substr(tail, size - tail);
 }
 
 std::optional<std::string> normalize_date(const std::string& input) {
@@ -407,6 +358,21 @@ std::string extract_pdf_text_pdfium(const std::filesystem::path& path, size_t ma
 }
 #endif
 
+std::string extract_pdf_text(const std::filesystem::path& path, std::size_t max_bytes)
+{
+#if defined(AI_FILE_SORTER_USE_PDFIUM)
+    if (auto text = extract_pdf_text_pdfium(path, max_bytes); !text.empty()) return collapse_whitespace(text);
+#endif
+    const auto pdftotext = find_executable(QStringLiteral("pdftotext"));
+    if (!pdftotext) return {};
+    constexpr int kPdfTextTimeoutMs = 15000;
+    auto text = run_process(*pdftotext,
+        {QStringLiteral("-layout"), QStringLiteral("-q"), path_to_qstring(path), QStringLiteral("-")}, kPdfTextTimeoutMs);
+    if (!text) return {};
+    if (text->size() > max_bytes) text->resize(max_bytes);
+    return collapse_whitespace(*text);
+}
+
 const std::unordered_set<std::string> kDocumentExtensions = {
     ".txt", ".md", ".markdown", ".rtf", ".csv", ".tsv", ".log", ".json", ".xml", ".yml", ".yaml",
     ".ini", ".cfg", ".conf", ".html", ".htm", ".tex", ".rst", ".pdf", ".docx", ".xlsx", ".pptx",
@@ -426,71 +392,6 @@ const std::unordered_set<std::string> kStopwords = {
     "overview", "information", "data", "untitled", "ppt", "pptx", "xls", "xlsx", "odt", "ods",
     "odp", "presentation", "slides", "spreadsheet"
 };
-
-struct ParsedAnalysis {
-    std::string summary;
-    std::string filename;
-};
-
-std::optional<ParsedAnalysis> parse_analysis_json(const std::string& response) {
-    Json::CharReaderBuilder reader;
-    Json::Value root;
-    std::string errors;
-
-    auto try_parse = [&](const std::string& payload) -> bool {
-        std::istringstream stream(payload);
-        return Json::parseFromStream(reader, stream, &root, &errors);
-    };
-
-    if (!try_parse(response)) {
-        const auto first = response.find('{');
-        const auto last = response.rfind('}');
-        if (first == std::string::npos || last == std::string::npos || last <= first) {
-            return std::nullopt;
-        }
-        if (!try_parse(response.substr(first, last - first + 1))) {
-            return std::nullopt;
-        }
-    }
-
-    if (!root.isObject()) {
-        return std::nullopt;
-    }
-
-    ParsedAnalysis parsed;
-    if (root.isMember("summary")) {
-        parsed.summary = root["summary"].asString();
-    } else if (root.isMember("description")) {
-        parsed.summary = root["description"].asString();
-    }
-
-    if (root.isMember("filename")) {
-        parsed.filename = root["filename"].asString();
-    } else if (root.isMember("name")) {
-        parsed.filename = root["name"].asString();
-    } else if (root.isMember("suggested_name")) {
-        parsed.filename = root["suggested_name"].asString();
-    }
-
-    return parsed;
-}
-
-std::string first_words(const std::string& text, size_t max_words) {
-    std::istringstream iss(text);
-    std::string word;
-    std::string result;
-    size_t count = 0;
-    while (iss >> word) {
-        if (!result.empty()) {
-            result.push_back(' ');
-        }
-        result += word;
-        if (++count >= max_words) {
-            break;
-        }
-    }
-    return result;
-}
 
 } // namespace
 
@@ -518,25 +419,26 @@ DocumentAnalysisResult DocumentTextAnalyzer::analyze(const std::filesystem::path
                                                      ILLMClient& llm) const
 {
     DocumentAnalysisResult result;
+    const auto check_stopped = [&] {
+        if (settings_.should_stop && settings_.should_stop()) throw std::runtime_error("Document analysis cancelled.");
+    };
+    check_stopped();
     const std::string raw_text = extract_text(document_path);
     if (raw_text.empty()) {
-        throw std::runtime_error("No extractable text");
+        throw ContentAnalysisUnavailable("No extractable text");
     }
 
     const std::string excerpt = truncate_excerpt(raw_text, settings_.max_characters);
-    const std::string prompt = build_prompt(excerpt, Utils::path_to_utf8(document_path.filename()));
-    const std::string response = llm.complete_prompt(prompt, settings_.max_tokens);
-
-    std::string summary;
-    std::string filename;
-    if (auto parsed = parse_analysis_json(response)) {
-        summary = trim(parsed->summary);
-        filename = trim(parsed->filename);
-    }
-
-    if (summary.empty()) {
-        summary = trim(first_words(excerpt, 120));
-    }
+    const auto file_name = Utils::path_to_utf8(document_path.filename());
+    const auto analysis = DocumentSummaryService::summarize(excerpt, llm,
+        [&](const std::string& text, bool merging) { return build_prompt(text, file_name, merging); },
+        settings_.max_tokens, settings_.should_stop);
+    const auto& summary = analysis.summary;
+    const auto& filename = analysis.filename;
+    result.summary_requests = analysis.requests;
+    result.summarized_chunks = analysis.source_chunks;
+    result.used_extractive_fallback = analysis.used_extractive_fallback;
+    check_stopped();
 
     std::string sanitized = sanitize_filename(filename, settings_.max_filename_words, settings_.max_filename_length);
     if (sanitized.empty()) {
@@ -548,6 +450,12 @@ DocumentAnalysisResult DocumentTextAnalyzer::analyze(const std::filesystem::path
 
     result.summary = summary;
     result.suggested_name = normalize_filename(sanitized, document_path);
+    if (result.used_extractive_fallback) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("Using bounded extracted text as document evidence for '{}' after {} summary attempts",
+                         file_name, result.summary_requests);
+        }
+    }
     return result;
 }
 
@@ -585,101 +493,42 @@ std::string DocumentTextAnalyzer::extract_text(const std::filesystem::path& path
     }
 
     if (ext == ".pdf") {
-#if defined(AI_FILE_SORTER_USE_PDFIUM)
-        if (auto output = extract_pdf_text_pdfium(path, settings_.max_characters); !output.empty()) {
-            return collapse_whitespace(output);
-        }
-#endif
-        const auto pdftotext = find_executable(QStringLiteral("pdftotext"));
-        if (!pdftotext) {
-            return {};
-        }
-        const QString file_path = path_to_qstring(path);
-        auto output = run_process(*pdftotext,
-                                  {QStringLiteral("-layout"), QStringLiteral("-q"), file_path, QStringLiteral("-")},
-                                  15000);
-        if (!output) {
-            return {};
-        }
-        if (output->size() > settings_.max_characters) {
-            output->resize(settings_.max_characters);
-        }
-        return collapse_whitespace(*output);
+        return extract_pdf_text(path, settings_.max_characters);
     }
 
     if (ext == ".docx") {
-        auto xml = extract_zip_member(path, {QStringLiteral("word/document.xml")}, 7000);
-        if (!xml) {
-            return {};
-        }
-        std::string text = extract_xml_text(*xml);
-        text = decode_basic_entities(text);
-        if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
-        }
-        return collapse_whitespace(text);
+        return DocumentXmlTextExtractor::extract(path, {"word/document.xml"}, settings_.max_characters, settings_.should_stop);
     }
-
     if (ext == ".xlsx") {
-        auto xml = extract_zip_member(
-            path,
-            {QStringLiteral("xl/sharedStrings.xml"),
-             QStringLiteral("xl/worksheets/sheet1.xml"),
-             QStringLiteral("xl/worksheets/sheet2.xml")},
-            7000);
-        if (!xml) {
-            return {};
-        }
-        std::string text = extract_xml_text(*xml);
-        text = decode_basic_entities(text);
-        if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
-        }
-        return collapse_whitespace(text);
+        return DocumentXmlTextExtractor::extract(path,
+            {"xl/sharedStrings.xml", "xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"},
+            settings_.max_characters, settings_.should_stop);
     }
-
     if (ext == ".pptx") {
-        auto xml = extract_zip_member(
-            path,
-            {QStringLiteral("ppt/slides/slide1.xml"),
-             QStringLiteral("ppt/slides/slide2.xml")},
-            7000);
-        if (!xml) {
-            return {};
-        }
-        std::string text = extract_xml_text(*xml);
-        text = decode_basic_entities(text);
-        if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
-        }
-        return collapse_whitespace(text);
+        return DocumentXmlTextExtractor::extract(path, {"ppt/slides/slide1.xml", "ppt/slides/slide2.xml"},
+            settings_.max_characters, settings_.should_stop);
     }
-
     if (ext == ".odt" || ext == ".ods" || ext == ".odp") {
-        auto xml = extract_zip_member(path, {QStringLiteral("content.xml")}, 7000);
-        if (!xml) {
-            return {};
-        }
-        std::string text = extract_xml_text(*xml);
-        text = decode_basic_entities(text);
-        if (text.size() > settings_.max_characters) {
-            text.resize(settings_.max_characters);
-        }
-        return collapse_whitespace(text);
+        return DocumentXmlTextExtractor::extract(path, {"content.xml"}, settings_.max_characters, settings_.should_stop);
     }
 
     return {};
 }
 
 std::string DocumentTextAnalyzer::build_prompt(const std::string& excerpt,
-                                               const std::string& file_name) const {
+                                               const std::string& file_name, bool merging) const {
     std::ostringstream oss;
-    oss << "Summarize the document excerpt below in at most 120 words. "
-        << "Then propose a short descriptive filename (max 3 words, nouns only). "
+    oss << (merging ? "Combine these summaries of parts of one document into a summary of at most 120 words. "
+                    : "Summarize the document excerpt below in at most 120 words. ");
+    oss << "Then propose a short descriptive filename (max " << settings_.max_filename_words
+        << " words). "
+        << "Use concise descriptive words that identify the document's subject. "
+        << "Use English descriptive words regardless of the document's language. "
+        << "Preserve proper nouns and identifiers without translating them. "
         << "Use underscores between words, avoid generic words like 'document', 'file', or extensions. "
         << "Return JSON only in the format: {\"summary\":\"...\",\"filename\":\"...\"}.\n\n";
     oss << "Document filename: " << file_name << "\n";
-    oss << "Document excerpt:\n" << excerpt << "\n\n";
+    oss << (merging ? "Part summaries:\n" : "Document excerpt:\n") << excerpt << "\n\n";
     oss << "JSON:";
     return oss.str();
 }

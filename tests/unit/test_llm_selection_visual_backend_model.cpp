@@ -2,6 +2,26 @@
 
 #include "LLMSelectionVisualBackendModel.hpp"
 
+TEST_CASE("Visual model selector includes only explicitly enabled valid API connections", "[http-vision]")
+{
+    CustomApiEndpoint vision{"vision", "My vision server", "", "http://localhost:1234/v1", "", "vision-model", true};
+    auto text = vision;
+    text.id = "text";
+    text.image_analysis_enabled = false;
+    auto invalid = vision;
+    invalid.model.clear();
+    const auto items = LLMSelectionVisualBackendModel::build_visual_backend_items({},
+        QStringLiteral("Recommended"), QStringLiteral("Custom: %1"), {vision, text, invalid},
+        QStringLiteral("Connection: %1"));
+    REQUIRE(items.size() == visual_model_descriptors().size() + 1);
+    CHECK(items.back().id == http_visual_model_id(vision.id));
+    CHECK(items.back().label == QStringLiteral("Connection: My vision server"));
+    CHECK(LLMSelectionVisualBackendModel::choose_visual_backend_id(items.back().id, items) == items.back().id);
+    CHECK(LLMSelectionVisualBackendModel::canonical_visual_backend_id(items.back().id) == items.back().id);
+    CHECK(LLMSelectionVisualBackendModel::selected_visual_model_descriptor(items.back().id)->architecture
+          == VisualModelArchitecture::HttpChatCompletion);
+}
+
 TEST_CASE("LLM selection visual backend model builds built-in and visual custom items")
 {
     CustomLLM text_only;
@@ -21,9 +41,11 @@ TEST_CASE("LLM selection visual backend model builds built-in and visual custom 
         QStringLiteral("Custom: %1"));
 
     REQUIRE(items.size() == visual_model_descriptors().size() + 1);
-    CHECK(items[0].id == "llava-v1.6-mistral-7b");
-    CHECK(items[1].id == "gemma-3-4b-it");
-    CHECK(items[1].label == QStringLiteral("Gemma 3 4B IT (Recommended)"));
+    CHECK(items[0].id == "qwen3.5-4b");
+    CHECK(items[0].label == QStringLiteral("Qwen3.5 4B (Recommended)"));
+    CHECK(items[1].id == "llava-v1.6-mistral-7b");
+    CHECK(items[2].id == "gemma-3-4b-it");
+    CHECK(items[2].label == QStringLiteral("Gemma 3 4B IT"));
     CHECK(items.back().id == "custom:vision");
     CHECK(items.back().label == QStringLiteral("Custom: Vision Pair"));
 }
@@ -38,9 +60,10 @@ TEST_CASE("LLM selection visual backend model chooses requested default and fall
     CHECK(LLMSelectionVisualBackendModel::choose_visual_backend_id("llava-v1.6-mistral-7b", items)
           == "llava-v1.6-mistral-7b");
     CHECK(LLMSelectionVisualBackendModel::choose_visual_backend_id("missing", items)
-          == "gemma-3-4b-it");
+          == "qwen3.5-4b");
     CHECK(LLMSelectionVisualBackendModel::choose_visual_backend_id("", {}) == "");
-    CHECK(LLMSelectionVisualBackendModel::index_of_visual_backend_id(items, "gemma-3-4b-it") == 1);
+    CHECK(LLMSelectionVisualBackendModel::index_of_visual_backend_id(items, "qwen3.5-4b") == 0);
+    CHECK(LLMSelectionVisualBackendModel::index_of_visual_backend_id(items, "gemma-3-4b-it") == 2);
     CHECK(LLMSelectionVisualBackendModel::index_of_visual_backend_id(items, "missing") == -1);
 }
 
@@ -56,7 +79,7 @@ TEST_CASE("LLM selection visual backend model resolves canonical descriptors")
     const auto* fallback_descriptor =
         LLMSelectionVisualBackendModel::selected_visual_model_descriptor("missing");
     REQUIRE(fallback_descriptor != nullptr);
-    CHECK(std::string(fallback_descriptor->id) == "gemma-3-4b-it");
+    CHECK(std::string(fallback_descriptor->id) == "qwen3.5-4b");
     CHECK(LLMSelectionVisualBackendModel::canonical_visual_backend_id("missing")
-          == "gemma-3-4b-it");
+          == "qwen3.5-4b");
 }

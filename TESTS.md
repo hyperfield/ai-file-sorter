@@ -1,26 +1,300 @@
 # Test Suite Guide
 
+## Photo location privacy
+
+Rebuild `ai_file_sorter_tests` and run:
+
+```text
+./build-tests/ai_file_sorter_tests '[geolocation]'
+```
+
+The loopback cases use synthetic TIFF/PNG EXIF dates/GPS coordinates and never send
+requests to an external geocoder. They cover:
+
+- `Image metadata requires an explicit opt-in before any place lookup`: default
+  and disabled services read dates without a connectivity check or HTTP request.
+- `Image capture-date extraction never performs a place lookup`: date extraction
+  stays offline even when the service's place permission is enabled.
+- `Geocoding transmits the same rounded coordinates used by its cache`: captured
+  requests and SQLite keys share three decimal places, covering both hemispheres,
+  rounding boundaries, normalized negative zero, and a comma-decimal C++ locale.
+- `Rounded geocoding cache avoids repeat disclosure and respects disabled lookup`:
+  different photos in the same rounded cell share a result; disabling place
+  lookup prevents even cached place enrichment.
+- `Geocoding skips images without GPS and falls back to dates while offline`:
+  absent GPS and failed connectivity preserve local date-only filenames.
+- `Image date-only and disabled place settings never geocode or prefix filenames`:
+  the real coordinator honors the existing place toggle with date-category
+  enrichment on/off, renaming on/off, and cached successful/unavailable images.
+  Date-category enrichment still works without adding date/place filename prefixes.
+
+The online-place permission is separate from local date extraction internally;
+the existing date/place checkbox remains the user-facing opt-in. No new setting
+or consent dialog is added. Three-decimal rounding reduces precision and is not
+an anonymity guarantee. Run these cases on native Windows/macOS when changing
+platform-specific metadata or networking behavior.
+
+## Platform TLS trust
+
+Build `aifs_curl_tls_probe` and `ai_file_sorter_tests`, then run:
+
+```text
+ctest --test-dir build-tests -R '^curl_tls_trust$' --output-on-failure
+./build-tests/ai_file_sorter_tests '[tls]'
+./build-tests/aifilesorter --cuda=off --vulkan=off --self-test=tls
+```
+
+Make builds can run the same loopback checks with `make -C app test_tls`.
+The Linux release CI matrix runs this target with each distribution's libcurl.
+
+`tests/integration/test_curl_tls.py` uses temporary certificate authorities and
+loopback HTTPS servers. It checks untrusted-certificate rejection, redirects to
+untrusted HTTPS, ordinary HTTP, and platform runtime support. Linux also checks
+successful validation with an administrator-specified CA and rejection of a
+hostname mismatch signed by that same trusted CA. macOS and Windows instead check
+that file overrides cannot add a test CA to native trust. They also check origin
+and HTTPS-proxy rejection with file, hashed directory, and blob anchors, plus
+`SSL_CERT_FILE`, `SSL_CERT_DIR`, `CURL_CA_BUNDLE` and backend-selection environment
+overrides. An untrusted proxy must receive no
+CONNECT request. No system trust store
+is modified and no external server, account, or API key is required. OpenSSL's
+command-line tool generates the temporary fixtures. The C++ `[tls]` cases cover
+active Schannel/Secure Transport detection, rejection of inactive MultiSSL and additive AppleSecTrust/OpenSSL runtimes,
+older libcurl runtime layouts, null handles,
+the absence of the bundled CA resource on every platform, and the production self-test.
+
+On Windows use the multi-config build's paths:
+
+```powershell
+cmake --build app/build-windows --config Release --parallel
+ctest --test-dir app/build-windows -C Release -R 'curl_tls|windows_tls_layout' --output-on-failure
+./app/build-windows/tests/Release/ai_file_sorter_tests.exe '[tls]'
+./app/build-windows/Release/aifilesorter-bin.exe --cuda=off --vulkan=off --self-test=tls
+```
+
+`windows_curl_tls_revocation` uses ephemeral CA/leaf keys and a cryptographically
+verified signed CRL. GET/HEAD and authenticated HTTPS CONNECT succeed; revoked,
+unavailable-CRL and wrong-host certificates fail at both origin and proxy layers.
+Redirects and pre-seeded `NO_REVOKE`/`REVOKE_BEST_EFFORT` flags cannot bypass the
+production policy. A **test-only, never-installed probe** adds fixture anchors
+after policy configuration to exercise the trusted-chain cases using Schannel's
+memory stores. Independent native-policy tests prove file/blob overrides and old
+adjacent/staged PEMs remain ineffective. No production anchor override is exposed.
+
+`windows_tls_layout` checks idempotent legacy-file cleanup, preservation of
+unrelated files, removal of the three known obsolete backend curl copies,
+competing curl DLL rejection, a real installation directory containing spaces and
+non-ASCII characters, and the production executable's
+TLS self-test/loaded DLL path. CMake post-build and `build_windows.ps1` run the
+same runtime gate. Windows CI requires Python and
+OpenSSL's fixture generator and runs these CTest cases. Public live incident
+requests are separate manual validation, not required by the offline CI tests.
+The Windows `headless_launcher_stdout_contract` runs the existing stdout contract
+through the launcher too. Headless `--console-log --development` must preserve
+redirected JSON rather than reopening the inherited streams onto `CONOUT$`.
+
+The `tls` self-test performs no network request. It checks the production-linked
+libcurl using the same policy as the HTTP clients. macOS CMake configuration and
+Make builds reject unsupported TLS backends. macOS packaging runs the signed app's
+self-test from `/` with all `DYLD_*` overrides removed, and separately audits
+dyld's loaded images to reject developer runtimes outside the bundle. Native macOS execution is still needed to
+validate Apple trust decisions; compiling the platform branch elsewhere is not
+equivalent.
+
+On native macOS, `ctest --test-dir build-tests -R '^macos_bundle_runtime$' --output-on-failure`
+(or `python3 tests/test_macos_bundle_runtime.py -v`) compiles real Mach-O fixtures.
+It covers recursive dependencies, preservation of a system curl reference beside
+a different bundled library with the same basename, read-only source preservation,
+relocation with spaces/non-ASCII paths and unavailable developer libraries,
+architecture mismatch, missing dependencies, and escaping symlinks. The release
+packager signs and audits the real application separately. Python 3.10 or newer
+and the native Xcode toolchain are required.
+
+## Windows Vulkan startup (#125)
+
+With `AI_FILE_SORTER_BUILD_TESTS=ON`, build `aifilesorter`,
+`aifs_incompatible_vulkan_loader`, and `StartAiFileSorter` (when the package uses
+the bootstrapper), then run:
+
+```text
+ctest --test-dir app/build-windows -C Release -R "^(windows_vulkan_startup|headless_stdout_contract)$" --output-on-failure
+```
+
+`tests/integration/test_windows_vulkan_startup.py` runs the rebuilt production
+executables in temporary layouts with isolated configuration and logs. It covers
+a compatible validated Vulkan loader competing with an incompatible executable-
+directory DLL, rejection and CPU fallback for an incompatible bundled loader
+(including forced Vulkan), the CPU override, direct/Store-style startup with
+compatible and incompatible root loaders, a missing validated loader, CPU runtime
+selection despite a conflicting root GGML DLL, and a missing selected runtime
+reported as a normal application failure. Successful startup must actually load
+the selected GGML/llama libraries before printing clean headless help. The CMake
+fixture exports `vkGetInstanceProcAddr` but lacks `vkGetPhysicalDeviceFeatures2`.
+These Windows/MSVC precompiled-runtime tests require staged CPU and Vulkan
+payloads; launcher cases skip for direct-executable packages. No model or GPU is
+required. They do not test installation or application activation.
+
+## Debian packaging compatibility
+
+Run `python3 -m unittest discover -s tests/packaging -v`.
+`tests/packaging/test_deb_dependencies.py` covers numeric ABI version ordering,
+the separation of imported versions from exported definitions, rejection of
+the published GLIBC 2.43 runtime requirements on Ubuntu 24.04, newer Qt/C++ ABI
+rejection, compatible payloads, and optional CUDA toolkit/driver dependencies
+without exempting ordinary system libraries.
+
+`tests/packaging/test_run_wrapper.py` generates and executes installed launchers
+against temporary package layouts. It covers packaged CPU/CUDA/Vulkan directory
+selection, CUDA priority when both GPU runtimes are available, shared-library
+search paths, legacy CPU directory support, and CPU
+fallback using the Vulkan payload.
+
+The `verify-ubuntu-package` GitHub Actions job installs the Ubuntu artifact in
+a fresh `ubuntu:24.04` container with runtime dependencies only, then runs the
+system loader against every bundled CPU shared library and runs the installed
+`aifilesorter --self-test` and `aifilesorter --headless-help` commands.
+Both commands pass `--cuda=off --vulkan=off` to the installed launcher to force CPU mode.
+This verifies installation, CPU library dependencies, the launcher, dynamic
+linking, and deterministic startup. It does not test GPU hardware or model inference.
+
+## Visual input context budgets
+
+`tests/unit/test_visual_input_budget.cpp` covers the complete image/text prompt
+plus reserved output, arithmetic overflow, M-RoPE positions versus token slots,
+unchanged fitting images, native patch quantization during bounded resizing,
+unfit fixed-size inputs, invalid budgets, and rejection of CPU fallback for a
+context-capacity failure. Run `./build-tests/ai_file_sorter_tests '[visual-budget]'`.
+Oversized images are resized only for inference; source files are unchanged.
+The existing content-routing image-cache test also checks that legacy `image-v1`
+evidence is rejected after the visual input policy advances to `image-v2`.
+
 This document provides a detailed description of every test case in the project. It is organized by test file and mirrors the intent, setup, procedure, and expected outcomes for each case. All unit tests live under `tests/unit`. UI-centric tests use a headless Qt platform plugin so they can run without a visible display: `minimal` on Windows and `offscreen` on other platforms.
 
 ## How to run tests
+
+Run `[document-budget]` for full-chat budget accounting, adaptive document
+completion, memory-limited and provider-limit chunking, UTF-8 evidence coverage,
+summary merging, cancellation, extractive fallback, and Office XML whose useful
+text appears after large style definitions. The tests use injected LLMs and
+temporary ZIP fixtures. Native verification uses the production analyzer and
+client directly; no experimental prompt or character-budget copies are needed.
+The analyzer delegates chunk fitting and merging to `DocumentSummaryService`;
+the same cases exercise that component through its production caller.
+
+Run `[content-fallback]` for unavailable-content cache migration and cleanup,
+unchanged-file reuse, category/route preservation on failed extraction, changed
+source/settings retries, and retryable transient or cancelled requests.
+
+`make_build_config` exercises incremental Makefile builds with controlled compiler
+and Qt identities. It checks that compiler flags, compiler versions, Qt upgrades,
+Qt package replacements and link settings rebuild affected objects, while an
+identical invocation preserves the build stamp and avoids recompilation.
+Run `python3 tests/test_make_build_config.py -v`, or the matching CTest target.
+
+Run `[prompt-contract]` for completion-format, literal-whitelist, no-match,
+translation, cache-policy and opaque consistency-ID regressions. API payload
+tests serialize requests without sending network requests. Whitelist tests
+cover filtered learned examples, unchanged valid model choices, legacy-cache
+revalidation, literal aliases across reopen, and unassigned results without
+cached destinations. Consistency tests distinguish same-named files in separate
+directories without exposing source paths and preserve whitelist assignments.
+Unrestricted category prompts, including empty whitelists, must not offer
+`NO_MATCH`; nonempty whitelist prompts retain explicit abstention. Quoted rules
+inside content evidence do not activate whitelist instructions.
+
+Run `[sampling],[folder-response]` for the request-scoped greedy-selection
+policy: existing-folder comparisons and reconsideration default to temperature
+zero, proposals and ordinary classification retain the general temperature,
+quoted proposal markers in evidence do not change the stage, and explicit
+folder-temperature overrides do not leak into later requests. Invalid override
+values are rejected before native model loading.
+
 - Configure tests on Linux/macOS (once): `cmake -S app -B build-tests -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
 - Build and run all tests on Linux/macOS: `cmake --build build-tests` then `ctest --test-dir build-tests --output-on-failure -j $(nproc)`
 - On Windows, configure from a Visual Studio Developer PowerShell with the vcpkg toolchain and a Qt 6 MSVC kit, for example: `$env:VCPKG_ROOT="D:\path\to\vcpkg"; $qt="C:\Qt\6.6.3\msvc2019_64"; $toolchain=Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"; cmake -S app -B build-tests -G "Ninja" -DCMAKE_PREFIX_PATH=$qt "-DCMAKE_TOOLCHAIN_FILE=$toolchain" -DVCPKG_MANIFEST_DIR=app -DVCPKG_TARGET_TRIPLET=x64-windows -DAI_FILE_SORTER_BUILD_TESTS=ON -DAI_FILE_SORTER_REQUIRE_MEDIAINFOLIB=ON`
-- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
+- On Windows, build and run all tests with: `cmake --build build-tests --config Release --target ai_file_sorter_tests aifs_storage_plugin_conformance ai_file_sorter_updater_notify_only_tests ai_file_sorter_updater_disabled_tests --parallel $env:NUMBER_OF_PROCESSORS` then `ctest --test-dir build-tests -C Release --output-on-failure -j $env:NUMBER_OF_PROCESSORS`
 - Run a single test case by name: `./build-tests/ai_file_sorter_tests "<test case name or pattern>"`
 - On Windows multi-config builds, the direct test executable lives under `./build-tests/tests/<Config>/`, for example: `./build-tests/tests/Release/ai_file_sorter_tests.exe "<test case name or pattern>"`
+- Run storage-plugin conformance directly against a connector executable: `./build-tests/aifs_storage_plugin_conformance --connector <connector-path> --provider-id <provider-id> --plugin-id <plugin-id>`
 - Run GUI test mode: `./build-tests/aifilesorter --test`
 - Run production-binary self-tests: `./build-tests/aifilesorter --self-test` or `./build-tests/aifilesorter --self-test=whitelist`
 - Register optional live LLM headless tests by adding `-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON` when configuring tests, or on Windows by running `.\app\build_windows.ps1 -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in PowerShell or `app\build_windows.cmd -Configuration Release -Variants Standard -BuildTests -EnableLiveLlmTests` in `cmd.exe`. Then either set `AI_FILE_SORTER_LIVE_LLM_MODEL` to a local text GGUF path or rely on the selected local/custom GGUF in AI File Sorter `config.ini`, optionally set `AI_FILE_SORTER_LIVE_BACKEND=cpu|cuda|vulkan|auto` (`cuda` validates CUDA explicitly; `cpu` is for deterministic CPU/OpenBLAS runs), and run `ctest --test-dir build-tests -L live-llm --output-on-failure` for manual CMake builds or `ctest --test-dir app\build-windows -C Release -L live-llm --output-on-failure` for the Windows helper build. Use `ctest -V` for live progress; otherwise tail the work dir from `%TEMP%\aifs-live-llm-latest.txt`. Image rename cases also require `AI_FILE_SORTER_LIVE_VISUAL_MODEL` and `AI_FILE_SORTER_LIVE_VISUAL_MMPROJ`, unless a custom visual model pair is selected in settings.
 - If Windows CMake reports a missing Visual Studio instance from an existing `build-tests` directory, use `cmake --fresh` when supported, delete/recreate that build directory, or choose a new build directory; the Visual Studio path is stored in `CMakeCache.txt`.
 - MediaInfo is expected from a package manager (`apt`/`dnf`/`pacman`/`brew`/`vcpkg`); vendored MediaInfo directories/binaries are intentionally rejected by the build.
 
-## App test modes
+## Unicode taxonomy matching
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "Taxonomy*,DatabaseManager*"`.
+
+`tests/unit/test_database_manager_rename_only.cpp` covers:
+
+- `Taxonomy normalization preserves Unicode letters numbers and attached marks`:
+  NFC composition, case folding, Unicode whitespace, Indic vowel marks, and
+  letters outside the basic multilingual plane retain valid lookup keys.
+- `Taxonomy fuzzy matching compares Unicode code points rather than UTF-8 bytes`:
+  shared encoding bytes do not make distinct Chinese labels look like spelling variants.
+- `DatabaseManager matches canonical Unicode forms without merging distinct short labels`:
+  composed and decomposed spellings reuse an ID while distinct short labels remain separate.
+- `DatabaseManager repairs stored Unicode taxonomy keys and preserves references on reopen`:
+  damaged keys are rebuilt from display labels; equivalent duplicate rows merge while
+  cached file references, valid aliases, frequencies, and translations are retained.
+  Key swaps respect uniqueness, the latest translation wins a language collision,
+  and reopening an already repaired database does not repeat the migration.
+- `DatabaseManager rolls back Unicode key migration completely when a write fails`:
+  a trigger interrupts a duplicate merge after writes have begun; all original rows
+  and references survive, and a later open can retry the migration successfully.
+
+## Sorting Rules And Filename Length
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[sorting-rules],[content-routing]"`.
+
+Prompt regressions in `test_local_llm_prompt_builder.cpp`,
+`test_folder_tree_catalog.cpp`, and `test_folder_tree_llm_router.cpp` also run
+with `[folder-response],[llm-routing]`. They cover separate selection/proposal
+instructions, creation guidance omitted from selection, intact Johnny.Decimal
+paths, whitelist precedence over default image labels, evidence containing a
+proposal marker, and invalid-response retries. Routing-cache tests reject the
+earlier prompt policy while preserving current entries.
+
+`Production folder routing keeps the complete selection prompt contract` exercises
+the production router, evidence wrapper and message builder with absent,
+document and image evidence. It checks the complete expected messages directly,
+including folder IDs and literal evidence, and
+rejects leaked internal markers, allocation instructions and categorization
+wrappers. The regression runs without external prompt files, model weights or
+research tooling.
+
+`tests/unit/test_sorting_rules.cpp` covers:
+- `Filename word limits default independently and persist within bounds`: image and
+  document limits default to three, persist separately, and clamp invalid values
+  to the supported three-to-six range; malformed stored integers use the default.
+- `Image filename prompts and cleanup honor three through six words`: both visual
+  prompt policies request English descriptive words from a French description,
+  preserve proper nouns and identifiers, allow numeric tokens, and request the
+  selected maximum; production cleanup retains the corresponding words without
+  discarding meaningful numeric tokens.
+- `Document filename prompts and cleanup honor three through six words`: an
+  injected client verifies English filename instructions and preservation of proper
+  nouns and identifiers with a French excerpt and filename at every slider value,
+  while cleaned filename limits and document summaries remain unaffected.
+- `Sorting rules opens from both entry points and retains existing controls`:
+  the first Settings action and main-window button open the same dialog; existing
+  controls move out of the main panel, sliders persist independently on closing,
+  reflect loaded or externally changed settings on opening, and the dialog entry
+  points are disabled during analysis.
+
+`tests/unit/test_content_context_routing.cpp` also verifies that complete cached
+image evidence is not reused after changing the image filename word limit, while
+the default three-word configuration retains its existing cache identity.
+Existing checkbox-matrix, image-option, and translation tests continue to exercise
+the controls now hosted in Sorting Rules.
+
+## App Test Modes
 
 The production executable supports two developer-oriented test modes:
 
 - `--test` launches the normal GUI, implies development mode, and adds a Tests menu. The current GUI preset creates a larger sample whitelist and sample files, then runs the normal analysis flow with the selected real LLM for manual review in the Review dialog. It reuses the user's selected LLM settings, but test-mode whitelists, categorization cache, learned behavior, undo data, and sample files are stored under an isolated `test_mode_profile` directory inside the normal config directory.
-- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The current suite is `whitelist`, which builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite.
+- `--self-test` runs deterministic headless checks and exits with a pass/fail status. The `whitelist` suite builds large synthetic whitelists in a temporary config directory and verifies compact prompt candidate selection, learned-category preference, and Unicode whitelist labels. On every platform, the `tls` suite also checks the production-linked curl runtime and platform trust policy without contacting a server. `--self-test` runs all available suites; `--self-test=whitelist` and `--self-test=whitelists` select only the whitelist suite, and `--self-test=tls` selects only the platform TLS check.
 
 ## Optional live LLM headless tests
 
@@ -30,9 +304,128 @@ Covered cases include categorization with and without subcategories, whitelist-r
 
 Run directly with: `python tests/live_llm/headless_live_llm_tests.py --app app\build-windows\Release\aifilesorter.exe --model C:\models\text-model.gguf --backend cpu --keep-work-dir --verbose`. See `tests/live_llm/README.md` for all environment variables and public fixture sources.
 
+The model-free `live_llm_process_cleanup` CTest group runs
+`tests/live_llm/test_headless_live_llm_processes.py`. It checks that normal
+completion preserves output and exit status, then times out a real parent/child
+job and verifies its descendant cannot write a delayed marker. Windows uses
+`taskkill /T`; POSIX launches an isolated process group and kills that group.
+Run directly with `python -m unittest discover -s tests/live_llm -p test_headless_live_llm_processes.py -v`.
+
 Manual Windows GUI smoke validation for issue #95: launch a normal visible build, switch the UI/category language to French, scan a folder containing non-CP1252 filenames, open the Review dialog, sort columns, toggle subcategory visibility, change UI language while the dialog is open, apply `Logiciels / Navigateur`, and undo. Expected outcome: no `Qt6Widgets.dll` crash, no Windows code-page path exception, no literal `subcategory` folder, and the file is restored by undo.
 
+## Local inference input audits
+
+Set `AI_FILE_SORTER_INFERENCE_AUDIT_DIR` to an absolute output directory to opt in
+for local text-LLM requests. Leave it unset/empty for normal operation. Captures
+contain sensitive file paths and document/image evidence; keep them outside the
+repository. POSIX request directories use mode `0700` and files `0600`; shared-
+writable roots and root symlinks are rejected. On Windows use a directory with a
+private current-user ACL; filesystem permission flags do not establish that ACL.
+
+Each request gets a random directory and one JSON file per inference retry. It
+records original system/user prompts, the selected model's chat template, every
+fitting candidate, token IDs and detokenized text, actual context/input/output
+limits, sampling seed/settings and thread counts, and the exact prompt slices
+submitted to `llama_decode` with native return codes. Text fields include base64
+bytes and SHA-256 hashes so UTF-8 conversion cannot hide byte differences.
+
+`allPromptTokensAcceptedExactly` requires every fitted prompt token to be submitted
+in order and accepted. It does not imply that the original evidence was unchanged,
+that the model understood it, or that generation completed successfully. Check
+`userPromptChanged`, the original/fitted text, and `generation.stopReason` as well.
+Raw generated bytes are recorded separately from the returned/sanitized response.
+Capture errors fail the request without triggering GPU-to-CPU fallback. An
+unfinished checkpoint must not be treated as a successful inference audit.
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[inference-audit]"`.
+`tests/unit/test_inference_audit.cpp` covers explicit opt-in, complete/altered/
+missing/failed decode chunks, fitting changes, generation limits, byte-exact
+payloads, private POSIX permissions, invalid output locations, incomplete requests,
+and separation of failed attempts from retries. Tests use injected tokens, not
+live inference. A live audit validates the boundary at application calls to
+`llama_decode`, not internal GPU kernels.
+
 ## Unit test catalog
+
+### Content evidence and destination routing regressions
+
+Build with `cmake --build build-tests --target ai_file_sorter_tests -j4`.
+Run the focused group with `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[content-cache],[content-routing]"`.
+These deterministic tests use temporary files and injected LLMs, not live inference.
+
+`tests/unit/test_content_analysis_cache.cpp` covers:
+- `ContentAnalysisCache preserves full evidence across database reopen`: full multiline descriptions survive restart and remain scoped to the analyzer/model version.
+- `ContentAnalysisCache rejects changed and incomplete evidence`: name-only entries are unusable, changed bytes invalidate a cache hit even with unchanged size/mtime, and results cannot be stored against a changed source.
+- `ContentAnalysisCache follows directory and global cache cleanup`: nonrecursive and recursive clearing respect escaped directory names and include content-only rows in the cache-size estimate.
+- `ContentAnalysisCache shares native Unicode identity across lookup upsert and clear`: equivalent macOS source paths share evidence and directory cleanup; literal filesystem names remain distinct on other platforms.
+
+`tests/unit/test_content_context_routing.cpp` covers:
+- `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip and reaches both LLM stages separately from the path, including when preliminary labels differ from the model-selected destination.
+- `Source directories do not affect classification or routing requests`: identical image/document evidence and filenames in unrelated source directories produce identical classification and routing requests. Source paths remain distinct in review/cache records, content evidence is preserved, and destination choices remain available.
+- `Review plan reserves new numbers across batches and reuses proposed destinations`: deferred batches allocate distinct numbers for distinct labels, reuse an equivalent pending folder, preserve true on-disk existence flags, and do not create directories during analysis.
+- `Review plan matches pending labels only within the same literal parent`: equivalent code-prefixed labels reuse the first proposal with case, spacing, and Unicode normalization, without merging different roots, literal parents, or distinct labels.
+- `Review plan preserves meaningful numbers in literal and human labels`: literal year names, bare numeric names, and years inside convention-prefixed labels remain distinct.
+- `CategorizationService reuses weak Landscape proposals even when the range fills`: fresh and cached routes reuse the same pending child below the semantic-confidence threshold, including the range's last free number, persist corrected cache targets, and respect existing-only mode.
+- `CategorizationService reuses literal proposals without overriding existing targets`: unnumbered fresh and cached proposals share one destination, while a selected on-disk folder is preserved even when a case-equivalent proposal is pending.
+- `CategorizationService preserves model destinations over preliminary lexical matches`: fresh and cached model choices are not overridden by a closer word match to preliminary labels.
+- `CategorizationService leaves failed model routing unresolved instead of guessing`: invalid replies exhaust bounded retries without a silently guessed destination.
+- `Folder route cache excludes legacy lexical-policy decisions`: old unversioned decisions miss the new cache while current records retain the public tree fingerprint.
+- `AnalysisCoordinator reuses complete image evidence without a visual backend`: the full workflow uses cached descriptions without loading a missing visual model, preserves them on a resumed cached review, and invalidates legacy name-only entries or changed source bytes rather than silently sorting by name.
+- `Numbered folder allocation stays within exhausted ranges`: a full range remains recognized, no wider numeric range is invented, and an available gap can be reused.
+
+`tests/unit/test_local_llm_prompt_builder.cpp` additionally covers:
+- `LocalLLMPromptBuilder retains content boundaries and folder constraints on retries`: shortening analysis text must preserve candidate folders and the JSON response contract.
+- `LocalLLMPromptBuilder recognizes evidence supplied separately from the path`: clean path fields still select the image/document prompts that prioritize content, with the full evidence retained in the user prompt.
+- `LocalLLMPromptBuilder fits complete chat prompts beyond an unchanged shrink step`: retries continue past an unchanged evidence budget and count the complete system/template/user prompt.
+- `LocalLLMPromptBuilder rejects budgets that would truncate required instructions`: mandatory restrictions and answer formats are never cut to fit.
+
+`tests/unit/test_folder_tree_llm_router.cpp` covers model comparisons across every catalog entry, whole-list splitting on token-budget errors, bounded invalid-response retries, new-folder permissions, and structural allocation that preserves the model's parent and human labels, including decimal items.
+
+Additional routing regressions cover explicit `createFolder:false` on nonexistent paths,
+contradictory/non-boolean creation flags, corrective retries after structural rejection,
+invalid preliminary categories that must not suppress destination selection, and exact
+multiline evidence/URL preservation through both classification and routing.
+Run: `./build-tests/ai_file_sorter_tests "[content-routing],[llm-routing],FolderTreeCatalog*"`.
+The item-validation report count assertion uses the active translation, avoiding
+an English-only failure when the complete suite previously loaded another locale.
+
+Folder selection requests JSON containing `targetFolder` and `createFolder`.
+The legacy catalog parser also accepts compatible plain-path replies for stored
+paths and callers outside staged routing. The staged router requires strict JSON.
+Local, OpenAI-compatible and Gemini routing system prompts share the JSON contract.
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[plain-path],[folder-response]"`.
+The response-format regressions cover:
+- `FolderTreeCatalog plain paths retain validation and creation permissions`: existing paths resolve to catalog spelling, missing paths require permission, and traversal/absolute/reserved paths are rejected.
+- `FolderTreeLLMRouter proposes only after explicit existing-folder abstention`: a null existing choice authorizes a separate JSON proposal only when creation is enabled.
+- `FolderTreeLLMRouter retries keep the JSON response contract`: invalid paths trigger bounded retries that continue requesting JSON and preserving new-folder permissions.
+- `LocalLLMPromptBuilder uses JSON answers for every folder-routing input`: document/image/generic/directory prompts use the shared JSON instructions.
+- `LocalLLMPromptBuilder shortening preserves the folder-response footer`: fitting optional evidence cannot shorten the required response instructions.
+
+Exact-path constrained routing coverage:
+- `tests/unit/test_folder_tree_selection_contract.cpp`: schema enums contain only the offered literal paths plus null, strict field/type checks, no case/number repairs, safe proposals, and authoritative reuse of exact existing targets.
+- `tests/unit/test_native_json_schema_grammar.cpp`: pinned llama.cpp JSON-schema conversion, required-field ordering matching prompt examples, preservation of optional properties, literal path escaping, null/proposal rules, explicit failure rather than unconstrained fallback.
+- `tests/unit/test_folder_tree_llm_router.cpp`: bounded comparisons/retries, group abstentions, empty catalogs, malformed replies never authorizing proposals, and post-abstention structural validation.
+- `tests/unit/test_content_context_routing.cpp`: the per-request schema and complete evidence reach the timed client; pending-folder reuse and physical flags survive stage separation.
+- Existing whitelist/prompt and cache workflow fixtures now model explicit abstention before new-folder proposals; old lexical and combined-stage routing caches are excluded.
+- `tests/unit/test_inference_audit.cpp`: optional byte-exact schema/grammar capture after native enforcement, including hashes.
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[folder-constraint],[native-grammar],[llm-routing],[content-routing],[inference-audit]"`.
+These offline tests do not measure semantic model accuracy; live decoding requires a separate opt-in model run.
+
+Folder-purpose routing coverage:
+- `tests/unit/test_folder_purpose_metadata.cpp`: version/UTF-8/size/path validation, all-or-nothing failures, optional files and symlink rejection, exact-path attachment and cache fingerprint invalidation, encoded untrusted data and ancestor/subset context.
+- `tests/unit/test_file_scanner.cpp`: metadata control files stay out of sorting queues, including hidden recursive scans.
+- `tests/unit/test_folder_tree_llm_router.cpp`: default description-preserving literal reuse with validation, metadata in tournament finalists, and all four combinations of the opt-in purpose-comparison and bounded reconsideration controls.
+- `tests/unit/test_content_context_routing.cpp`: actual route-cache invalidation after metadata edits or policy changes, full evidence and schema preservation through existing-folder reuse after abstention, and prior pending-proposal/numbering safeguards.
+
+Run `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[folder-purpose],[llm-routing],[content-routing],FolderTreeCatalog*"`.
+See `docs/folder-purposes.md` for the versioned user-supplied metadata format.
+
+`tests/unit/test_llm_request_runner.cpp` covers deadline cleanup on success/errors, joining noncooperative timed-out workers, and cooperative cancellation before reusing or destroying a client. These tests use injected clients and millisecond deadlines, without loading a model.
+
+Run these additional focused checks with `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[llm-routing],[prompt-budget],[llm-request]"`.
+
+Run just the deterministic proposal-deduplication regressions with `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[folder-plan]"`.
 
 ### `tests/unit/test_app_test_runner.cpp`
 
@@ -103,6 +496,13 @@ Procedure: Strip suffixes by expected file kind.
 Expected outcome: Only valid suffixes for the requested kind are removed.
 Run: `./build-tests/ai_file_sorter_tests "CategoryDateSuffix strips generated suffixes by kind"`
 
+### `tests/unit/test_local_inference_options.cpp`
+
+Run: `./build-tests/ai_file_sorter_tests "Local inference options*"`
+
+Covers unchanged native defaults, injected/environment sampling, worker and batch controls,
+and rejection of malformed, nonfinite, overflowing or contradictory overrides.
+
 ### `tests/unit/test_local_llm_backend.cpp` (skipped when `GGML_USE_METAL` is defined)
 
 #### Test case: detect_preferred_backend reads environment
@@ -137,7 +537,7 @@ Run: `./build-tests/ai_file_sorter_tests "Image categorization uses refined loca
 Purpose: Keep the generic file prompt short while still forcing the model back into the strict `<Main category> : <Subcategory>` response shape.
 Setup: Provide a representative software-like file name and a sample allowed-main-category block.
 Procedure: Build the generic categorization user prompt through the local LLM test access layer.
-Expected outcome: The prompt includes the full path, file name, allowed main categories, and an explicit one-line answer template.
+Expected outcome: The prompt includes the file name, allowed main categories, and an explicit one-line answer template, while omitting the parent path.
 Run: `./build-tests/ai_file_sorter_tests "Generic file categorization user prompt includes explicit answer format"`
 
 #### Test case: CPU backend is honored when forced
@@ -174,6 +574,13 @@ Setup: Provide matching optimistic and conservative layer counts of `15`.
 Procedure: Build the retry ladder through the LocalLLM test access helper.
 Expected outcome: The ladder starts at `15` once and then descends to `11, 8, 6, 4, 3, 2, 1` without duplicate entries.
 Run: `./build-tests/ai_file_sorter_tests "LocalLLMClient deduplicates matching retry estimates before reducing GPU layers"`
+
+#### Test case: Metal layer estimator honors constrained device memory metrics
+Purpose: Ensure Metal layer estimation uses reported device memory headroom instead of assuming abundant system memory.
+Setup: Create a temporary GGUF model and estimate layers once with tight Metal memory metrics and once with larger metrics.
+Procedure: Call `estimate_metal_layers_for_testing()` for both memory snapshots.
+Expected outcome: The constrained estimate is positive but lower than the abundant estimate, while the abundant estimate reaches all model layers.
+Run: `./build-tests/ai_file_sorter_tests "Metal layer estimator honors constrained device memory metrics"`
 
 #### Test case: CUDA backend reports low GPU memory before load
 Purpose: Ensure CUDA preflight checks fall back to CPU before model load when the ggml CUDA backend reports too little available VRAM.
@@ -234,10 +641,10 @@ Run: `./build-tests/ai_file_sorter_tests "Vulkan backend reports low GPU memory 
 ### `tests/unit/test_local_llm_prompt_builder.cpp`
 
 #### Test case: LocalLLMPromptBuilder preserves specialized prompt routing
-Purpose: Verify the extracted prompt builder still selects image, document, and directory system prompts from the target context.
-Setup: Provide representative image-description, document, and directory prompt paths.
-Procedure: Build system prompts through `LocalLLMPromptBuilder`.
-Expected outcome: Each target gets its specialized prompt text.
+Purpose: Verify the extracted prompt builder still selects image, document, directory, and folder-tree system prompts from the target context.
+Setup: Provide representative image-description, document, directory, and folder-tree prompt contexts.
+Procedure: Build system and user prompts through `LocalLLMPromptBuilder`.
+Expected outcome: Each target gets its specialized prompt text, and folder-tree prompts request JSON with a relative path and creation flag while retaining existing/new-folder guidance.
 Run: `./build-tests/ai_file_sorter_tests "LocalLLMPromptBuilder preserves specialized prompt routing"`
 
 #### Test case: LocalLLMPromptBuilder strips image guidance from image prompts only
@@ -269,6 +676,30 @@ Setup: Use each supported runtime-lock owner enum.
 Procedure: Convert owners to strings and parse strings back to owners.
 Expected outcome: `gui`, `explorerWorker`, and `headless` round-trip to the expected owners, while unknown strings parse as `Unknown`.
 Run: `./build-tests/ai_file_sorter_tests "AnalysisRuntimeLock owner strings are stable"`
+
+### `tests/integration/test_headless_stdout.py`
+
+Run: `ctest --test-dir build-tests -C Release -R '^headless_stdout_contract$' --output-on-failure`
+after rebuilding `ai_file_sorter_tests` with Python 3 available at configure time.
+That target also builds the production executable used by these tests. For a direct
+run: `python3 tests/integration/test_headless_stdout.py --app build-tests/aifilesorter -v`
+(use the built configuration's executable path on Windows).
+
+All cases launch the real app from a temporary working directory with isolated
+settings, logs and fixtures; no model, network API or existing user files are
+needed. On macOS, inherited `DYLD_*` overrides are removed. CMake automatically
+adds `--check-macos-pdfium` for embedded-PDFium macOS builds; pass it on a direct
+run to enable the relocation case below.
+
+| Test case | Procedure and expected outcome |
+| --- | --- |
+| `test_review_only_stdout_is_json_and_diagnostics_use_stderr` | Analyze an empty folder in review-only mode, with and without development/console-log flags. Every nonempty stdout line is a versioned JSON object, the final record matches the status file, startup/runtime logs appear on stderr, and the source folder stays empty. |
+| `test_analysis_failure_preserves_json_stdout` | Submit files from different source folders. The app rejects this unsupported selection and emits valid JSON status records ending in `failed`, with diagnostics on stderr. |
+| `test_saved_plan_apply_stdout_is_json` | Apply a saved rename plan to a temporary fixture. Only JSON status records appear on stdout, the status file matches the final record, and the expected rename preserves the file contents. |
+| `test_help_is_usage_text_without_log_lines` | Request `--headless-help`. Stdout starts with usage text and contains no startup logs; those appear on stderr. |
+| `test_legacy_explorer_fallback_keeps_stdout_json` | Run an empty-folder analysis with a legacy Explorer sidecar, an explicit modern mode, an unrelated job ID, and no sidecar. Only the legacy sidecar produces the compatibility diagnostic on stderr; stdout stays JSON and config bytes stay unchanged. |
+| `test_macos_embedded_pdfium_loads_beside_relocated_app` | Copy the executable and embedded PDFium runtime into a path containing spaces and Japanese text, then analyze an empty folder from a different working directory without loader search-path overrides. Status completes successfully and dyld confirms the relocated adjacent PDFium copy is loaded. Requires `--check-macos-pdfium`; skipped for other build profiles. |
+| `test_invalid_arguments_use_stderr` | Supply an unsupported operation. Stdout is empty, stderr contains diagnostics/usage, and the exit code is the usage-error code. |
 
 ### `tests/unit/test_headless_analysis_command.cpp`
 
@@ -349,6 +780,13 @@ Procedure: Run the headless categorize command without an auto-apply override, i
 Expected outcome: The command exits successfully with `review_required`, leaves the source file in place, reports a review payload and review plan file, and reports zero moved/renamed/skipped apply counts.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand prepares review before applying by default"`
 
+#### Test case: HeadlessAnalysisCommand preserves legacy Explorer sorting through review and apply
+Purpose: Keep extension 1.0.x category previews and edits consistent with the app's actual destinations.
+Setup: Cache a selected file beside an uncached sibling; configure an archive destination and existing-folder sorting, or remove the saved sorting-mode key to model an older config.
+Procedure: Run an `explorer-` job with a legacy settings sidecar in review-only mode, edit the category in the saved plan as the old extension does, and apply the approved plan. Cover categorize and categorize-and-rename operations.
+Expected outcome: The plan uses generated categories under the selected source folder, honors the reviewed filename and edited category, leaves the sibling untouched, and preserves every app config byte.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand preserves legacy Explorer sorting through review and apply"`
+
 #### Test case: HeadlessAnalysisCommand preserves UTF-8 filenames in review status
 Purpose: Prevent non-ASCII file names from being corrupted when headless jobs serialize review/status JSON.
 Setup: Create a cached review-only categorization for a file name containing accented Latin, Chinese, and Hindi characters.
@@ -412,6 +850,34 @@ Procedure: Apply the headless review plan with recursive cache updates enabled, 
 Expected outcome: The file is moved into the display category/subcategory path, an undo plan is saved, and the cache row stores the canonical category.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService uses display folders and canonical storage"`
 
+#### Test case: HeadlessReviewApplyService moves folder-tree entries into existing targets
+Purpose: Verify headless apply supports the existing-folder-structure sorting mode without creating new directories.
+Setup: Create a target root with a pre-existing nested destination and one source file.
+Procedure: Apply a folder-tree review entry whose target folder matches the existing destination.
+Expected outcome: The file moves into the requested existing folder, no skip is reported, and compatibility category labels are derived from the folder path.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService moves folder-tree entries into existing targets"`
+
+#### Test case: HeadlessReviewApplyService creates suggested folder-tree targets when allowed
+Purpose: Ensure headless apply can create model-suggested folder-tree destinations only when that mode is explicitly allowed.
+Setup: Create a target root with one source file and no matching destination folder.
+Procedure: Apply a folder-tree review entry with new-folder creation enabled, then replay the saved undo plan.
+Expected outcome: The missing destination folder is created, the file moves into it, the result marks the target folder as suggested/new, and undo removes the app-created folder chain.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService creates suggested folder-tree targets when allowed"`
+
+#### Test case: HeadlessReviewApplyService records shared suggested target ownership
+Purpose: Ensure every file moved into a folder created earlier in the same apply run carries the created-folder metadata.
+Setup: Create two source files routed to the same non-existing suggested folder-tree target with new-folder creation enabled.
+Procedure: Apply both entries and inspect the review-history rows.
+Expected outcome: Both history rows record the same created destination folder chain, supporting selective undo in either order.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService records shared suggested target ownership"`
+
+#### Test case: HeadlessReviewApplyService moves generated categories into custom destination root
+Purpose: Verify generated-category apply can move files from an analyzed folder into a separate destination root.
+Setup: Create separate source and destination folders, seed a cached source entry, and prepare a generated category/subcategory result.
+Procedure: Apply the headless review plan with the destination root as `base_dir`.
+Expected outcome: The file moves under the destination category/subcategory path, the old source cache row is removed, and the destination cache row is written.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessReviewApplyService moves generated categories into custom destination root"`
+
 #### Test case: HeadlessReviewApplyService deduplicates duplicate suggested filenames
 Purpose: Ensure headless apply does not skip later files when several review entries suggest the same new filename.
 Setup: Create two video files with the same suggested filename and the same destination category.
@@ -428,20 +894,60 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand rejects cross-
 
 ### `tests/unit/test_headless_settings_overrides_json.cpp`
 
+#### Test case: HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes
+Purpose: Limit generated-category compatibility to legacy Explorer sidecars without changing the generic JSON parser or other callers.
+Procedure: Parse sidecars with Explorer and unrelated job IDs; cover omitted modes, both explicit modes, and explicit invalid values.
+Expected outcome: Only an `explorer-` job whose object omits `sortingMode` receives the generated-category fallback. Other fields survive; explicit modes are honored, and invalid values retain normal inheritance behavior.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes"`
+
+#### Test case: HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences
+
+Loads saved existing-tree sorting, an archive destination, and new-folder permission.
+Checks that omitted/empty destination overrides use the analyzed root, an explicit root
+is honored, sorting preferences remain inherited unless overridden, and all config bytes
+and reloaded preferences remain unchanged. No model is loaded.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences"`
+
+#### Test case: HeadlessSettingsOverridesJson parses bounded independent filename word limits
+
+Checks both JSON keys for every supported value, independent image/document values, clamping
+of out-of-range and very large integers, and inheritance for omitted or malformed values.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson parses bounded independent filename word limits"`
+
+#### Test case: HeadlessAnalysisWorkflowHost isolates filename word overrides from persisted preferences
+
+Constructs the real headless host with neither, either, or both word limits overridden. Verifies
+the effective limits, clamping of direct API values, unchanged config bytes during and after
+the host lifetime, and unchanged preferences when settings are reloaded. No model is loaded.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost isolates filename word overrides from persisted preferences"`
+
 #### Test case: HeadlessSettingsOverridesJson parses direct whitelist lists
-Purpose: Verify headless settings override JSON can carry explicit whitelist categories and subcategories for deterministic integrations and tests.
-Setup: Build a JSON object with `useWhitelist`, `activeWhitelist`, `allowedCategories`, and `allowedSubcategories`, including whitespace, an empty string, and a non-string value.
+Purpose: Verify headless settings override JSON can carry explicit whitelist categories, subcategories, sorting-mode options, and destination roots for deterministic integrations and tests.
+Setup: Build a JSON object with `useWhitelist`, `activeWhitelist`, `allowedCategories`, `allowedSubcategories`, `sortingMode`, `destinationFolder`, and `suggestNewFolders`, including whitespace, an empty string, and a non-string value.
 Procedure: Parse the object through `HeadlessSettingsOverridesJson`.
-Expected outcome: The parser preserves the whitelist activation/name and returns trimmed category/subcategory lists with empty and non-string entries ignored.
+Expected outcome: The parser preserves the whitelist activation/name, returns trimmed category/subcategory lists with empty and non-string entries ignored, maps existing-folder sorting fields, and trims the destination folder.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson parses direct whitelist lists"`
 
 ### `tests/unit/test_headless_status_json.cpp`
 
+#### Test case: HeadlessStatusJson exports authoritative review destinations and routing explanations
+
+Uses the real apply service in dry-run mode for existing trees, proposed folders, generated
+categories, rename-only entries, unresolved targets, and duplicate suggested names. Checks
+that saved plans match app-calculated destinations and names, routing explanations reach
+status JSON, and tampered display destinations cannot redirect apply. Mismatched preview
+counts/sources are rejected, and no source files or destination folders are changed.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessStatusJson exports authoritative review destinations and routing explanations"`
+
 #### Test case: HeadlessStatusJson round-trips UTF-8 review plans
-Purpose: Verify the extracted headless status/review JSON serializer preserves non-ASCII paths and filenames.
+Purpose: Verify the extracted headless status/review JSON serializer preserves non-ASCII paths, filenames, and folder-tree target metadata.
 Setup: Build a review plan containing accented Latin, Chinese, and Hindi text in file names and paths.
 Procedure: Write the review plan with `HeadlessStatusJson`, read it back, and compare operation, paths, apply options, and entries.
-Expected outcome: UTF-8 file names, suggested names, paths, and apply options round-trip exactly.
+Expected outcome: UTF-8 file names, suggested names, paths, folder-tree target fields, and apply options round-trip exactly.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessStatusJson round-trips UTF-8 review plans"`
 
 ### `tests/unit/test_single_instance_coordinator.cpp`
@@ -467,7 +973,7 @@ Procedure: Acquire the primary-instance lock for both coordinators.
 Expected outcome: Both coordinators become primary because they represent different logical applications.
 Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator allows different instance ids to coexist"`
 
-### `tests/unit/test_main_app_image_options.cpp` (non-Windows only)
+### `tests/unit/test_main_app_image_options.cpp`
 
 #### Test case: Image analysis checkboxes enable and enforce rename-only behavior
 Purpose: Ensure the image analysis options enable correctly and enforce the rename-only rule.
@@ -518,6 +1024,39 @@ Procedure: Enable "Process picture files only", inspect dependent controls, then
 Expected outcome: Document analysis controls and audio/video metadata are disabled while image-only mode is active, but the underlying saved settings are preserved and controls re-enable afterward.
 Run: `./build-tests/ai_file_sorter_tests "Processing images only disables document analysis controls and audio-video metadata"`
 
+#### Test case: Processing documents only disables image analysis controls
+Purpose: Confirm document-only processing temporarily disables controls that would analyze picture content.
+Setup: Enable image analysis, image rename options, and document analysis in settings, then build `MainApp` with the preferred Qt test platform.
+Procedure: Enable "Process document files only", inspect dependent image controls, then disable it again.
+Expected outcome: Image analysis controls are disabled while document-only mode is active, but the underlying saved settings are preserved and controls re-enable afterward.
+Run: `./build-tests/ai_file_sorter_tests "Processing documents only disables image analysis controls"`
+
+#### Test case: Existing folder mode places folder structure creator in destination row
+Purpose: Verify the main window shows the starter-structure utility beside the destination Browse button in the sorting mode where it is most relevant.
+Setup: Build `MainApp` with generated-category sorting mode selected.
+Procedure: Switch to existing-folder mode, inspect the destination row, toggle analysis state, then switch back to generated-category mode.
+Expected outcome: The old analyzed-folder destination checkbox is absent; the creator button is hidden in generated-category mode, visible beside destination Browse in existing-folder mode, and disabled while analysis is active.
+Run: `./build-tests/ai_file_sorter_tests "Existing folder mode places folder structure creator in destination row"`
+
+#### Test case: Existing folder mode recommends Qwen for less suitable local models
+Purpose: Recommend Qwen when existing-folder sorting is selected with Gemma 4B, Mistral 7B, legacy LLaMa, or a custom local GGUF model.
+Procedure: Select existing-folder mode for each LLM choice and dismiss any informational dialog, then return to generated categories.
+Expected outcome: The advisory recommends Qwen and mentions Gemma 7B and API alternatives without changing the selected model or sorting mode. Qwen, Gemma 7B, every API choice, and an unset selection do not trigger it; generated-category sorting never triggers it.
+Run: `./build-tests/ai_file_sorter_tests "Existing folder mode recommends Qwen for less suitable local models"`
+
+#### Test case: Changing the LLM checks the recommendation when existing folder mode is active
+Purpose: Cover choosing a less suitable local model after the sorting mode has already been selected.
+Procedure: Open the LLM selection dialog from the main app, accept a custom local model, and dismiss the resulting advisory in existing-folder mode; repeat in generated-category mode.
+Expected outcome: Only existing-folder mode shows the recommendation, and the newly selected custom model remains saved.
+Run: `./build-tests/ai_file_sorter_tests "Changing the LLM checks the recommendation when existing folder mode is active"`
+
+#### Test case: Johnny.Decimal plugin offer only triggers for existing-tree archives
+Purpose: Verify the main window only offers the Johnny.Decimal plugin for likely Johnny.Decimal archives in existing-folder mode.
+Setup: Build temporary Johnny.Decimal-like and plain folder trees, configure existing-folder sorting, and construct `MainApp`.
+Procedure: Query the offer decision for the Johnny.Decimal-like tree, the plain tree, generated-category mode, and the persisted "not interested" suppression state.
+Expected outcome: Only the Johnny.Decimal-like tree in existing-folder mode without suppression triggers the offer decision.
+Run: `./build-tests/ai_file_sorter_tests "Johnny.Decimal plugin offer only triggers for existing-tree archives"`
+
 #### Test case: Processing images only preserves recursive scanning when scan subfolders is enabled
 Purpose: Ensure image-only processing does not accidentally clear recursive scanning.
 Setup: Enable image analysis, image-only processing, and include-subdirectories in settings.
@@ -559,6 +1098,40 @@ Setup: Provide image entries where one is already renamed and a rename-only flag
 Procedure: Run `split_entries_for_analysis()` in two sections: (a) normal categorization and (b) rename-only enabled.
 Expected outcome: In normal mode, the already-renamed image is routed to filename-based categorization ("other" bucket). In rename-only mode, the already-renamed image is excluded entirely.
 Run: `./build-tests/ai_file_sorter_tests "Already-renamed images skip vision analysis"`
+
+### `tests/unit/test_main_app_connection.cpp`
+
+#### Test case: Custom API analysis does not require public internet
+Purpose: Keep local, private-network, and custom hosted API connections independent of the general internet probe.
+Setup: Save valid custom endpoints using IPv4/IPv6 loopback, localhost, a private address, and a hosted URL, with no API key.
+Procedure: Run the GUI analysis connection validation with a probe that reports no internet.
+Expected outcome: Validation succeeds without calling the internet probe for any custom endpoint.
+Run: `./build-tests/ai_file_sorter_tests "Custom API analysis does not require public internet"`
+
+#### Test case: Custom API analysis still validates endpoint settings without internet
+Purpose: Preserve clear configuration errors when a custom API entry is missing.
+Setup: Select a custom API with an active ID that has no matching endpoint.
+Procedure: Run connection validation with an offline network probe.
+Expected outcome: Validation returns the missing-endpoint settings error without probing public internet.
+Run: `./build-tests/ai_file_sorter_tests "Custom API analysis still validates endpoint settings without internet"`
+
+#### Test case: Built-in API analysis reports unavailable internet
+Purpose: Preserve the existing internet requirement for the built-in OpenAI and Gemini connections.
+Procedure: Validate each built-in provider with a probe that reports no internet.
+Expected outcome: The probe runs once and validation returns the existing internet connection error.
+Run: `./build-tests/ai_file_sorter_tests "Built-in API analysis reports unavailable internet"`
+
+#### Test case: Remote analysis still requires credentials when internet is available
+Purpose: Prevent the custom API connectivity fix from bypassing built-in API credential validation.
+Procedure: Validate OpenAI and Gemini without API keys while the network probe reports internet access.
+Expected outcome: The probe runs once and validation returns the missing API key error.
+Run: `./build-tests/ai_file_sorter_tests "Remote analysis still requires credentials when internet is available"`
+
+#### Test case: Local model analysis does not require internet
+Purpose: Keep downloaded local models independent of network availability.
+Procedure: Validate a local Qwen selection with an offline network probe.
+Expected outcome: Validation succeeds without calling the network probe or loading a model.
+Run: `./build-tests/ai_file_sorter_tests "Local model analysis does not require internet"`
 
 ### `tests/unit/test_main_app_visual_fallback.cpp`
 
@@ -619,6 +1192,13 @@ Setup: Build a visual backend descriptor with one-byte `model.gguf` and `mmproj.
 Procedure: Call `ImageAnalyzerFactory::create()` with GPU disabled.
 Expected outcome: Creation throws a clear invalid/incomplete GGUF artifact error.
 Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory rejects invalid GGUF artifacts before analyzer startup"`
+
+#### Test case: ImageAnalyzerFactory passes configured model storage to visual GPU preflight
+Purpose: Ensure the Windows visual GPU preflight subprocess inherits the active model storage directory.
+Setup: Set the process-local LLM storage override to a temporary custom model directory.
+Procedure: Build the visual GPU preflight environment through the test access hook.
+Expected outcome: The environment enables the GPU probe skip/use flags and includes `AI_FILE_SORTER_LLM_STORAGE_DIR` with the custom directory.
+Run: `./build-tests/ai_file_sorter_tests "ImageAnalyzerFactory passes configured model storage to visual GPU preflight"`
 
 ### `tests/unit/test_filename_localization_service.cpp`
 
@@ -682,12 +1262,12 @@ Procedure: Read the Settings menu action order, then toggle the analysis-in-prog
 Expected outcome: `Reset learned behavior…` appears before `Clear cache…`, both actions start enabled, both become disabled during analysis, and both re-enable afterward.
 Run: `./build-tests/ai_file_sorter_tests "Settings maintenance actions stay separate and follow analysis state"`
 
-#### Test case: Plugins menu is only available in development mode
-Purpose: Ensure unfinished plugin UI is hidden for public builds while remaining available for developer testing.
+#### Test case: Folder-structure plugins are public and storage plugins stay development-only
+Purpose: Ensure signed folder-structure plugin management is visible in public builds while storage plugin management remains developer-only.
 Setup: Build one `MainApp` with development mode disabled and one with development mode enabled.
-Procedure: Inspect the Plugins menu and Manage Storage Plugins action through the test access layer.
-Expected outcome: Public mode exposes neither item; development mode exposes both and the Plugins menu is visible.
-Run: `./build-tests/ai_file_sorter_tests "Plugins menu is only available in development mode"`
+Procedure: Inspect the Plugins menu, folder-structure plugin action, and storage plugin action through the test access layer.
+Expected outcome: Public mode exposes the Plugins menu and folder-structure plugin action only; development mode also exposes storage plugin management.
+Run: `./build-tests/ai_file_sorter_tests "Folder-structure plugins are public and storage plugins stay development-only"`
 
 #### Test case: Tests menu is only available in test mode
 Purpose: Ensure real-runtime test presets are hidden unless the app is launched in test mode.
@@ -827,9 +1407,9 @@ Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceService reports zero s
 
 #### Test case: ReviewHistoryStore persists, searches, and marks history entries undone
 Purpose: Verify the user-visible review history database persists applied rename/categorization records.
-Setup: Create an isolated config directory and record a combined rename/categorization history row with filename, category, and description data.
+Setup: Create an isolated config directory and record a combined rename/categorization history row with filename, category, description, and app-created directory data.
 Procedure: Search the store by filename, category, and description, mark the row undone, then reopen the store.
-Expected outcome: The row is found by each searchable field, undo state persists, and the history survives reopening the database.
+Expected outcome: The row is found by each searchable field, undo state and created-directory metadata persist, and the history survives reopening the database.
 Run: `./build-tests/ai_file_sorter_tests "ReviewHistoryStore persists, searches, and marks history entries undone"`
 
 ### `tests/unit/test_user_learning_store.cpp`
@@ -927,6 +1507,118 @@ Procedure: Inspect the three clear buttons and the busy-state label.
 Expected outcome: All clear buttons are disabled and the dialog shows the busy explanation text.
 Run: `./build-tests/ai_file_sorter_tests "CacheMaintenanceDialog disables cache clearing controls while busy"`
 
+### `tests/unit/test_suitability_benchmark_dialog.cpp`
+
+#### Test case: Suitability benchmark discovers all installed visual models
+Purpose: Benchmark every installed built-in and custom visual model independently of the selected visual model.
+Setup: Install all built-in visual model/projector pairs, register two named custom visual models, a text-only model, and entries with missing or corrupt projectors.
+Procedure: Run the CPU benchmark with an injected runner, then reopen the dialog from saved settings.
+Expected outcome: Every complete visual pair is tested and persisted, incomplete pairs are excluded, custom result rows have distinct registered names, and the saved visual selection is unchanged.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark discovers all installed visual models"`
+
+#### Test case: Suitability benchmark detects unselected visual models without text models
+Purpose: Allow an installed visual model to make the check available even when the selected visual model and all text models are unavailable.
+Procedure: Install only the LLaVA visual pair with Qwen selected, remove or corrupt its projector, restore it, and run the benchmark with an injected runner.
+Expected outcome: The check is available only with both valid artifacts, and LLaVA image analysis runs without changing the selected Qwen model.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark detects unselected visual models without text models"`
+
+#### Test case: Suitability benchmark tracks and persists model backend pairs independently
+Purpose: Keep successful CPU results eligible even when CUDA and Vulkan fail, and restore the pair table after reopening.
+Expected outcome: Each backend has its own result; only successful pairs are recommended and failed pairs remain retryable after settings reload.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark tracks and persists model backend pairs independently"`
+
+#### Test case: Suitability benchmark retries only failed pairs and preserves successful backends
+Purpose: Verify Retry failed targets failed pairs without discarding working backends.
+Expected outcome: Only failed backend keys are executed; successful prior timings and timestamps remain unchanged.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark retries only failed pairs and preserves successful backends"`
+
+#### Test case: Suitability benchmark can try a selected model on another backend
+Purpose: Exercise Try chosen backend and Retry selected through the dialog controls.
+Expected outcome: A new backend result is added for the selected model, failed attempts preserve other backends, and selected retries replace only the selected pair.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark can try a selected model on another backend"`
+
+#### Test case: Suitability benchmark automatic CPU fallback records a separate backend result
+Purpose: Keep automatic fallback from being misreported as successful GPU execution.
+Expected outcome: GPU failure and CPU success occupy separate rows, and runtime environment overrides are restored afterward.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark automatic CPU fallback records a separate backend result"`
+
+#### Test case: Suitability benchmark cancellation preserves existing pair measurements
+Purpose: Avoid replacing a completed measurement with a cancelled retry.
+Expected outcome: Existing success, timing, and timestamp remain intact after cancellation.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark cancellation preserves existing pair measurements"`
+
+#### Test case: Suitability benchmark result storage validates data and replaces only matching pairs
+Purpose: Round-trip structured model/backend results and reject malformed or unsupported data.
+Expected outcome: Pair identities and successful results survive serialization; invalid backends, unsupported schema versions, and negative durations are rejected.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark result storage validates data and replaces only matching pairs"`
+
+#### Test case: Suitability benchmark retries visual model backend pairs without rerunning text checks
+Purpose: Keep image-analysis retries scoped to the selected visual model/backend pair.
+Procedure: Benchmark two custom visual models on CPU and CUDA, switch the saved visual selection, then retry failed and selected pairs for the other model.
+Expected outcome: Only the requested visual pair is repeated; successful text checks, other visual models, and other backends retain their measurements and timestamps. Changing the visual selection does not invalidate another model's results or retry.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark retries visual model backend pairs without rerunning text checks"`
+
+#### Test case: Suitability benchmark invalidates measurements when model weights change
+Purpose: Prevent measurements for old weights from being reused after a model file changes.
+Expected outcome: A stale retry request is rejected without inference, its old row is removed, and the dialog explains that the models need to be rediscovered.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark invalidates measurements when model weights change"`
+
+#### Test case: Suitability benchmark never recommends failed models
+Purpose: Prevent quick failures from appearing as optimal speed results or recommended models.
+Expected outcome: Recommendations require successful categorization and document checks; a feature with no successful checks is reported as failed.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark never recommends failed models"`
+
+#### Test case: Suitability benchmark recommendations respect existing folder sorting
+Purpose: Align compatibility recommendations with the model advice for existing folder structures.
+Expected outcome: Existing-folder recommendations exclude Gemma 4B and custom models even when they are fast, while Qwen and Gemma 7B remain eligible. The report distinguishes speed testing from routing accuracy.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark recommendations respect existing folder sorting"`
+
+#### Test case: Suitability benchmark detects custom text models and rejects invalid or duplicate files
+Purpose: Allow a custom text GGUF model to make the benchmark available without built-in model downloads.
+Expected outcome: Available custom GGUF files are included once; missing files, invalid headers, and alternate paths to the same file are excluded.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark detects custom text models and rejects invalid or duplicate files"`
+
+#### Test case: Suitability benchmark gives Qwen explicit four billion parameter speed targets
+Purpose: Apply explicit Qwen categorization and document budgets with validated environment overrides.
+Expected outcome: Defaults match the existing Gemma 4B budgets, valid overrides are used, and non-finite, zero, negative, or malformed values fall back to defaults.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark gives Qwen explicit four billion parameter speed targets"`
+
+#### Test case: Suitability benchmark only marks completed checks as completed
+Purpose: Keep an interrupted first run from suppressing future automatic compatibility prompts.
+Expected outcome: Incomplete runs do not set the completed flag; completed runs set and persist it, and a subsequent incomplete run preserves that previous completion.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark only marks completed checks as completed"`
+
+#### Test case: Suitability benchmark Escape requests stop without hiding a running check
+Purpose: Prevent Escape from bypassing the close guard and hiding a dialog whose worker is still running.
+Expected outcome: Escape requests a stop and leaves the running dialog visible; it can be dismissed after running state ends.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark Escape requests stop without hiding a running check"`
+
+#### Test case: Suitability benchmark respects the shared analysis runtime lock
+Purpose: Protect runtime settings and hardware measurements from concurrent analysis.
+Expected outcome: An active runtime lease prevents starting the benchmark. A no-model attempt releases its own lease and leaves analysis available.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark respects the shared analysis runtime lock"`
+
+#### Test case: Suitability benchmark reports Vulkan GPU when CUDA is unavailable
+Purpose: Ensure CUDA unavailability does not make the benchmark describe all GPU acceleration as unavailable when Vulkan is usable.
+Setup: Build backend notes with CUDA unavailable and Vulkan available.
+Procedure: Ask the suitability benchmark test access layer for text and image backend notes.
+Expected outcome: Both notes report `GPU (target: Vulkan)`.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark reports Vulkan GPU when CUDA is unavailable"`
+
+#### Test case: Suitability benchmark reports CPU only when no auto GPU backend is available
+Purpose: Ensure auto backend reporting falls back to CPU only when no CUDA, Vulkan, or Metal accelerator is available.
+Setup: Build an auto backend note with all accelerators unavailable.
+Procedure: Ask the suitability benchmark test access layer for the backend note.
+Expected outcome: The note starts with `CPU` and includes the GPU initialization failure reason.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark reports CPU only when no auto GPU backend is available"`
+
+#### Test case: Suitability benchmark keeps explicit CUDA unavailability distinct from Vulkan
+Purpose: Ensure an explicit CUDA fallback does not also claim Vulkan is unavailable when Vulkan was detected.
+Setup: Build a CUDA backend fallback note with CUDA unavailable and Vulkan available.
+Procedure: Ask the suitability benchmark test access layer for the backend note.
+Expected outcome: The note reports CUDA unavailable, does not report Vulkan unavailable, and uses CPU because the requested backend fell back.
+Run: `./build-tests/ai_file_sorter_tests "Suitability benchmark keeps explicit CUDA unavailability distinct from Vulkan"`
+
 ### `tests/unit/test_utils.cpp`
 
 #### Test case: get_file_name_from_url extracts filename
@@ -949,13 +1641,6 @@ Setup: Set a process-local LLM storage override to a temporary directory.
 Procedure: Call `Utils::make_default_path_to_file_from_download_url()` for a GGUF URL.
 Expected outcome: The resolved path points inside the override directory with the URL filename appended.
 Run: `./build-tests/ai_file_sorter_tests "LLM storage override changes default download destination"`
-
-#### Test case: ensure_ca_bundle stages embedded certificate under writable app data
-Purpose: Prevent Store/MSIX builds from trying to create runtime certificate files under the read-only package install directory.
-Setup: Reset the CA bundle cache and point `AI_FILE_SORTER_CONFIG_DIR` at a temporary directory.
-Procedure: Call `Utils::ensure_ca_bundle()`.
-Expected outcome: The embedded `cacert.pem` is staged under the writable app config directory, exists, is non-empty, and does not point inside `WindowsApps`.
-Run: `./build-tests/ai_file_sorter_tests "ensure_ca_bundle stages embedded certificate under writable app data"`
 
 #### Test case: is_cuda_available honors probe overrides
 Purpose: Verify that CUDA availability probes are honored.
@@ -980,14 +1665,14 @@ Run: `./build-tests/ai_file_sorter_tests "sanitize_path_label strips invalid UTF
 
 #### Test case: Windows Vulkan payload candidates prefer the BLAS runtime layout
 Purpose: Ensure Windows runtime lookup prefers the packaged `vulkan-blas` payload before the legacy Vulkan layout.
-Setup: Construct a Windows executable path under a representative install root.
+Setup: Construct an executable path under a temporary install root using host-native filesystem joins. Only the payload layout is Windows-specific.
 Procedure: Call `GgmlRuntimePaths::windows_vulkan_payload_candidate_dirs()`.
 Expected outcome: The first candidate is `lib/precompiled/vulkan-blas/bin` and the second is `lib/precompiled/vulkan/bin`.
 Run: `./build-tests/ai_file_sorter_tests "Windows Vulkan payload candidates prefer the BLAS runtime layout"`
 
 #### Test case: Windows CPU runtime candidates fall back to the Vulkan runtime layout
 Purpose: Ensure launcher-based Windows builds can reuse `wvulkan` when the dedicated CPU runtime directory is absent.
-Setup: Construct a Windows executable path under a representative install root.
+Setup: Construct an executable path under a temporary install root using host-native filesystem joins. Only the payload layout is Windows-specific.
 Procedure: Call `GgmlRuntimePaths::windows_cpu_runtime_candidate_dirs()`.
 Expected outcome: The candidate order starts with `wocuda` and then falls back to `wvulkan`.
 Run: `./build-tests/ai_file_sorter_tests "Windows CPU runtime candidates fall back to the Vulkan runtime layout"`
@@ -1041,21 +1726,148 @@ Procedure: Call `Utils::format_size()` for both values.
 Expected outcome: `999` formats as `999.00 B` and `1024` formats as `1.00 KB`.
 Run: `./build-tests/ai_file_sorter_tests "format_size keeps byte values in bytes below one kilobyte"`
 
+### `tests/unit/test_windows_cuda_probe.cpp`
+
+The pure `WindowsCudaRuntimeSelection` policy runs on every host, including
+Windows path strings with backslashes, forward slashes, and mixed separators.
+Production Windows discovery and the test-access wrappers share that policy.
+DLL discovery/loading and CUDA driver calls remain compiled only on Windows.
+
+Issue #4 regressions:
+- `WindowsCudaProbe resolves CUDA payload independently of the active backend`:
+  CPU/Vulkan selection resolves the packaged CUDA sibling, custom CUDA overrides
+  remain preferred, both Windows layouts work, and directories posing as DLLs are rejected.
+- `Windows CUDA runtime selection prefers bundled dependencies over newer toolkits`:
+  a matching bundled runtime wins over an unrelated, newer system toolkit.
+- `WindowsCudaProbe discovers runtime DLLs bundled beside the CUDA backend` (Windows only):
+  bundle discovery precedes installed toolkits and ignores backup files without loading a GPU.
+
+`tests/test_windows_cuda_runtime.ps1` checks Windows CUDA packaging with temporary
+toolkit fixtures and injected dependency lists. It covers CUDA 12 `bin` and CUDA 13
+`bin/x64` layouts, exact imported DLL versions, the cuBLASLt companion, cudart for
+device/memory probes, license copying, reuse without a toolkit, and rejection of
+missing libraries/licenses or mismatched major versions before copying a partial set.
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_windows_cuda_runtime.ps1`
+or `ctest --test-dir build-tests-entitlement -R windows_cuda_runtime_staging --output-on-failure`.
+The CTest case is registered only on Windows and needs neither a CUDA toolkit nor a GPU.
+
+#### Additional selection-policy cases
+- `Windows CUDA runtime selection validates DLL names without filesystem access`:
+  checks suffix formats, malformed/overflowing input, and toolkit-version fallback.
+- `Windows CUDA runtime selection handles Windows separators and case on every host`:
+  checks case, dot segments, Unicode parent directories, and toolkit minor-version overrides.
+- `Windows CUDA runtime selection preserves source and layout priorities`:
+  checks explicit toolkit hints, x64/bin/root ordering, generic runtimes, and PhysX.
+- `Windows CUDA runtime selection orders versions and breaks ties deterministically`:
+  checks version preference, stable lexical tie-breaking, and invalid-candidate filtering.
+- `Non-Windows CUDA probing reports no native runtime` (non-Windows only):
+  verifies native probing stays inactive while pure policy tests remain available.
+
+Run: `./build-tests/ai_file_sorter_tests "Windows CUDA runtime selection*,WindowsCudaProbe*,Non-Windows CUDA probing*"`
+
+#### Test case: WindowsCudaProbe normalizes mixed-era runtime suffixes
+Purpose: Ensure CUDA runtime DLL suffixes from legacy and modern CUDA versions are ranked by toolkit era rather than raw integer value.
+Setup: Compare representative runtime names such as `cudart64_13.dll`, `cudart64_65.dll`, `cudart64_121.dll`, and `cudart64_110.dll`.
+Procedure: Call the runtime-version rank helper for each runtime name.
+Expected outcome: Modern CUDA 13 ranks above legacy CUDA 6.5, and CUDA 12.1 ranks above CUDA 11.0.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe normalizes mixed-era runtime suffixes"`
+
+#### Test case: WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes
+Purpose: Avoid selecting obsolete CUDA runtime DLLs shipped with old NVIDIA PhysX installs when a real CUDA Toolkit runtime is available.
+Setup: Provide one PhysX runtime path and one CUDA Toolkit runtime path.
+Procedure: Rank both paths through the Windows CUDA probe test access layer.
+Expected outcome: The CUDA Toolkit runtime is first and the PhysX runtime is last.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers toolkit runtimes over legacy PhysX runtimes"`
+
+#### Test case: WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies
+Purpose: Ensure the launcher prefers the architecture-specific CUDA Toolkit runtime directory when duplicate runtime versions exist.
+Setup: Provide matching runtime DLL names under a toolkit root and under `bin/x64`.
+Procedure: Rank both paths through the Windows CUDA probe test access layer.
+Expected outcome: The `bin/x64` runtime path is selected before the generic toolkit-root copy.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe prefers x64 toolkit bin directories over generic toolkit copies"`
+
+#### Test case: WindowsCudaProbe requires the packaged CUDA backend to be loadable
+Purpose: Prevent the Windows launcher from selecting CUDA when the driver/runtime exists but `ggml-cuda.dll` cannot load because a dependency such as cuBLAS is missing.
+Setup: Build synthetic probe results with a usable CUDA driver/runtime and vary packaged-payload and backend-loadable flags.
+Procedure: Call `WindowsCudaProbe::can_select_cuda_backend()`.
+Expected outcome: CUDA is accepted only when the packaged payload is present and the backend load test passes.
+Run: `./build-tests/ai_file_sorter_tests "WindowsCudaProbe requires the packaged CUDA backend to be loadable"`
+
+### `tests/unit/test_native_chat_template.cpp`
+
+Covers embedded-template rendering policy: system/user messages, assistant generation
+framing, disabled thinking, long folder lists, media markers, and invalid inputs.
+Run: `./build-tests/ai_file_sorter_tests "Native chat templates*"`
+
 ### `tests/unit/test_llm_selection_dialog_local.cpp`
 
-#### Test case: LLM selection dialog lists built-in local models in Gemma Mistral Gemma order
-Purpose: Ensure the categorization-model radio buttons present the built-in local models in the intended top-to-bottom order without a separate recommended badge.
-Setup: Construct the dialog on a clean config directory and collect the visible built-in local-model labels through test access.
-Procedure: Compare the returned labels with the catalog labels for Gemma 4B, Mistral 7B, and Gemma 7B.
-Expected outcome: The dialog lists Gemma 4B first, Mistral 7B second, Gemma 7B third, and none of the labels include `Recommended`.
-Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog lists built-in local models in Gemma Mistral Gemma order"`
+#### Test case: LLM selection dialog hides retired models on fresh installations
+Purpose: Keep retired Mistral and LLaMa models out of fresh categorization-model offerings.
+Setup: Construct the dialog with clean settings and an empty isolated model directory.
+Procedure: Collect the offered built-in local-model labels in dropdown order through test access.
+Expected outcome: Only Qwen3.5 4B, Gemma 4B, and Gemma 7B appear, in that order, with Qwen marked Recommended.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog hides retired models on fresh installations"`
 
-#### Test case: LLM selection dialog defaults to the Gemma 4B local model
-Purpose: Verify the built-in local categorization choice defaults to Gemma 4B when no prior selection is stored.
+#### Test case: LLM selection dialog retains installed Mistral without changing the saved model
+Purpose: Preserve access to an existing Mistral download even when another model is selected.
+Setup: Save the Gemma choice and place Mistral weights in an isolated custom model directory.
+Procedure: Inspect the offered choices and select Mistral.
+Expected outcome: Mistral remains in the original model order and uses its existing artifact; opening or changing the dialog does not rewrite the saved selection.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog retains installed Mistral without changing the saved model"`
+
+#### Test case: LLM selection dialog restores saved Mistral when its weights are missing
+Purpose: Preserve older `Local_7b` selections and allow re-downloading missing weights.
+Setup: Load the historical settings identifier and round-trip it through settings persistence with an empty custom model directory.
+Procedure: Open the dialog, inspect the selection and downloader path, and switch away and back.
+Expected outcome: Mistral remains offered and selected with its original download path, despite missing weights.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores saved Mistral when its weights are missing"`
+
+#### Test case: LLM selection dialog hides unsaved Mistral after its weights are removed
+Purpose: Refresh retired-model availability when the qualifying download disappears.
+Setup: Keep Gemma as the saved choice, install Mistral, and select it temporarily in the dialog.
+Procedure: Remove the test artifact and refresh local choices.
+Expected outcome: Mistral disappears and the dialog falls back to Qwen 4B.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog hides unsaved Mistral after its weights are removed"`
+
+#### Test case: LLM selection dialog restores Qwen and shares its visual text weights
+Purpose: Round-trip the Qwen choice through settings without duplicating its text weights.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores Qwen and shares its visual text weights"`
+
+#### Test case: LLM selection dialog defaults to the Qwen 4B local model
+Purpose: Verify the built-in local categorization choice defaults to Qwen 4B when no prior selection is stored.
 Setup: Construct the dialog with default settings on a clean config directory.
 Procedure: Read the selected LLM choice from the dialog.
-Expected outcome: The selected built-in choice is `Local_4b_Gemma`.
-Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog defaults to the Gemma 4B local model"`
+Expected outcome: The selected built-in choice is `Local_4b_Qwen35`.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog defaults to the Qwen 4B local model"`
+
+#### Test case: LLM selection dialog switches between grouped model dropdowns
+Purpose: Verify Local LLMs and API connections select the active model, update descriptions and credentials, and preserve each group's choice while switching tabs.
+Expected outcome: Qwen is first and recommended, local descriptions follow the selected model, only the selected provider's inputs appear, and API acceptance requires a key and model. Changing the dialog does not overwrite saved settings.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog switches between grouped model dropdowns"`
+
+#### Test case: LLM selection dialog keeps technical download details collapsed and compact
+Purpose: Keep long URLs and local paths behind See details in the text-model and visual-file download sections.
+Setup: Configure Qwen text and projector URLs containing a long path segment, open Downloads, and show the dialog.
+Procedure: Expand and collapse each details panel, inspect the URL, local path, and metadata, then switch to Gemma with its URL unset.
+Expected outcome: Details start hidden, show selectable technical information when expanded, and do not significantly widen the dialog. Switching models updates metadata and clears the previous URL when the new model has no configured download.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog keeps technical download details collapsed and compact"`
+
+#### Test case: LLM selection dialog restores saved API and custom dropdown selections
+Purpose: Restore Gemini, OpenAI, custom API, and custom local choices into the correct tab and dropdown.
+Expected outcome: The saved provider or model and custom entry ids are selected, including custom entries that are not first in their lists, and the corresponding management controls appear.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog restores saved API and custom dropdown selections"`
+
+#### Test case: LLM selection dialog requires a custom entry when its dropdown is empty
+Purpose: Keep empty custom local and API choices available for adding entries without accepting an incomplete selection.
+Expected outcome: The selected custom controls appear, the selected id is empty, and OK is disabled until an entry is available.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog requires a custom entry when its dropdown is empty"`
+
+#### Test case: LLM selection dialog emphasizes the visual model selector
+Purpose: Keep the image-analysis visual model selector visually discoverable.
+Setup: Construct the LLM selection dialog on a clean config directory.
+Procedure: Inspect the visual model combo box through test access.
+Expected outcome: The combo has the emphasized object name, larger minimum footprint, fixed vertical sizing, and accent border/background/font styling.
+Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog emphasizes the visual model selector"`
 
 #### Test case: LLM selection dialog keeps the legacy LLaMa choice when the previous Q4 artifact exists
 Purpose: Ensure the legacy built-in LLaMa option still appears for users who only have the older pre-Gemma Q4 artifact on disk.
@@ -1077,7 +1889,7 @@ Run: `./build-tests/ai_file_sorter_tests "LLM selection dialog downloads Gemma 4
 Purpose: Verify the extracted visual backend combo model lists built-in backends and only custom LLMs that have visual artifacts.
 Setup: Create one text-only custom LLM and one custom visual LLM.
 Procedure: Build visual backend combo items with fixed localized label strings.
-Expected outcome: Built-in backends are listed, the default Gemma backend is marked recommended, and only the visual custom LLM appears.
+Expected outcome: Qwen is listed first and marked recommended among the built-in backends, and only the visual custom LLM appears.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model builds built-in and visual custom items"`
 
 #### Test case: LLM selection visual backend model chooses requested default and fallback ids
@@ -1091,7 +1903,7 @@ Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model cho
 Purpose: Verify selected visual model ids map to the descriptor used by dialog/runtime code.
 Setup: Use a custom visual id and an unknown built-in id.
 Procedure: Resolve descriptors and canonical ids through the helper.
-Expected outcome: Custom ids use the custom descriptor and unknown ids fall back to the default Gemma descriptor.
+Expected outcome: Custom ids use the custom descriptor and unknown ids fall back to the default Qwen descriptor.
 Run: `./build-tests/ai_file_sorter_tests "LLM selection visual backend model resolves canonical descriptors"`
 
 ### `tests/unit/test_llm_selection_dialog_visual.cpp` (non-Windows only)
@@ -1119,17 +1931,17 @@ Run: `./build-tests/ai_file_sorter_tests "Visual model entry reports download er
 
 #### Test case: Visual backend selection switches descriptor-driven download state
 Purpose: Verify the visual download UI is driven by the selected backend descriptor rather than hardcoded LLaVA rows.
-Setup: Clear both the default Gemma env vars and the alternate LLaVA env vars, initialize settings with the legacy LLaVA backend, and construct the dialog.
-Procedure: Confirm the default backend id and missing-env state, switch the dialog to the Gemma backend through the test access layer, and inspect the active model entry again.
-Expected outcome: The selected backend id changes to `gemma-3-4b-it`, and the visible model entry now reports the missing `GEMMA3_4B_MODEL_URL` variable instead of the default backend env var.
+Setup: Clear both the Gemma and LLaVA env vars, initialize settings with the legacy LLaVA backend, and construct the dialog.
+Procedure: Confirm the saved LLaVA backend id and missing-env state, switch the dialog to the Gemma backend through the test access layer, and inspect the active model entry again.
+Expected outcome: The selected backend id changes to `gemma-3-4b-it`, and the visible model entry now reports the missing `GEMMA3_4B_MODEL_URL` variable instead of the LLaVA backend env var.
 Run: `./build-tests/ai_file_sorter_tests "Visual backend selection switches descriptor-driven download state"`
 
-#### Test case: Visual dialog defaults to recommended Gemma backend
-Purpose: Verify the visual-model combo defaults to Gemma and marks it as recommended in the download dialog.
+#### Test case: Visual dialog defaults to recommended Qwen backend
+Purpose: Verify the visual-model combo defaults to Qwen, lists it first, and marks it as recommended in the download dialog.
 Setup: Construct the dialog with default settings on a clean config directory.
 Procedure: Read the selected visual backend id and the current combo-box label through the test access layer.
-Expected outcome: The selected backend id is `gemma-3-4b-it`, and the visible combo label is `Gemma 3 4B IT (Recommended)`.
-Run: `./build-tests/ai_file_sorter_tests "Visual dialog defaults to recommended Gemma backend"`
+Expected outcome: The selected backend id is `qwen3.5-4b`, and the first combo item is selected with the label `Qwen3.5 4B (Recommended)`.
+Run: `./build-tests/ai_file_sorter_tests "Visual dialog defaults to recommended Qwen backend"`
 
 #### Test case: Visual dialog does not mark another backend's legacy generic mmproj as downloaded
 Purpose: Ensure generic legacy mmproj filenames are not attributed to the wrong visual backend.
@@ -1154,19 +1966,35 @@ Run: `./build-tests/ai_file_sorter_tests "Visual dialog does not mark invalid pr
 
 ### `tests/unit/test_visual_llm_runtime.cpp`
 
+#### Test case: VisualLlmRuntime resolves the Qwen model and matching projector
+Purpose: Resolve the Qwen visual backend and its matching projector with Qwen as the default.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the Qwen model and matching projector"`
+
+#### Test case: Qwen projector lookup rejects ambiguous legacy files without matching metadata
+Purpose: Prevent a generic `mmproj-F16.gguf` belonging to another model from being
+silently reused as Qwen's projector; require matching download provenance for legacy files.
+Run: `./build-tests/ai_file_sorter_tests "Qwen projector lookup rejects ambiguous legacy files without matching metadata"`
+
 #### Test case: Default visual model descriptor exposes the MTMD backend catalog
 Purpose: Verify the built-in visual model catalog exposes the expected default backend descriptor and the alternate backend entries used by the selector UI.
 Setup: Load the default visual model descriptor from the catalog.
 Procedure: Inspect the backend id, display name, architecture, prompt policy, required artifact env vars, and the presence of the supported LLaVA Mistral and Gemma backend descriptors.
-Expected outcome: The default backend resolves to the Gemma descriptor with separate model and mmproj artifact entries and the structured multimodal prompt policy, while the catalog also exposes `llava-v1.6-mistral-7b`; the disabled Vicuna backend is not registered.
+Expected outcome: The default backend resolves to the Qwen descriptor with separate model and mmproj artifact entries and the structured multimodal prompt policy, while the catalog also exposes `llava-v1.6-mistral-7b`; the disabled Vicuna backend is not registered.
 Run: `./build-tests/ai_file_sorter_tests "Default visual model descriptor exposes the MTMD backend catalog"`
 
 #### Test case: VisualLlmRuntime resolves the active backend through descriptor artifacts
-Purpose: Ensure runtime resolution goes through the descriptor catalog and can satisfy the mmproj artifact via fallback filenames.
-Setup: Set `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`, create the main model file at its default destination, and create a fallback mmproj file in the default LLM directory.
+Purpose: Ensure default runtime resolution goes through the descriptor catalog and resolves both model and mmproj artifacts.
+Setup: Set `QWEN35_4B_MODEL_URL` and `QWEN35_4B_MMPROJ_URL`, then create the model and mmproj files at their preferred storage paths.
 Procedure: Call `resolve_active_backend()` and `resolve_paths()`.
-Expected outcome: The backend resolves successfully, returns the LLaVA descriptor, maps the model artifact to the primary file, and maps the mmproj artifact to the fallback file.
+Expected outcome: The backend resolves successfully, returns the Qwen descriptor, and maps both artifacts to their preferred storage paths.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves the active backend through descriptor artifacts"`
+
+#### Test case: VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage
+Purpose: Prove persisted `LlmStorageDir` is restored before built-in visual backend artifact resolution.
+Setup: Save `LlmStorageDir` to a temporary custom model directory, create Gemma visual artifacts there, and clear the process-local storage override.
+Procedure: Reload `Settings`, then resolve the saved Gemma visual backend through `VisualLlmRuntime::resolve_active_backend()`.
+Expected outcome: Resolution succeeds and returns the model and mmproj paths under the custom storage directory.
+Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves built-in Gemma after Settings restores custom storage"`
 
 #### Test case: VisualLlmRuntime resolves custom visual LLM artifacts
 Purpose: Ensure a user-provided local GGUF plus MMProj pair can be used as the visual model backend.
@@ -1184,7 +2012,7 @@ Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime rejects custom visual
 
 #### Test case: VisualLlmRuntime reports missing backend URLs before resolving artifacts
 Purpose: Confirm runtime resolution fails early when the configured visual backend is missing its required URL environment variables.
-Setup: Clear `LLAVA_MODEL_URL` and `LLAVA_MMPROJ_URL`.
+Setup: Clear `QWEN35_4B_MODEL_URL` and `QWEN35_4B_MMPROJ_URL`.
 Procedure: Call `resolve_active_backend()` with an error string output.
 Expected outcome: Resolution fails and reports the existing missing-URL guidance message.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime reports missing backend URLs before resolving artifacts"`
@@ -1198,7 +2026,7 @@ Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves a non-defaul
 
 #### Test case: VisualLlmRuntime rejects invalid preferred GGUF artifacts
 Purpose: Ensure preferred backend artifact paths are only accepted when they contain a valid GGUF header.
-Setup: Configure the default Gemma backend and create invalid placeholder files at the preferred model and mmproj storage paths.
+Setup: Configure the default Qwen backend and create invalid placeholder files at the preferred model and mmproj storage paths.
 Procedure: Call `resolve_active_backend()` with an error string output.
 Expected outcome: Resolution fails and reports the preferred model artifact as missing, because invalid GGUF placeholders are ignored.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime rejects invalid preferred GGUF artifacts"`
@@ -1232,6 +2060,27 @@ Setup: Create a temporary config file with a `Settings` section that omits `UseS
 Procedure: Reload settings from disk.
 Expected outcome: `Settings::load()` succeeds and `get_use_subcategories()` returns `true`.
 Run: `./build-tests/ai_file_sorter_tests "Settings defaults use subcategories on when config key is missing"`
+
+#### Test case: Settings persists existing folder-tree sorting mode
+Purpose: Ensure the selected sorting mode and new-folder suggestion toggle survive a settings round-trip.
+Setup: Use a temporary config directory and enable existing-folder sorting plus suggested new folders.
+Procedure: Save settings, reload into a new `Settings` instance, and read the sorting fields.
+Expected outcome: The reloaded settings report `ExistingFolderTree` and keep new-folder suggestions enabled.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists existing folder-tree sorting mode"`
+
+#### Test case: Settings persists Johnny.Decimal plugin suggestion suppression
+Purpose: Ensure the permanent opt-out for the Johnny.Decimal plugin suggestion survives a settings round-trip.
+Setup: Use a temporary config directory and enable the suppression setting.
+Procedure: Save settings, reload into a new `Settings` instance, and read the suppression flag.
+Expected outcome: The reloaded settings keep the Johnny.Decimal plugin suggestion hidden.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists Johnny.Decimal plugin suggestion suppression"`
+
+#### Test case: Settings persists destination folder separately from analyzed folder
+Purpose: Ensure users can store a category destination root independently from the folder being analyzed.
+Setup: Use a temporary config directory and set different analyzed and destination folders.
+Procedure: Save settings, reload them, and clear the destination override.
+Expected outcome: The analyzed folder and destination folder persist separately, and the effective destination falls back to the analyzed folder when the override is empty.
+Run: `./build-tests/ai_file_sorter_tests "Settings persists destination folder separately from analyzed folder"`
 
 #### Test case: Settings enforces rename-only implies offer rename
 Purpose: Ensure rename-only cannot be enabled without offer-rename.
@@ -1536,6 +2385,13 @@ Run: `./build-tests/ai_file_sorter_tests "Review dialog rename-only toggles disa
 
 ### `tests/unit/test_custom_llm.cpp`
 
+#### Test case: Built-in local model visibility preserves retired choices
+Purpose: Verify catalog visibility policies without removing compatible model identifiers or artifact lookup.
+Setup: Use an isolated empty model directory and create test artifacts as needed.
+Procedure: Check current models, installed or saved Mistral, downloaded-only legacy LLaMa, and non-built-in choices.
+Expected outcome: Current models are always offered; Mistral requires a download or saved selection; LLaMa retains its existing downloaded-only rule; non-built-in choices are excluded.
+Run: `./build-tests/ai_file_sorter_tests "Built-in local model visibility preserves retired choices"`
+
 #### Test case: Custom LLM entries persist across Settings load/save
 Purpose: Ensure custom LLM definitions persist correctly, including optional visual MMProj metadata and the selected model storage directory.
 Setup: Insert a custom LLM entry with a model path and MMProj path, set it as active and selected for visual analysis, set a custom model storage directory, then save settings.
@@ -1580,6 +2436,10 @@ Run: `./build-tests/ai_file_sorter_tests "Built-in Gemma 4B prefers the shared v
 
 ### `tests/unit/test_category_language_support.cpp`
 
+#### Test case: Qwen category language support exposes the full language list
+Purpose: Keep Qwen available for the same category languages as Gemma 3.
+Run: `./build-tests/ai_file_sorter_tests "Qwen category language support exposes the full language list"`
+
 #### Test case: Gemma 3 category language support exposes the full language list
 Purpose: Ensure the built-in Gemma 3 4B local model keeps the full expanded category-language catalog available.
 Setup: Query the category-language support helper for `Local_4b_Gemma`.
@@ -1609,6 +2469,21 @@ Expected outcome: Both helpers return a one-entry list containing only English.
 Run: `./build-tests/ai_file_sorter_tests "English-only built-in local models expose only English"`
 
 ### `tests/unit/test_database_manager_rename_only.cpp`
+
+#### Storage cache path identity regressions
+Run: `./build-tests/ai_file_sorter_tests "[storage-cache]"`
+
+- `DatabaseManager reuses cached Unicode paths for native filesystems`: flat and recursive reads, direct lookups, style checks, and deletion recognize equivalent macOS paths while retaining stored spellings. Recursive matching respects directory boundaries and literal `%`/`_` characters.
+- `DatabaseManager upserts equivalent native filenames without duplicate cache rows`: updating an equivalent macOS path keeps one row, writes the supplied spelling, and preserves the recorded rename state. Other platforms keep literal identities distinct.
+- `DatabaseManager follows provider comparison rules without rewriting legacy names`: external providers retain distinct Unicode names; switching comparison rules merges legacy duplicates only in returned results, preferring the newest labels while preserving rename state.
+- `DatabaseManager cleans empty legacy duplicates without removing valid Unicode entries`: pruning an empty legacy spelling leaves its valid equivalent entry intact.
+- `DatabaseManager matches and updates Unicode folder routing identities`: equivalent source and destination paths reuse a routing decision; upserts remove duplicate spellings while preserving decisions for other tree fingerprints, and deleting the source removes its routes.
+- `DatabaseManager rolls back Unicode upserts if duplicate cleanup fails`: a database trigger forces cleanup to fail; the original row and labels remain unchanged.
+- `DatabaseManager avoids per-row comparison work for indexed cache operations`: seeds 10,000 categorization, routing, and content-evidence rows, then checks that repeated lookups and updates use a bounded number of provider comparisons. This checks scaling without a wall-clock threshold.
+- `DatabaseManager rolls back cache clearing when a dependent deletion fails`: forces routing, evidence, and taxonomy deletion errors during single-file, flat/recursive directory, and global clearing. Every failed clear preserves all original rows and reports failure; retrying after removing the fault succeeds.
+- `DatabaseManager sees cache writes from other database connections`: warms the path lookup and verifies that external inserts, path updates, and deletes are visible on subsequent cache operations.
+- `DatabaseManager reuses lookups without retaining bindings or read locks`: alternates filenames, directories, and file types across repeated lookups, verifies a separate connection can commit updates, and checks that cached statements recover after schema changes.
+- `DatabaseManager rolls back empty-row pruning if a later deletion fails`: forces the second deletion in a pruning operation to fail and verifies that the first deletion is rolled back too.
 
 #### Test case: DatabaseManager keeps rename-only entries with empty labels
 Purpose: Ensure rename-only entries are not removed when categories are empty.
@@ -1780,6 +2655,379 @@ Procedure: Scan with `Files | Recursive`.
 Expected outcome: The readable file is returned, the scan does not throw, and the unreadable subtree is skipped.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans skip unreadable directories and continue"`
 
+### `tests/unit/test_folder_tree_catalog.cpp`
+
+#### Test case: FolderTreeCatalog scans relative destination folders
+Purpose: Verify existing-folder sorting can enumerate safe relative destination folders under a selected root.
+Setup: Create a temporary Johnny.Decimal-like folder tree.
+Procedure: Scan the root and look up top-level and nested destination paths.
+Expected outcome: Existing folders are returned with normalized forward-slash relative paths.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog scans relative destination folders"`
+
+#### Test case: FolderTreeCatalog validates safe relative folder paths
+Purpose: Ensure existing-folder targets cannot escape the selected root or contain unsafe path syntax.
+Setup: Prepare valid and invalid relative folder path strings.
+Procedure: Validate each path.
+Expected outcome: Backslash separators normalize to `/`, while parent traversal, absolute drive paths, forbidden characters, and Windows reserved device names are rejected.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog validates safe relative folder paths"`
+
+#### Test case: FolderTreeCatalog parses existing-only model responses
+Purpose: Verify model responses are mapped back to existing folder names in strict mode.
+Setup: Build a small in-memory folder catalog.
+Procedure: Parse a JSON response with different casing and another response requesting a missing folder.
+Expected outcome: The existing folder resolves to its catalog spelling, while the missing folder is rejected when new folders are disabled.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog parses existing-only model responses"`
+
+#### Test case: FolderTreeCatalog accepts new folders only when enabled
+Purpose: Ensure suggested folders are accepted only under the explicit new-folder mode.
+Setup: Build a catalog that lacks the model-selected nested destination.
+Procedure: Parse a plain-text target response with new-folder suggestions enabled.
+Expected outcome: The relative path is accepted, marked as non-existing, and flagged as a suggested new folder.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog accepts new folders only when enabled"`
+
+#### Test case: FolderTreeCatalog prompt guides new folders over weak fallbacks
+Purpose: Ensure suggested-folder mode tells the model to propose a new semantic folder instead of forcing weak generic destinations.
+Setup: Build a catalog with images, archives, and catch-all folders but no document folder.
+Procedure: Build folder-tree prompt context for a PDF invoice with new-folder suggestions enabled.
+Expected outcome: The prompt requests JSON with a literal relative path and creation flag, preserves new-folder permissions, and explicitly discourages weak fallback folders.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog prompt guides new folders over weak fallbacks"`
+
+#### Test case: FolderTreeCatalog scores prefixed folders by human labels
+Purpose: Ensure leading folder codes do not prevent semantic matching.
+Setup: Provide Johnny.Decimal-like and custom-code folder paths.
+Procedure: Score each path against semantic category/subcategory labels.
+Expected outcome: Matching uses the human folder labels after prefixes, so coded paths still receive useful semantic scores.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog scores prefixed folders by human labels"`
+
+#### Test case: FolderStructurePattern suggests missing child inside numbered parent
+Purpose: Verify deterministic recognition can create coherent child suggestions inside a numbered range.
+Setup: Build a catalog with a `20-29 Work` parent and numbered child folders with a gap.
+Procedure: Ask for a `Work / Proposals` new-folder suggestion.
+Expected outcome: The suggestion uses the matching parent and the first available child number in the range.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests missing child inside numbered parent"`
+
+#### Test case: FolderStructurePattern suggests new Johnny Decimal-like area
+Purpose: Verify deterministic recognition can continue a Johnny.Decimal-like top-level range scheme.
+Setup: Build a catalog with multiple numbered top-level ranges and child numeric folders.
+Procedure: Ask for a `Finance / Invoices` new-folder suggestion.
+Expected outcome: The suggestion creates the next top-level range and the first child number inside that range.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests new Johnny Decimal-like area"`
+
+#### Test case: JohnnyDecimalFolderSuggester previews the next child number
+Purpose: Verify the manual Johnny.Decimal folder creator previews a safe next child number under an existing area.
+Setup: Create a temporary Johnny.Decimal-like tree with a numbered gap under `20-29 Work`.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview returns `20-29 Work/22 Proposals` and resolves the absolute target path without creating it.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester previews the next child number"`
+
+#### Test case: JohnnyDecimalFolderSuggester creates a new area and first child folder
+Purpose: Ensure the manual Johnny.Decimal folder creator can extend the top-level area range.
+Setup: Create a temporary archive with `10-19`, `20-29`, and `30-39` areas.
+Procedure: Create a `Finance / Invoices` folder.
+Expected outcome: The operation creates `40-49 Finance/41 Invoices` and records both newly created directories.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester creates a new area and first child folder"`
+
+#### Test case: JohnnyDecimalFolderSuggester rejects duplicate sibling labels
+Purpose: Prevent the manual creator from assigning a fresh number to a label that already exists in the target area.
+Setup: Create a temporary archive where `20-29 Work/22 Proposals` already exists.
+Procedure: Preview another `Work / Proposals` folder.
+Expected outcome: The preview is rejected with a message that names the existing duplicate path.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester rejects duplicate sibling labels"`
+
+#### Test case: JohnnyDecimalFolderSuggester rejects occupied next-number file paths
+Purpose: Ensure collision checking catches files that occupy the next numbered path.
+Setup: Create a temporary archive where the next `Work / Proposals` path exists as a file rather than a directory.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview is rejected before any directory creation.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester rejects occupied next-number file paths"`
+
+#### Test case: JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive
+Purpose: Keep the manual creator scoped to existing Johnny.Decimal-like archives.
+Setup: Create a plain folder tree without numeric ranges.
+Procedure: Preview a `Work / Proposals` folder.
+Expected outcome: The preview is rejected because the destination does not look Johnny.Decimal-like.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester requires a Johnny Decimal-like archive"`
+
+#### Test case: JohnnyDecimalValidator accepts a clean Johnny Decimal archive
+Purpose: Ensure the read-only validation report accepts a well-formed Johnny.Decimal area/category tree.
+Setup: Create temporary `00-09`, `10-19`, and `20-29` areas with direct numbered category folders.
+Procedure: Validate the archive root and format the report.
+Expected outcome: The report is scanned, marks the tree as Johnny.Decimal-like, counts the areas/categories, and has no issues.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator accepts a clean Johnny Decimal archive"`
+
+#### Test case: JohnnyDecimalValidator reports duplicate malformed and outside-range folders
+Purpose: Verify the validation report detects the main Johnny.Decimal structure mistakes.
+Setup: Create duplicate area/category numbers, malformed area/category IDs, an outside-range category, and a root-level category-like folder.
+Procedure: Validate the archive root and collect finding codes.
+Expected outcome: The report contains stable codes for duplicate ranges, duplicate category numbers, malformed IDs, outside-range folders, missing category IDs, and category-like root folders.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator reports duplicate malformed and outside-range folders"`
+
+#### Test case: JohnnyDecimalValidator reports missing area structure
+Purpose: Ensure plain folder trees are reported as missing Johnny.Decimal area structure.
+Setup: Create a non-numbered folder tree such as `Work/Clients`.
+Procedure: Validate the archive root.
+Expected outcome: The report contains an error with code `missing_area_structure`.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator reports missing area structure"`
+
+#### Test case: JohnnyDecimalArchiveIndex maps areas categories and items
+Purpose: Verify the read-only archive index builds a readable Johnny.Decimal map.
+Setup: Create a temporary archive with valid areas, categories, nested item folders, an unnumbered area child, and a loose root folder.
+Procedure: Build the archive index and format it as plain text.
+Expected outcome: The index counts areas/categories/items and the formatted map includes recognized folders plus separate "other" sections.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalArchiveIndex maps areas categories and items"`
+
+#### Test case: FolderStructurePattern nests under matching custom code folders
+Purpose: Verify deterministic recognition can match custom prefix folders by their human labels.
+Setup: Build a catalog with alphabetic-code folders such as `AC Documents` and `DG Office Apps`.
+Procedure: Ask for document and program new-folder suggestions.
+Expected outcome: Suggestions preserve the existing coded parent folder names and add semantic child folders beneath them.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern nests under matching custom code folders"`
+
+#### Test case: FolderTreeCatalog prompt includes detected structure conventions
+Purpose: Ensure LLM folder-routing prompts receive compact guidance about inferred tree conventions.
+Setup: Build a Johnny.Decimal-like catalog and provide semantic labels.
+Procedure: Build folder-tree prompt context with new-folder suggestions enabled.
+Expected outcome: The prompt describes the detected convention and includes a convention-aware deterministic candidate for comparison.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog prompt includes detected structure conventions"`
+
+#### Test case: FolderTreeCatalog derives compatibility labels from target path
+Purpose: Preserve category/subcategory compatibility for cache, history, and status fields while using explicit target folders.
+Setup: Provide a nested Johnny.Decimal-like target path.
+Procedure: Derive display labels from the relative folder path.
+Expected outcome: The top-level folder becomes the compatibility category and the deepest folder becomes the compatibility subcategory.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog derives compatibility labels from target path"`
+
+#### Test case: FolderTreeRoutingExplanation describes Johnny Decimal destinations
+Purpose: Verify folder-tree routing can explain why a Johnny.Decimal-like destination was selected.
+Setup: Prepare a semantic category, a Johnny.Decimal-like target, and the closest existing folder match.
+Procedure: Build the routing explanation text.
+Expected outcome: The explanation includes the AI category, semantic target, Johnny.Decimal pattern, readable target, closest existing folder, and new-folder decision.
+Run: `./build-tests/ai_file_sorter_tests "FolderTreeRoutingExplanation describes Johnny Decimal destinations"`
+
+### `tests/unit/test_johnny_decimal_tools.cpp`
+
+#### Test case: JohnnyDecimalItemAnalysis parses standard IDs without truncating malformed numbers
+Purpose: Validate standard AC.ID syntax without numeric overflow or truncated identifiers.
+Setup: Use boundary IDs, malformed widths and separators, missing titles, and very long numeric strings.
+Procedure: Parse each folder name.
+Expected outcome: Valid IDs retain their full identifier/title; invalid and missing IDs are distinguished.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalItemAnalysis parses standard IDs without truncating malformed numbers"`
+
+#### Test case: JohnnyDecimalValidator checks direct item IDs only when requested
+Purpose: Keep basic structure validation stable while adding plugin-enabled item validation.
+Setup: Build an archive with duplicate, malformed, missing, and wrong-category item IDs plus ordinary nested folders.
+Procedure: Validate with the default scope and with item checks enabled.
+Expected outcome: Basic results are unchanged; enhanced checks report every conflicting item without treating nested content folders as new IDs.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator checks direct item IDs only when requested"`
+
+#### Test case: JohnnyDecimalValidator accepts item boundary IDs and preserves scan warnings
+Purpose: Accept standard .00/.99 identifiers and retain errors for incomplete or unavailable scans.
+Setup: Build valid boundary items and use a small scan limit and an absent root.
+Procedure: Run enhanced validation for each case.
+Expected outcome: Valid boundary IDs pass; scan-limit and missing-root states remain explicit.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidator accepts item boundary IDs and preserves scan warnings"`
+
+#### Test case: JohnnyDecimalValidationHighlighter styles severities and preserves report text
+Purpose: Make validation reports readable without changing their selectable plain text.
+Setup: Render error, warning, and info findings, including paths with markup characters.
+Procedure: Inspect severity and field formatting, change the editor from a light to a dark palette, then clear it.
+Expected outcome: Error labels are red, warning labels are yellow on a contrasting background, headings and field labels are bold, palette changes update colors, and report text is unchanged.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalValidationHighlighter styles severities and preserves report text"`
+
+#### Test case: JohnnyDecimalArchiveIndex exports complete escaped local folder links
+Purpose: Produce usable Markdown for paths containing punctuation and Unicode.
+Setup: Create recognized items, nested content, and unrecognized folders.
+Procedure: Export the index and inspect escaped labels and encoded local URLs.
+Expected outcome: Every displayed subtree is represented and incomplete scans carry a warning.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalArchiveIndex exports complete escaped local folder links"`
+
+#### Test case: JohnnyDecimalIndexExport saves complete Markdown and reports filesystem errors
+Purpose: Verify complete UTF-8 exports and actionable file errors.
+Setup: Use a temporary archive and an output directory.
+Procedure: Save an index, compare its content, and attempt a save under a nonexistent parent.
+Expected outcome: The full snapshot is committed and write failures return an error.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalIndexExport saves complete Markdown and reports filesystem errors"`
+
+#### Test case: JohnnyDecimalIndexWidget filters conflicts and opens only existing archive folders
+Purpose: Verify ID/name search, conflict markers, and folder-opening action states.
+Setup: Populate the widget from an archive with duplicate and misplaced IDs using an injected folder-opening service.
+Procedure: Filter by ID and name, open an item, remove it, and clear the snapshot.
+Expected outcome: Matches preserve ancestors, conflicts remain visible, removed folders do not open, and empty snapshots disable actions.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalIndexWidget filters conflicts and opens only existing archive folders"`
+
+#### Test case: FolderStructureInitializerDialog enhances tools only for Johnny Decimal profiles
+Purpose: Expose enhanced indexing and item checks only for enabled Johnny.Decimal profiles.
+Setup: Construct dialogs with no profiles, a Johnny.Decimal profile, and an unrelated profile.
+Procedure: Inspect index controls and validation reports, then clear the destination.
+Expected outcome: Only the Johnny.Decimal profile enables the enhanced view; clearing the destination removes stale results.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureInitializerDialog enhances tools only for Johnny Decimal profiles"`
+
+### `tests/unit/test_folder_structure_plugins.cpp`
+
+#### Test case: FolderStructurePluginCatalog parses Johnny Decimal catalog entries
+Purpose: Ensure the app can parse the static website catalog shape used for folder-structure plugins.
+Setup: Build an in-memory catalog JSON document with the Johnny.Decimal support entry and no staged package URL.
+Procedure: Parse the catalog entries.
+Expected outcome: The Johnny.Decimal entry is returned with license/product/purchase metadata and no remote package.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginCatalog parses Johnny Decimal catalog entries"`
+
+#### Test case: FolderStructurePluginCatalogFetcher downloads catalog entries and packages
+Purpose: Verify the app-side catalog fetcher downloads catalog JSON and SHA-256 verifies package archives.
+Setup: Provide mock catalog and package URLs through an injected download function.
+Procedure: Fetch the catalog, then fetch the listed package archive.
+Expected outcome: The catalog entry is parsed, the package is cached under its plugin/version path, and its payload matches the expected SHA-256.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginCatalogFetcher downloads catalog entries and packages"`
+
+#### Test case: FolderStructurePluginManager refreshes remote catalog entries
+Purpose: Ensure the folder-structure plugin manager can retrieve and cache remote catalog metadata.
+Setup: Point the manager at a mock catalog URL containing the Johnny.Decimal support entry.
+Procedure: Refresh the remote catalog, inspect the available plugin, then create a new manager over the same config directory.
+Expected outcome: The refreshed entry is available with product and purchase metadata, and a reloaded manager reads it from the cached catalog.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager refreshes remote catalog entries"`
+
+#### Test case: FolderStructurePluginManager installs catalog plugins on demand
+Purpose: Verify a catalog-listed signed folder-structure plugin can be downloaded, verified, and installed.
+Setup: Build a signed Johnny.Decimal archive, publish it through a mock catalog entry with matching SHA-256, and inject a mock downloader.
+Procedure: Refresh the catalog and install the Johnny.Decimal plugin by id.
+Expected outcome: The package downloads from the catalog URL, signature/id/version checks pass, and the plugin profile becomes installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs catalog plugins on demand"`
+
+#### Test case: PluginEntitlementService verifies signed device receipts
+Purpose: Ensure a server-style signed receipt can unlock a licensed plugin product for the current device.
+Setup: Create a temporary entitlement receipt signed by the trusted Ed25519 test key and bound to the test device id.
+Procedure: Store the receipt and query matching and non-matching product entitlements.
+Expected outcome: The matching Johnny.Decimal product is entitled, while unrelated products remain locked.
+Run: `./build-tests/ai_file_sorter_tests "PluginEntitlementService verifies signed device receipts"`
+
+#### Test case: PluginEntitlementService rejects invalid receipts
+Purpose: Ensure cached entitlement receipts are not accepted when tampered, expired, or bound to another device.
+Setup: Build signed test receipts with an altered payload, an expired offline window, and a mismatched device id.
+Procedure: Attempt to store each invalid receipt and query the Johnny.Decimal entitlement state.
+Expected outcome: Every invalid receipt is rejected and no local entitlement is granted.
+Run: `./build-tests/ai_file_sorter_tests "PluginEntitlementService rejects invalid receipts"`
+
+#### Test case: FolderStructurePluginManager installs signed declarative plugins
+Purpose: Verify signed `.aifsplugin` packages can contribute folder-structure templates and recognition guidance.
+Setup: Build a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key, testing both forward-slash paths and Windows backslash paths with explicit directory entries.
+Procedure: Install the archive, load verified profiles, create plugin-provided folders, and infer conventions from a matching tree.
+Expected outcome: The package installs, the signer id is recorded, the profile appears in template descriptors, and matched plugin guidance is added to routing prompts.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs signed declarative plugins"`
+
+#### Test case: FolderStructurePluginManager persists disabled plugin profiles
+Purpose: Ensure disabled folder-structure plugins remain installed but stop contributing templates and routing guidance.
+Setup: Build and install a temporary signed Johnny.Decimal profile archive with a trusted Ed25519 test key.
+Procedure: Disable the plugin, query installed plugins/profiles, reload the manager, then re-enable the plugin.
+Expected outcome: Installed manifests remain available, disabled profiles are filtered out, and the disabled state persists until re-enabled.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager persists disabled plugin profiles"`
+
+#### Test case: FolderStructurePluginManager requires entitlement for licensed plugins
+Purpose: Ensure licensed folder-structure plugins cannot be imported with package signature alone.
+Setup: Build a signed Johnny.Decimal archive whose manifest has `license_required: true` and no matching local receipt.
+Procedure: Attempt to install the licensed archive.
+Expected outcome: Installation fails with structured missing-entitlement details and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager requires entitlement for licensed plugins"`
+
+#### Test case: FolderStructurePluginManager installs licensed plugins with entitlement receipts
+Purpose: Ensure licensed folder-structure plugins install and load when a valid local entitlement receipt exists.
+Setup: Store a signed Johnny.Decimal entitlement receipt, then build a signed licensed Johnny.Decimal archive.
+Procedure: Install the archive and query installed plugins/profiles.
+Expected outcome: Installation succeeds and the licensed profile enables the enhanced index; disabling the plugin or removing its receipt restores the basic view.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager installs licensed plugins with entitlement receipts"`
+
+#### Test case: FolderStructurePluginDialog controls plugin enablement
+Purpose: Ensure the folder-structure plugin manager dialog exposes per-plugin enable controls.
+Setup: Install a signed Johnny.Decimal profile archive and create the dialog with the verified plugin manager.
+Procedure: Inspect row selection, read the status details, and clear the plugin's Enabled checkbox.
+Expected outcome: Selection is row-based, the installed plugin starts enabled, and clearing the checkbox persists a disabled state that removes plugin profiles from loading.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls plugin enablement"`
+
+#### Test case: FolderStructurePluginDialog lists remote catalog plugins
+Purpose: Ensure the folder-structure plugin dialog can show server-catalog plugins that are not installed yet.
+Setup: Refresh a manager from a mock catalog containing the Johnny.Decimal support entry, with and without an active entitlement receipt, and construct the dialog.
+Procedure: Inspect the plugin list row and the selected plugin actions.
+Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version, shows purchase plus license activation actions when entitlement is missing, and shows an enabled `Read more` link when the license is active before installation.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog lists remote catalog plugins"`
+
+#### Test case: FolderStructurePluginDialog shows read-more action for installed activated plugins
+Purpose: Ensure installed licensed folder-structure plugins keep a visible link to their product/info page after activation.
+Setup: Store a signed Johnny.Decimal entitlement receipt, install a signed licensed Johnny.Decimal archive, and construct the dialog.
+Procedure: Inspect the selected plugin actions.
+Expected outcome: The dialog shows an enabled `Read more` action instead of the `Get It` action.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog shows read-more action for installed activated plugins"`
+
+#### Test case: PluginArchiveExtractor rejects unsafe paths with either separator
+Purpose: Ensure normalizing Windows ZIP paths cannot permit writes outside the extraction directory.
+Setup: Build temporary archives with forward-slash, backslash, mixed-separator traversal, absolute paths, and Windows network paths.
+Procedure: Extract each archive into a temporary destination.
+Expected outcome: Extraction rejects each unsafe path and no file is written outside the destination.
+Run: `./build-tests/ai_file_sorter_tests "PluginArchiveExtractor rejects unsafe paths with either separator"`
+
+#### Test case: FolderStructurePluginManager rejects unsigned payload files
+Purpose: Preserve signature coverage checks for payloads stored with Windows separators.
+Setup: Add an unsigned backslash-path payload to a signed folder-structure archive.
+Procedure: Attempt to install the archive.
+Expected outcome: Installation fails with an unsigned-payload error and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects unsigned payload files"`
+
+#### Test case: FolderStructurePluginManager rejects tampered plugin payloads
+Purpose: Ensure package payloads cannot be changed after signing.
+Setup: Sign a profile hash manifest, then alter the archived profile payload.
+Procedure: Attempt to install the tampered archive.
+Expected outcome: Installation fails with a hash verification error and no plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects tampered plugin payloads"`
+
+#### Test case: FolderStructurePluginManager rejects executable payload files
+Purpose: Keep folder-structure plugins declarative instead of executable.
+Setup: Build a signed archive that also contains an `.exe` payload.
+Procedure: Attempt to install the archive.
+Expected outcome: Installation fails because executable payload files are forbidden.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects executable payload files"`
+
+### `tests/unit/test_folder_structure_localization.cpp`
+
+Run `[folder-language]` for starter-language defaults, independent language
+selection, translated-preview creation, numeric-prefix and parent preservation,
+invalid/incomplete/colliding translation rejection, retry, and cancellation that
+holds the analysis runtime until the worker has finished. These tests use
+injected clients; they do not download models or contact API services.
+
+### `tests/unit/test_folder_structure_templates.cpp`
+
+#### Test case: FolderStructureTemplates exposes requested starter structures
+Purpose: Ensure the built-in initializer lists every requested starter structure and marks future templates unavailable.
+Setup: Read the static folder-structure descriptors.
+Procedure: Look up every supported and planned template by identifier.
+Expected outcome: All requested descriptors exist, available templates include folder paths, and the Chronological and Client/Project/Deliverable templates are disabled.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates exposes requested starter structures"`
+
+#### Test case: FolderStructureTemplates creates starter structure without overwriting existing folders
+Purpose: Verify the initializer can add a starter structure into a destination that already contains matching folders.
+Setup: Create a temporary destination with an existing `Projects` folder.
+Procedure: Create the PARA structure twice.
+Expected outcome: Missing folders are created on the first run, existing folders are reported separately, and the second run creates nothing new.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates creates starter structure without overwriting existing folders"`
+
+#### Test case: FolderStructureTemplates creates Johnny Decimal starter folders
+Purpose: Confirm the Johnny.Decimal starter creates representative numbered area/category folders.
+Setup: Use an empty temporary destination folder.
+Procedure: Create the Johnny.Decimal starter structure.
+Expected outcome: Representative Admin, Personal, Media, and Archive nested folders exist after creation.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates creates Johnny Decimal starter folders"`
+
+#### Test case: FolderStructureTemplates rejects unavailable starter structures
+Purpose: Prevent disabled future templates from creating partial folder trees.
+Setup: Use an empty temporary destination folder.
+Procedure: Attempt to create the Chronological template.
+Expected outcome: Creation fails with an error, no folders are created, and the destination remains empty.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates rejects unavailable starter structures"`
+
+#### Test case: FolderStructureTemplates rejects relative destination paths
+Purpose: Prevent typed relative destinations from creating starter structures under the app working directory.
+Setup: Provide a relative destination path.
+Procedure: Attempt to create the media-type starter structure.
+Expected outcome: Creation fails with an error and no folder paths are reported as created.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructureTemplates rejects relative destination paths"`
+
 ### `tests/unit/test_protected_project_detector.cpp`
 
 #### Test case: ProtectedProjectDetector detects strong Unity roots
@@ -1841,11 +3089,46 @@ Expected outcome: Total counts and thresholds remain unchanged and the callback 
 Run: `./build-tests/ai_file_sorter_tests "Zero categorized increments do not change totals or trigger prompts"`
 
 #### Test case: Paid Explorer extension entitlement suppresses future support prompts
-Purpose: Ensure users who own the paid Explorer extension do not see donation reminders.
+Purpose: Ensure users who own the paid Explorer extension do not see support reminders.
 Setup: Fresh settings with the test-only paid Explorer extension entitlement override enabled.
 Procedure: Advance categorized files to the support prompt threshold.
 Expected outcome: The support prompt callback is not invoked and the permanent suppression state is written.
 Run: `./build-tests/ai_file_sorter_tests "Paid Explorer extension entitlement suppresses future support prompts"`
+
+#### Test case: Installed Explorer extension suppresses support prompts
+Purpose: Ensure users with the Explorer extension installed do not see support reminders.
+Setup: Fresh settings with the test-only Explorer extension state override set to `installed`.
+Procedure: Advance categorized files to the support prompt threshold.
+Expected outcome: The support prompt callback is not invoked, the threshold is unchanged, and no donation-code suppression blob is written.
+Run: `./build-tests/ai_file_sorter_tests "Installed Explorer extension suppresses support prompts"`
+
+### API image analysis (`tests/unit/test_http_image_analyzer.cpp` and related regression cases)
+
+Run: `./build-tests/ai_file_sorter_tests "[http-vision]"` after rebuilding
+`ai_file_sorter_tests`. These tests use an ephemeral loopback HTTP server and
+generated images; no live provider or downloaded GGUF/MMProj is needed.
+
+| Test case | Coverage and expected outcome |
+| --- | --- |
+| HTTP vision uploads image pixels and requests a safe filename without local models | Inspect both HTTP requests. Base and full URLs normalize correctly; authentication, model selection, PNG pixels, bounded dimensions, word limits and original extensions are preserved. Only the first request contains image data. |
+| HTTP vision derives a filename from its description when the filename request fails | Return a valid description followed by HTTP 503. Preserve the description and derive a safe filename using the configured six-word policy. Omit authentication when no key is configured. |
+| HTTP vision rejects unusable responses and preserves server diagnostics | Reject HTTP 401/400, malformed JSON, empty choices and reasoning-only replies. Preserve provider errors without treating API failures as unreadable images. |
+| HTTP vision cancels an in-flight request and never sends a filename request | Hold the HTTP reply, signal cancellation and verify cancellation without a second request. |
+| HTTP vision fails unreadable images before contacting the server | Decode an invalid PNG and report a source-specific failure without an upload. |
+| Text and vision clients share chat transport and accept typed text responses | Run the text client against the shared transport and concatenate typed assistant text parts. |
+| Chat transport preserves Retry-After and obeys custom endpoint timeouts | Preserve a 429 retry delay and interrupt a stalled endpoint at the configured timeout. |
+| Headless image renaming uses the persisted vision API and supports external cancellation | Load saved API visual settings through the production headless host. Generate review names without local models, or cancel a held request through the external stop probe. Source images remain untouched. |
+| Existing API connections require explicit opt-in for image uploads | Load a legacy connection without the capability key and verify vision stays disabled for that connection. |
+| Custom API dialog edits vision capability explicitly | Check default opt-out and loading/toggling of the capability checkbox. |
+| Enabling API vision asks for upload confirmation and honors OK and Cancel | Click the vision capability checkbox and inspect the informational dialog's OK/Cancel buttons. OK leaves vision enabled; Cancel leaves it disabled. Disabling needs no confirmation, and enabling again shows the notice again. Loading a saved enabled connection is covered by the preceding case and requires no prompt. |
+| Visual model selector includes only explicitly enabled valid API connections | Include valid vision connections, exclude text-only/invalid entries, and retain the selected connection id. |
+| Visual runtime resolves API connections without artifacts and rejects missing or disabled connections | Require the vision capability and fail explicitly when the selected connection disappears. |
+| API visual selection stays independent of the text model and hides local downloads | Restore API vision alongside Gemini text, switch between local/API visual models and verify local download controls are hidden for API selections. |
+| A configured vision API enables image analysis without a model download prompt | Toggle the main-window image checkbox with a saved API visual backend and no availability stub. |
+| Shared image workflow uploads through the selected API and refreshes changed endpoint models | Generate evidence and review names through the shared workflow for ASCII and Japanese/accented filenames, reuse evidence on rescan, and upload again after changing the endpoint's model. |
+
+The existing **Custom API endpoints persist across Settings load/save** case also
+round-trips the vision capability and independent visual backend id.
 
 ### `tests/unit/test_custom_api_endpoint.cpp`
 
@@ -1946,6 +3229,13 @@ Procedure: Sort by the file name column ascending, then by category descending.
 Expected outcome: The first sort yields alphabetical file names; the second yields categories in reverse alphabetical order.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog supports sorting by columns"`
 
+#### Test case: CategorizationDialog edits cells on selected click
+Purpose: Ensure editable review cells keep the one-click edit behavior.
+Setup: Create a review dialog with one categorized file.
+Procedure: Inspect the table edit trigger flags.
+Expected outcome: Double-click, selected-click, and keyboard editing are enabled.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog edits cells on selected click"`
+
 #### Test case: CategorizationDialog auto-approves rows by enabled operation
 Purpose: Verify the review dialog preselects rows only when each row action is covered by enabled auto-approval options.
 Setup: Load rename-only, categorization-only, combined rename+categorization, and incomplete rows into the dialog.
@@ -1995,6 +3285,48 @@ Procedure: Confirm the dialog, auto-close the preview popup, and inspect `core.l
 Expected outcome: The source file stays in place, no destination file is created, and the log contains the dry-run completion message without the real-move success message.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog dry run logs preview completion without moved success"`
 
+#### Test case: CategorizationDialog does not create suggested folder-tree targets before confirm
+Purpose: Ensure existing-folder-tree review suggestions do not mutate the destination tree while the review dialog is only being populated.
+Setup: Create a source file and a folder-tree result pointing at a non-existing suggested target folder.
+Procedure: Load the result into the review dialog without confirming.
+Expected outcome: The source file remains in place and the suggested target folder is not created.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog does not create suggested folder-tree targets before confirm"`
+
+#### Test case: CategorizationDialog shows folder-tree routing explanations on targets
+Purpose: Ensure the review dialog exposes folder-tree routing reasons where users inspect the chosen destination.
+Setup: Load a folder-tree result with a Johnny.Decimal routing explanation.
+Procedure: Inspect the target-folder table item tooltip.
+Expected outcome: The tooltip includes the AI category and detected Johnny.Decimal-like routing context.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog shows folder-tree routing explanations on targets"`
+
+#### Test case: CategorizationDialog dry run does not create suggested folder-tree targets
+Purpose: Ensure dry-run preview mode remains non-mutating for suggested folder-tree destinations.
+Setup: Create a source file and a folder-tree result pointing at a non-existing suggested target folder with new-folder creation enabled.
+Procedure: Enable dry run, confirm the dialog, and auto-close the preview popup.
+Expected outcome: The source file remains in place and neither the suggested folder nor destination file is created.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog dry run does not create suggested folder-tree targets"`
+
+#### Test case: CategorizationDialog does not create folder-tree targets when new folders are disabled
+Purpose: Ensure unchecked new-folder creation prevents both folder creation and moves into non-existing folder-tree targets.
+Setup: Create a source file and a folder-tree result pointing at a non-existing target folder with new-folder creation disabled.
+Procedure: Confirm the dialog.
+Expected outcome: The source file remains in place and neither the suggested folder nor destination file is created.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog does not create folder-tree targets when new folders are disabled"`
+
+#### Test case: CategorizationDialog undo preserves pre-existing folder-tree targets
+Purpose: Prevent undo in existing-folder-structure mode from deleting empty folders that existed before the app moved files into them.
+Setup: Create a pre-existing nested target folder and a source file routed to that folder.
+Procedure: Confirm the move, then trigger the dialog undo action.
+Expected outcome: The file is restored to its original location, but the now-empty pre-existing target folder remains.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo preserves pre-existing folder-tree targets"`
+
+#### Test case: CategorizationDialog undo removes suggested folder-tree targets it created
+Purpose: Ensure undo still cleans up folder-tree targets that were explicitly created by the app for approved suggestions.
+Setup: Create a source file routed to a non-existing suggested folder-tree target with new-folder creation enabled.
+Procedure: Confirm the move, then trigger the dialog undo action.
+Expected outcome: The file is restored and the app-created target folder chain is removed once empty.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog undo removes suggested folder-tree targets it created"`
+
 #### Test case: CategorizationDialog preserves cached subcategories when the subcategory column is hidden
 Purpose: Prevent review-only folder-layout toggles from overwriting cached taxonomy subcategories.
 Setup: Seed the cache with a categorized file that has a non-General subcategory, then load the same file into the review dialog.
@@ -2008,6 +3340,13 @@ Setup: Create a saved move plan and attach a storage provider that records undo 
 Procedure: Load and execute the undo plan.
 Expected outcome: The provider receives the expected restore request and the plan is consumed successfully.
 Run: `./build-tests/ai_file_sorter_tests "UndoManager restores saved plans through the active storage provider"`
+
+#### Test case: UndoManager removes only recorded app-created folders
+Purpose: Verify persisted undo plans delete empty folders only when they are listed as app-created by the move.
+Setup: Move a file into a newly created nested destination and save an undo plan with that directory chain.
+Procedure: Replay the undo plan through the storage provider registry.
+Expected outcome: The file is restored and only the recorded empty destination directories are removed.
+Run: `./build-tests/ai_file_sorter_tests "UndoManager removes only recorded app-created folders"`
 
 #### Test case: UndoManager relaxes timestamp validation for cloud providers
 Purpose: Allow cloud-backed providers to restore moves when timestamp metadata is less reliable.
@@ -2130,7 +3469,28 @@ Procedure: Build unique move names while carrying the allocated-name state forwa
 Expected outcome: The helper returns `report (1).pdf` then `report (2).pdf`.
 Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses parenthetical suffixes for move collisions"`
 
-### `tests/unit/test_main_app_translation.cpp` (non-Windows only)
+#### Test case: ReviewFileNaming uses explicit folder-tree target directories
+Purpose: Ensure existing-folder sorting destinations override generated category/subcategory folder construction.
+Setup: Create a nested target folder and a categorized file with folder-tree metadata.
+Procedure: Build the suggested target directory for the review entry.
+Expected outcome: The returned path uses the explicit target folder path under the selected root.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses explicit folder-tree target directories"`
+
+#### Test case: ReviewFileNaming uses the destination root for generated category folders
+Purpose: Ensure regular generated-category review paths honor a user-selected destination root.
+Setup: Create a categorized file whose source folder differs from the destination root.
+Procedure: Build the suggested target directory with subcategories enabled.
+Expected outcome: The returned path is under the destination root rather than the source folder.
+Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses the destination root for generated category folders"`
+
+### `tests/unit/test_main_app_translation.cpp`
+
+#### Test case: MainApp loads default settings without registered application loggers
+Purpose: Prevent a null logger crash when constructing the main window before application loggers have been registered.
+Setup: Use a fresh isolated configuration directory and temporarily remove the named application loggers.
+Procedure: Construct the main window with default settings and inspect its English analyze-button label and the logger registry.
+Expected outcome: Construction succeeds using the default logger without registering replacement named loggers.
+Run: `./build-tests/ai_file_sorter_tests "MainApp loads default settings without registered application loggers"`
 
 #### Test case: MainApp retranslate reflects language changes
 Purpose: Validate that main window labels update for all supported UI languages.
@@ -2170,10 +3530,10 @@ Expected outcome: Each language loads the matching localized markdown content in
 Run: `./build-tests/ai_file_sorter_tests "Quick Start guide content follows the selected app language"`
 
 #### Test case: What's New content is packaged for the current app version
-Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, including localized release notes.
+Purpose: Ensure the first-run-per-version What's New popup has packaged Markdown content for the active `APP_VERSION`, and that localized What's New resources still load when a version ships them.
 Setup: Initialize the Qt test app context with embedded resources.
-Procedure: Load What's New markdown for `APP_VERSION` in English and each supported non-English UI language, then load an invalid version string.
-Expected outcome: The current version returns English release notes with expected highlights, each supported non-English language returns localized notes instead of the English fallback, and invalid version strings return no content.
+Procedure: Load What's New markdown for `APP_VERSION` in English, verify the sorting, filename-limit, and Qwen3.5 highlights and a non-English fallback, check that the previous release notes remain available, load localized markdown for a known translated version, then load an invalid version string.
+Expected outcome: The current version returns its release highlights, previous release notes remain packaged, localized resources for the translated fixture version differ from the English fallback, and invalid version strings return no content.
 Run: `./build-tests/ai_file_sorter_tests "What's New content is packaged for the current app version"`
 
 #### Test case: Interface language action labels are translated for the newly added Nordic UI languages
@@ -2474,6 +3834,41 @@ Procedure: Capture progress messages emitted for a file.
 Expected outcome: The messages include the current file path and categorization path context.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService progress shows current and categorization paths"`
 
+#### Test case: CategorizationService routes into existing folder-tree targets
+Purpose: Verify the service-level existing-folder sorting mode first resolves semantic labels, then attaches explicit target-folder metadata.
+Setup: Create a target root with an existing nested destination folder and configure `ExistingFolderTree` mode.
+Procedure: Categorize one file using an LLM stub that returns semantic labels followed by target-folder JSON.
+Expected outcome: The categorized result preserves semantic category labels, records folder-tree mode, resolves the existing target path with catalog casing, and includes semantic labels plus folder candidates in the routing prompt context.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService routes into existing folder-tree targets"`
+
+#### Test case: CategorizationService accepts suggested folder-tree targets when enabled
+Purpose: Ensure the existing-folder sorting mode can accept a newly suggested semantic folder instead of forcing a generic fallback.
+Setup: Create a target root with image, archive, and unsorted fallback folders but no document destination, then enable `SuggestNewFolders`.
+Procedure: Categorize one document using an LLM stub that returns semantic labels followed by a JSON new-folder selection.
+Expected outcome: The service records the model-selected `Documents/Invoices` as a suggested new folder. The target is marked as not existing yet and persisted separately from the semantic cache.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService accepts suggested folder-tree targets when enabled"`
+
+#### Test case: CategorizationService uses deterministic structure pattern for new folder routes
+Purpose: Ensure existing-folder sorting preserves coherent numbering after comparing suitable existing destinations.
+Setup: Create a Johnny.Decimal-like tree with a numbered `20-29 Work` parent and enable new-folder suggestions.
+Procedure: Categorize one file using an LLM stub that returns `Work / Proposals` labels followed by a new-folder path under `20-29 Work` with an occupied prefix.
+Expected outcome: The service preserves the model's chosen parent and human label, allocating the first free numeric prefix without creating a directory.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses deterministic structure pattern for new folder routes"`
+
+#### Test case: CategorizationService sends detected custom folder conventions to routing LLM
+Purpose: Ensure weaker custom prefix conventions are passed to the LLM instead of blindly creating plain semantic folders.
+Setup: Create a destination tree with alphabetic-code top-level folders and enable new-folder suggestions.
+Procedure: Categorize one file using an LLM stub that returns semantic labels, then a convention-preserving target-folder JSON response.
+Expected outcome: The service performs a routing LLM call, includes detected convention guidance in the routing prompt, and accepts the suggested coded target path.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService sends detected custom folder conventions to routing LLM"`
+
+#### Test case: CategorizationService scans destination root for existing folder-tree targets
+Purpose: Ensure existing-folder sorting catalogs are built from the selected destination root, not necessarily the analyzed folder.
+Setup: Create separate source and destination folders, with the folder tree only under the destination root.
+Procedure: Categorize one source file using an LLM stub that returns semantic labels followed by a folder from the destination tree.
+Expected outcome: The categorized result preserves semantic labels, resolves the destination-tree folder, and the routing prompt context includes that destination folder candidate.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService scans destination root for existing folder-tree targets"`
+
 #### Test case: Document prompt helpers use the suggested filename for categorization
 Purpose: Ensure document prompts prefer the AI-suggested filename when present.
 Setup: Provide an original filename and a suggested filename.
@@ -2498,8 +3893,8 @@ Run: `./build-tests/ai_file_sorter_tests "Image prompt path uses the suggested f
 #### Test case: CategorizationService passes image descriptions through prompt overrides
 Purpose: Verify that image prompt overrides forward the visual description payload to the categorization LLM.
 Setup: Create a categorization service with a prompt-capturing LLM stub, then prepare an image entry with a suggested filename and generated image prompt path.
-Procedure: Run `categorize_entries` with a prompt override for the image entry and inspect the captured prompt path passed to the LLM.
-Expected outcome: The captured prompt contains the suggested filename and `Image description:` section, and omits the original filename.
+Procedure: Run `categorize_entries` with a prompt override and inspect both the captured path and context passed to the LLM.
+Expected outcome: The path contains the suggested filename without embedded description lines; the separate primary-evidence context contains the complete `Image description:` section.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService passes image descriptions through prompt overrides"`
 
 #### Test case: CategorizationService preserves analysis context for learned behavior capture
@@ -2611,7 +4006,7 @@ Run: `./build-tests/ai_file_sorter_tests "CategorizationService leaves unknown g
 Purpose: Keep document categorization on the simpler single-pass prompt path while preserving the newer main-category guidance and normalization afterward.
 Setup: Enable `More consistent`, then prepare a summarized `.pdf` prompt override and a prompt-capturing LLM stub that returns `Documents : PCI DSS`.
 Procedure: Categorize the file through the service and inspect the captured categorization path and combined context.
-Expected outcome: The service performs one categorization call, the document summary stays attached to the prompt path, the combined context still includes document guidance plus allowed main categories, and no split-pass-only subcategory prompt text is present.
+Expected outcome: The service performs one categorization call, the document summary is passed in the primary-evidence context rather than the path field, the combined context still includes document guidance plus allowed main categories, and no split-pass-only subcategory prompt text is present.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses one-shot categorization prompts for document files"`
 
 #### Test case: CategorizationService normalizes supported image main categories to Images
@@ -2679,6 +4074,27 @@ Procedure: Call `categorize_entries` for that file.
 Expected outcome: The cached category is returned and the LLM call counter stays at zero.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses cached categorization without calling LLM"`
 
+#### Test case: CategorizationService reuses native Unicode cache entries without extra LLM calls
+Purpose: Verify equivalent macOS folder and filename spellings reuse the cached categorization before model inference.
+Setup: Seed a composed Unicode cache entry and create the corresponding decomposed filename, with a counting LLM stub.
+Procedure: Categorize the scanned file and load its directory cache.
+Expected outcome: On macOS the cached labels are reused with zero LLM calls and the scanned filename is preserved. Other platforms invoke the LLM for the distinct filename.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService reuses native Unicode cache entries without extra LLM calls"`
+
+#### Test case: CategorizationService uses cached folder-tree target without calling LLM
+Purpose: Ensure existing-folder sorting mode can reuse cached semantic labels and a cached routing decision without invoking the LLM.
+Setup: Seed the database with semantic labels plus a matching `folder_tree_routing` row and create the corresponding destination folder.
+Procedure: Call `categorize_entries` in `ExistingFolderTree` mode for that file.
+Expected outcome: The cached target folder is returned with folder-tree metadata intact and the LLM call counter stays at zero.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService uses cached folder-tree target without calling LLM"`
+
+#### Test case: CategorizationService honors model-selected new folders despite semantic cache
+Purpose: Ensure cached preliminary labels do not replace the model's destination decision.
+Setup: Seed semantic `Documents / Invoices` labels, configure existing-folder sorting with new-folder suggestions enabled, and create only unrelated fallback folders.
+Procedure: Call `categorize_entries` for the cached file.
+Expected outcome: The existing-folder selection LLM is called once and its `Documents/Invoices` proposal is preserved as a suggested new folder.
+Run: `./build-tests/ai_file_sorter_tests "CategorizationService honors model-selected new folders despite semantic cache"`
+
 #### Test case: CategorizationService falls back to LLM when cache is empty
 Purpose: Validate cache fallback to LLM and persistence of returned category values.
 Setup: Seed an empty cache record for a file and prepare a counting LLM stub with a valid label response.
@@ -2700,6 +4116,20 @@ Procedure: Compute uncached entries via `find_files_to_categorize`.
 Expected outcome: Only the truly uncached nested path remains in the result set.
 Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator respects full-path cache keys for recursive scans"`
 
+#### Test case: ResultsCoordinator matches Unicode cache names for cloud filesystem providers
+Purpose: Ensure cloud-synced local folders use the native filesystem's Unicode comparison rules when matching cached names.
+Setup: Create decomposed Unicode filenames at root and nested paths, cache the composed root filename, and use Dropbox, pCloud, a custom compatibility provider, and the OneDrive detector fallback.
+Procedure: Match cached entries for both flat and recursive scans.
+Expected outcome: On macOS the cached root file matches while the nested file remains uncached, and original scanned filenames are preserved. Other platforms retain literal filename comparison.
+Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator matches Unicode cache names for cloud filesystem providers"`
+
+#### Test case: ResultsCoordinator preserves literal Unicode identity for external providers
+Purpose: Verify external providers retain their own filename identity when the active provider changes.
+Setup: Prepare composed and decomposed Unicode cache entries and a coordinator initially bound to a cloud compatibility provider.
+Procedure: Rebind to an external-process provider, extract filename and full-path keys, then switch back to the cloud provider.
+Expected outcome: External keys remain distinct; switching back restores the platform's local comparison rules without launching an external process.
+Run: `./build-tests/ai_file_sorter_tests "ResultsCoordinator preserves literal Unicode identity for external providers"`
+
 #### Test case: CategorizationService invokes completion callback per entry
 Purpose: Verify per-entry completion notifications fire for categorization progress tracking.
 Setup: Prepare multiple file entries and callbacks that count queued/completed events.
@@ -2713,6 +4143,41 @@ Setup: Create a text document whose source filename contains mixed Japanese and 
 Procedure: Analyze the document and inspect both the captured prompt text and the suggested filename.
 Expected outcome: The prompt includes the UTF-8 source filename intact, and the suggested filename preserves the UTF-8 rename result with its original extension.
 Run: `./build-tests/ai_file_sorter_tests "DocumentTextAnalyzer handles UTF-8 filenames"`
+
+#### Test case: StoragePluginManager installs .aifsplugin archives with manifest and assets
+Purpose: Verify signed storage `.aifsplugin` archives can install an external-process connector and register its provider.
+Setup: Build a signed mock storage package containing `manifest.json`, signature metadata, and the connector stub.
+Procedure: Install the archive, load the installed manifest, and resolve a mock cloud folder through the plugin-backed provider.
+Expected outcome: Install succeeds, the signer key id is persisted, the connector entry point is materialized under the managed package directory, and the provider handles the mock folder.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs .aifsplugin archives with manifest and assets"`
+
+#### Test case: StoragePluginManager selects signed runtime-specific storage package paths and entitlement metadata
+Purpose: Verify signed storage package manifests can carry runtime-specific connector paths and commercial metadata.
+Setup: Build a signed mock storage package whose manifest uses a `runtimes` entry for the current platform/architecture and includes entitlement metadata.
+Procedure: Install the archive and inspect the installed manifest.
+Expected outcome: The current runtime entry point is selected, the package signer key id is preserved, and `license_required`, `product_id`, and `purchase_url` survive install.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager selects signed runtime-specific storage package paths and entitlement metadata"`
+
+#### Test case: StoragePluginManager rejects unsigned and tampered storage plugin archives
+Purpose: Ensure storage package trust depends on a valid signature and matching signed file hashes.
+Setup: Create unsigned, manifest-tampered, payload-tampered, and unknown-key storage archives.
+Procedure: Attempt to install each archive with only the test public key trusted.
+Expected outcome: Every invalid archive is rejected with a signature, hash, or untrusted-key error.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects unsigned and tampered storage plugin archives"`
+
+#### Test case: StoragePluginManager rejects unsafe storage plugin archive paths
+Purpose: Prevent signed manifests from materializing entry points or package assets outside the archive root.
+Setup: Build a signed archive whose manifest uses a traversal entry point path.
+Procedure: Attempt to install the archive.
+Expected outcome: Install is rejected before any plugin is installed.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects unsafe storage plugin archive paths"`
+
+#### Test case: StoragePluginManager rejects signed storage plugin archives with missing entry points
+Purpose: Verify a signed manifest cannot install if its connector executable is absent.
+Setup: Build a signed storage package containing only the manifest and signature metadata.
+Procedure: Attempt to install the archive.
+Expected outcome: Install fails with a missing entry point error.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager rejects signed storage plugin archives with missing entry points"`
 
 #### Test case: StoragePluginManager refreshes available plugins from a remote catalog
 Purpose: Confirm remote catalog refresh merges plugin metadata for the current runtime.
@@ -2735,26 +4200,28 @@ Procedure: Call `install` for the catalog-delivered plugin id.
 Expected outcome: The plugin installs successfully and its managed manifest/package artifacts are written to disk.
 Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs catalog plugins on demand"`
 
-#### Test case: OneDriveStorageProvider prefers authoritative sync-root detection when available
-Purpose: Ensure OneDrive detection uses authoritative sync-root information ahead of heuristic path matching.
-Setup: Inject a sync-root resolver that reports a OneDrive provider for the selected root.
-Procedure: Call `detect` on a matching root path.
-Expected outcome: Detection succeeds with the authoritative source and the provider resolves as OneDrive.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider prefers authoritative sync-root detection when available"`
+#### Test case: UndoManager rejects external-process restores when revision metadata changed
+Purpose: Verify host undo safety still works when metadata comes from an external-process storage connector.
+Setup: Install a signed mock storage package, move a file through the external connector, then modify the moved file.
+Procedure: Save an undo plan with the connector metadata and attempt to restore it.
+Expected outcome: Undo skips the changed file and leaves the moved file in place.
+Run: `./build-tests/ai_file_sorter_tests "UndoManager rejects external-process restores when revision metadata changed"`
 
-#### Test case: OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider
-Purpose: Prevent false positives when Windows reports a different cloud provider for the selected root.
-Setup: Inject a sync-root resolver that reports a non-OneDrive provider for a path whose name still looks like OneDrive.
-Procedure: Call `detect` on that path.
-Expected outcome: The authoritative non-OneDrive result vetoes the heuristic match.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider rejects heuristic matches when authoritative sync-root detection reports a different provider"`
+#### Test case: StorageProviderRegistry resolves installed OneDrive external connector
+Purpose: Prove the public host can install and invoke a signed package that provides the `onedrive` provider id without bundling OneDrive implementation code.
+Setup: Install a signed test package for `onedrive_storage_support` that points at the generic external-process stub.
+Procedure: Detect a OneDrive-root path, resolve the runtime provider, and run preflight against a locked file.
+Expected outcome: The installed external connector wins over the local fallback and reports the locked-file preflight result through the protocol.
+Run: `./build-tests/ai_file_sorter_tests "StorageProviderRegistry resolves installed OneDrive external connector"`
 
-#### Test case: OneDriveStorageProvider owns undo moves and cleans empty folders
-Purpose: Verify OneDrive move/undo operations are handled by the provider itself rather than delegated to the local provider.
-Setup: Create a source file and destination folder tree in a temporary directory.
-Procedure: Move the file through `move_entry`, then restore it with `undo_move`.
-Expected outcome: The file returns to its original location and provider-created empty directories are removed.
-Run: `./build-tests/ai_file_sorter_tests "OneDriveStorageProvider owns undo moves and cleans empty folders"`
+### `tests/unit/test_storage_plugin_conformance.cpp`
+
+#### Test case: Storage plugin conformance harness validates the mock connector protocol
+Purpose: Verify the external-process storage-plugin JSON protocol is enforced by a reusable connector harness instead of app-private C++ provider headers.
+Setup: Build the mock storage connector executable and create a temporary fixture tree.
+Procedure: Launch the connector for each v1 fixture request, validate response shape for the corresponding action, and assert basic fixture semantics for detection, listing, preflight, path existence, directory creation, move, and undo.
+Expected outcome: The mock connector exposes `mockcloud`, returns conforming responses for every v1 action, and completes the fixture filesystem operations successfully.
+Run: `./build-tests/ai_file_sorter_tests "Storage plugin conformance harness validates the mock connector protocol"`
 
 ### `tests/unit/test_main_app_storage_support.cpp`
 

@@ -15,6 +15,7 @@ struct TestEnvironment {
     EnvVarGuard home_guard;
     EnvVarGuard config_guard;
     EnvVarGuard paid_extension_guard;
+    EnvVarGuard extension_state_guard;
     Settings settings;
     bool prompt_state{false};
 
@@ -23,6 +24,8 @@ struct TestEnvironment {
           home_guard("HOME", home_dir.path().string()),
           config_guard("AI_FILE_SORTER_CONFIG_DIR", (home_dir.path() / ".config").string()),
           paid_extension_guard("AI_FILE_SORTER_TEST_PAID_EXPLORER_EXTENSION", std::string("0")),
+          extension_state_guard("AI_FILE_SORTER_TEST_EXPLORER_EXTENSION_STATE",
+                                std::string("not-installed")),
           settings() {
         std::filesystem::create_directories(home_dir.path() / ".config" / "AIFileSorter");
         settings.load();
@@ -137,6 +140,28 @@ TEST_CASE("Paid Explorer extension entitlement suppresses future support prompts
     CHECK(callback_count == 0);
     CHECK(SupportCodeManager(std::filesystem::path(env.settings.get_config_dir()))
               .is_prompt_permanently_disabled());
+    CHECK(env.settings.get_next_support_prompt_threshold() == threshold);
+}
+
+TEST_CASE("Installed Explorer extension suppresses support prompts") {
+    TestEnvironment env;
+    EnvVarGuard extension_state_guard("AI_FILE_SORTER_TEST_EXPLORER_EXTENSION_STATE",
+                                      std::string("installed"));
+
+    int callback_count = 0;
+    const int threshold = env.settings.get_next_support_prompt_threshold();
+    MainAppTestAccess::simulate_support_prompt(
+        env.settings,
+        env.prompt_state,
+        threshold,
+        [&](int) {
+            ++callback_count;
+            return MainAppTestAccess::SimulatedSupportResult::NotSure;
+        });
+
+    CHECK(callback_count == 0);
+    CHECK_FALSE(SupportCodeManager(std::filesystem::path(env.settings.get_config_dir()))
+                    .is_prompt_permanently_disabled());
     CHECK(env.settings.get_next_support_prompt_threshold() == threshold);
 }
 

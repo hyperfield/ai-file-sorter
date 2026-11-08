@@ -1,5 +1,24 @@
 ﻿# Changelog
 
+## [2.0.0] - Unreleased
+
+- Sort into an existing folder structure by default, with a separate destination, optional new-folder suggestions, and explanations for folder choices.
+- Refined folder routing, categorization, filename suggestions, and whitelist handling for more consistent results.
+- Create starter structures and add optional Johnny.Decimal plugins for numbered folders, archive indexes, and validation reports. Some plugins require a separate license.
+- Start with a broader Downloads layout and choose the language of new folder names independently of your category language.
+- Use **Qwen3.5 4B** by default for local text and image analysis, with simpler, grouped model drop-downs. Gemma models remain available.
+- Existing Mistral 7B setups remain supported, while new Mistral downloads are no longer offered.
+- Fixed custom API connections, including local LM Studio and Ollama servers, being blocked by an unrelated internet connectivity check.
+- Analyze images through vision-capable OpenAI-compatible API connections, including local servers, without downloading a second model or projector. Confirm image uploads when enabling vision support for a connection.
+- Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
+- Analyze larger and densely formatted documents more reliably, and preserve completed categories when content analysis is unavailable.
+- Compare downloaded text and image-analysis models in the system compatibility check, with saved results and retries for individual models and backends.
+- Use the new sorting settings and destination previews with **AI File Sorter for File Explorer 1.1.0**.
+- Storage integrations, including OneDrive support, now use separately installed, verified plugins.
+- Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
+- Keep headless JSON status output on stdout and route startup and runtime diagnostics to stderr for scripting and integrations.
+- Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
+
 ## [1.9.2] - 2026-08-14
 
 - Fixed a Windows startup crash in Qt GUI theme refresh handling by preventing recursive palette-triggered stylesheet updates.

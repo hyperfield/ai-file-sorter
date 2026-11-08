@@ -8,8 +8,12 @@
 #include <vector>
 
 namespace spdlog { class logger; }
+struct ggml_backend_device;
 
 namespace GgmlRuntimePaths {
+
+/** Find a GPU registered for the requested backend; never substitute a different backend. */
+ggml_backend_device* find_gpu_device(std::string_view backend);
 
 bool has_payload(const std::filesystem::path& dir);
 

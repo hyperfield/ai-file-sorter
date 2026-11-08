@@ -25,7 +25,7 @@ std::string to_lower_copy_str(std::string value) {
 
 bool contains_only_allowed_chars(const std::string& value) {
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             return false;
         }
         static const std::string forbidden = R"(<>:"/\|?*)";
@@ -44,7 +44,7 @@ bool has_leading_or_trailing_space_or_dot(const std::string& value) {
     const unsigned char first = static_cast<unsigned char>(value.front());
     const unsigned char last = static_cast<unsigned char>(value.back());
     // Only guard leading/trailing whitespace; dots are allowed.
-    return std::isspace(first) || std::isspace(last);
+    return Utils::is_ascii_space(first) || Utils::is_ascii_space(last);
 }
 
 bool is_reserved_windows_name(const std::string& value) {

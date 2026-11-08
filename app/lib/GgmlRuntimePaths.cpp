@@ -17,6 +17,25 @@
 
 namespace GgmlRuntimePaths {
 
+ggml_backend_device* find_gpu_device(std::string_view backend)
+{
+#ifdef AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING
+    (void)backend;
+#else
+    ensure_ggml_backends_loaded();
+    for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
+        auto* device = ggml_backend_dev_get(i);
+        if (ggml_backend_dev_type(device) != GGML_BACKEND_DEVICE_TYPE_GPU) continue;
+        const auto reg = ggml_backend_dev_backend_reg(device);
+        std::string name = reg ? ggml_backend_reg_name(reg) : "";
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (name == "mtl") name = "metal";
+        if (name == backend) return device;
+    }
+#endif
+    return nullptr;
+}
+
 namespace {
 
 bool ends_with(const std::string& value, const std::string& suffix) {
@@ -84,6 +103,7 @@ bool has_linux_runtime_dependencies(const std::filesystem::path& dir)
 {
     constexpr std::array versioned_core_files = {
         "libllama.so.0",
+        "libllama-common.so",
         "libggml.so.0",
         "libggml-base.so.0",
         "libmtmd.so.0",
@@ -168,6 +188,7 @@ std::optional<std::filesystem::path> resolve_windows_cpu_runtime_dir(
 {
     constexpr std::array required_files = {
         "llama.dll",
+        "llama-common.dll",
         "ggml.dll",
         "ggml-cpu.dll",
     };
@@ -200,6 +221,7 @@ std::optional<std::filesystem::path> resolve_windows_vulkan_payload_dir(
 {
     constexpr std::array required_files = {
         "llama.dll",
+        "llama-common.dll",
         "ggml.dll",
         "ggml-vulkan.dll",
         "vulkan-1.dll",
@@ -284,7 +306,7 @@ LinuxAcceleratorPayloadCheck validate_linux_accelerator_payload(
     if (!has_linux_runtime_dependencies(dir)) {
         result.reason =
             "missing Linux runtime dependencies required by the ggml backend payload "
-            "(libllama.so.0, libggml.so.0, libggml-base.so.0, libmtmd.so.0, libggml-cpu.so)";
+            "(libllama.so.0, libllama-common.so, libggml.so.0, libggml-base.so.0, libmtmd.so.0, libggml-cpu.so)";
         return result;
     }
 
@@ -351,7 +373,14 @@ void ensure_ggml_backends_loaded(const std::shared_ptr<spdlog::logger>& logger)
             }
         }
 
+#ifdef _WIN32
+        // Windows environment strings are UTF-16; ggml's C API expects UTF-8.
+        const wchar_t* native_dir = _wgetenv(L"AI_FILE_SORTER_GGML_DIR");
+        const auto encoded_dir = native_dir ? std::filesystem::path(native_dir).u8string() : std::u8string{};
+        const char* ggml_dir = reinterpret_cast<const char*>(encoded_dir.c_str());
+#else
         const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
+#endif
         if (ggml_dir && ggml_dir[0] != '\0') {
             if (logger) {
                 logger->info("Loading ggml backends from '{}'", ggml_dir);

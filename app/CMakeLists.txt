@@ -1,6 +1,22 @@
 cmake_minimum_required(VERSION 3.21)
 
+# Set the deployment target before compiler detection, including caches with an empty target.
+# Floating-point std::from_chars requires macOS 26 in Apple's standard library.
+if(CMAKE_HOST_APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    if(NOT "$ENV{MACOSX_DEPLOYMENT_TARGET}" STREQUAL "")
+        set(_aifs_macos_deployment_target "$ENV{MACOSX_DEPLOYMENT_TARGET}")
+    else()
+        set(_aifs_macos_deployment_target "26.0")
+    endif()
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "${_aifs_macos_deployment_target}" CACHE STRING
+        "Minimum macOS deployment version" FORCE)
+endif()
+
 project(AIFileSorter LANGUAGES CXX)
+
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "26.0")
+    message(FATAL_ERROR "AI File Sorter requires macOS 26.0 or later. Set CMAKE_OSX_DEPLOYMENT_TARGET to 26.0 or newer.")
+endif()
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -12,6 +28,14 @@ option(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS
     "Register opt-in headless tests that run real local LLM models against real files." OFF)
 option(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND
     "Require vendored PDFium for PDF extraction instead of silently falling back to external CLI tools." ON)
+option(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS
+    "Enable an environment-variable development bypass for plugin entitlement checks." OFF)
+option(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD
+    "Build a Linux repository-friendly profile with local plugins only and no in-app plugin handout." OFF)
+option(AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS
+    "Enable remote plugin catalog checks, downloads, and catalog-delivered plugin updates." ON)
+option(AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS
+    "Enable in-app licensed plugin obtain and activation actions." ON)
 set(AI_FILE_SORTER_UPDATE_MODE "PLATFORM_DEFAULT" CACHE STRING
     "Updater behavior for this build: PLATFORM_DEFAULT, AUTO_INSTALL, NOTIFY_ONLY, or DISABLED")
 set_property(CACHE AI_FILE_SORTER_UPDATE_MODE PROPERTY STRINGS
@@ -24,6 +48,116 @@ set(AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL
     "https://filesorter.app/download/plugins/storage/catalog.json"
     CACHE STRING
     "Default remote storage plugin catalog URL baked into the application build.")
+set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL
+    "https://filesorter.app/api/plugins/folder-structures/catalog/"
+    CACHE STRING
+    "Default remote folder-structure plugin catalog URL baked into the application build.")
+set(_aifs_folder_structure_plugin_public_keys_default "")
+if(DEFINED ENV{AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS})
+    set(_aifs_folder_structure_plugin_public_keys_default "$ENV{AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS}")
+endif()
+set(AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS
+    "${_aifs_folder_structure_plugin_public_keys_default}"
+    CACHE STRING
+    "Trusted folder-structure plugin Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(_aifs_storage_plugin_public_keys_default "")
+if(DEFINED ENV{AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS})
+    set(_aifs_storage_plugin_public_keys_default "$ENV{AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS}")
+endif()
+set(AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS
+    "${_aifs_storage_plugin_public_keys_default}"
+    CACHE STRING
+    "Trusted storage plugin package Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+set(_aifs_plugin_entitlement_public_keys_default "")
+if(DEFINED ENV{AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS})
+    set(_aifs_plugin_entitlement_public_keys_default "$ENV{AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS}")
+endif()
+set(AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS
+    "${_aifs_plugin_entitlement_public_keys_default}"
+    CACHE STRING
+    "Trusted plugin entitlement Ed25519 public keys as key-id:base64 entries separated by comma or semicolon.")
+
+if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(WARNING
+            "AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD is intended for Linux distro packaging, "
+            "but the current target system is '${CMAKE_SYSTEM_NAME}'.")
+    endif()
+    set(AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS OFF CACHE BOOL
+        "Enable remote plugin catalog checks, downloads, and catalog-delivered plugin updates." FORCE)
+    set(AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS OFF CACHE BOOL
+        "Enable in-app licensed plugin obtain and activation actions." FORCE)
+endif()
+
+if(NOT DEFINED AI_FILE_SORTER_PDF_BACKEND)
+    if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
+        set(_aifs_default_pdf_backend "pdftotext")
+    elseif(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND)
+        set(_aifs_default_pdf_backend "embedded-pdfium")
+    else()
+        set(_aifs_default_pdf_backend "auto")
+    endif()
+    set(AI_FILE_SORTER_PDF_BACKEND "${_aifs_default_pdf_backend}" CACHE STRING
+        "PDF extraction backend: embedded-pdfium, system-pdfium, pdftotext, or auto")
+else()
+    set(AI_FILE_SORTER_PDF_BACKEND "${AI_FILE_SORTER_PDF_BACKEND}" CACHE STRING
+        "PDF extraction backend: embedded-pdfium, system-pdfium, pdftotext, or auto")
+endif()
+set_property(CACHE AI_FILE_SORTER_PDF_BACKEND PROPERTY STRINGS
+    embedded-pdfium system-pdfium pdftotext auto)
+set(_aifs_allowed_pdf_backends embedded-pdfium system-pdfium pdftotext auto)
+list(FIND _aifs_allowed_pdf_backends "${AI_FILE_SORTER_PDF_BACKEND}" _aifs_pdf_backend_index)
+if(_aifs_pdf_backend_index EQUAL -1)
+    message(FATAL_ERROR
+        "Unsupported AI_FILE_SORTER_PDF_BACKEND='${AI_FILE_SORTER_PDF_BACKEND}'. "
+        "Expected embedded-pdfium, system-pdfium, pdftotext, or auto.")
+endif()
+
+if(NOT DEFINED AI_FILE_SORTER_LLAMA_PROVIDER)
+    if(WIN32)
+        set(_aifs_default_llama_provider "precompiled")
+    elseif(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
+        set(_aifs_default_llama_provider "system")
+    else()
+        set(_aifs_default_llama_provider "bundled-source")
+    endif()
+    set(AI_FILE_SORTER_LLAMA_PROVIDER "${_aifs_default_llama_provider}" CACHE STRING
+        "llama.cpp provider: precompiled, bundled-source, or system")
+else()
+    set(AI_FILE_SORTER_LLAMA_PROVIDER "${AI_FILE_SORTER_LLAMA_PROVIDER}" CACHE STRING
+        "llama.cpp provider: precompiled, bundled-source, or system")
+endif()
+set_property(CACHE AI_FILE_SORTER_LLAMA_PROVIDER PROPERTY STRINGS
+    precompiled bundled-source system)
+set(_aifs_allowed_llama_providers precompiled bundled-source system)
+list(FIND _aifs_allowed_llama_providers "${AI_FILE_SORTER_LLAMA_PROVIDER}" _aifs_llama_provider_index)
+if(_aifs_llama_provider_index EQUAL -1)
+    message(FATAL_ERROR
+        "Unsupported AI_FILE_SORTER_LLAMA_PROVIDER='${AI_FILE_SORTER_LLAMA_PROVIDER}'. "
+        "Expected precompiled, bundled-source, or system.")
+endif()
+
+set(AI_FILE_SORTER_LLAMA_BACKENDS "cpu" CACHE STRING
+    "Semicolon- or comma-separated llama.cpp backend set expected by this package: cpu, vulkan, cuda")
+string(REPLACE "," ";" _aifs_llama_backend_list "${AI_FILE_SORTER_LLAMA_BACKENDS}")
+list(REMOVE_DUPLICATES _aifs_llama_backend_list)
+list(FIND _aifs_llama_backend_list "cpu" _aifs_llama_cpu_backend_index)
+if(_aifs_llama_cpu_backend_index EQUAL -1)
+    message(FATAL_ERROR "AI_FILE_SORTER_LLAMA_BACKENDS must include 'cpu'.")
+endif()
+foreach(_aifs_llama_backend IN LISTS _aifs_llama_backend_list)
+    if(NOT _aifs_llama_backend MATCHES "^(cpu|vulkan|cuda)$")
+        message(FATAL_ERROR
+            "Unsupported AI_FILE_SORTER_LLAMA_BACKENDS entry '${_aifs_llama_backend}'. "
+            "Expected only cpu, vulkan, and cuda.")
+    endif()
+endforeach()
+if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD
+   AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
+    message(FATAL_ERROR
+        "AI_FILE_SORTER_LLAMA_PROVIDER=precompiled is not allowed with "
+        "AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD=ON.")
+endif()
 
 set(_aifs_effective_update_mode "${AI_FILE_SORTER_UPDATE_MODE}")
 if(_aifs_effective_update_mode STREQUAL "PLATFORM_DEFAULT")
@@ -57,6 +191,12 @@ else()
 endif()
 
 message(STATUS "AI File Sorter updater mode: ${_aifs_effective_update_mode}")
+message(STATUS "AI File Sorter distro repository build: ${AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD}")
+message(STATUS "AI File Sorter remote plugin catalogs: ${AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS}")
+message(STATUS "AI File Sorter licensed plugin actions: ${AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS}")
+message(STATUS "AI File Sorter PDF backend: ${AI_FILE_SORTER_PDF_BACKEND}")
+message(STATUS "AI File Sorter llama.cpp provider: ${AI_FILE_SORTER_LLAMA_PROVIDER}")
+message(STATUS "AI File Sorter llama.cpp backends: ${_aifs_llama_backend_list}")
 
 set(_aifs_effective_windows_package_kind "")
 set(_aifs_windows_enable_starter FALSE)
@@ -83,6 +223,7 @@ endif()
 
 include(CheckSymbolExists)
 include(CheckCXXSourceCompiles)
+include(GNUInstallDirs)
 
 if(WIN32)
     set(_aifs_windows_powershell_candidates
@@ -164,6 +305,18 @@ function(aifs_apply_expected_update_mode target_name update_mode)
     else()
         message(FATAL_ERROR
             "Unsupported expected updater mode '${update_mode}' for target '${target_name}'.")
+    endif()
+endfunction()
+
+function(aifs_apply_plugin_build_config target_name)
+    if(AI_FILE_SORTER_DISTRO_REPOSITORY_BUILD)
+        target_compile_definitions(${target_name} PRIVATE AIFS_DISTRO_REPOSITORY_BUILD)
+    endif()
+    if(NOT AI_FILE_SORTER_ENABLE_REMOTE_PLUGIN_CATALOGS)
+        target_compile_definitions(${target_name} PRIVATE AIFS_REMOTE_PLUGIN_CATALOGS_DISABLED)
+    endif()
+    if(NOT AI_FILE_SORTER_ENABLE_COMMERCIAL_PLUGIN_ACTIONS)
+        target_compile_definitions(${target_name} PRIVATE AIFS_COMMERCIAL_PLUGIN_ACTIONS_DISABLED)
     endif()
 endfunction()
 
@@ -289,13 +442,15 @@ if(APPLE)
     endif()
     if(_aifs_macos_arches MATCHES "(^|;)(arm64|aarch64)($|;)")
         # Qt 6 headers on newer Apple SDKs require arm_acle.h for __yield().
-        add_compile_options(-include arm_acle.h)
+        add_compile_options(
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-include>"
+            "$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:arm_acle.h>"
+        )
     endif()
 endif()
 
 # Qt6
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
-set(_aifs_enable_translation_generation TRUE)
 find_package(Qt6LinguistTools CONFIG QUIET)
 if(NOT Qt6LinguistTools_FOUND)
     set(_aifs_qttools_hints "")
@@ -314,20 +469,44 @@ if(NOT Qt6LinguistTools_FOUND)
         endif()
     endforeach()
     list(REMOVE_DUPLICATES CMAKE_PREFIX_PATH)
-    if(AI_FILE_SORTER_BUILD_TESTS)
-        find_package(Qt6LinguistTools CONFIG QUIET)
-        if(NOT Qt6LinguistTools_FOUND)
-            set(_aifs_enable_translation_generation FALSE)
-            message(STATUS
-                "Qt6LinguistTools not found; skipping translation generation for test build.")
-        endif()
-    else()
-        find_package(Qt6LinguistTools CONFIG REQUIRED)
+    find_package(Qt6LinguistTools CONFIG QUIET)
+    if(NOT Qt6LinguistTools_FOUND)
+        message(FATAL_ERROR
+            "Qt6LinguistTools development files are required, including for the translation tests. "
+            "On Debian/Ubuntu install qt6-tools-dev and qt6-l10n-tools; "
+            "on macOS install qttools, or add its prefix to CMAKE_PREFIX_PATH.")
     endif()
 endif()
 
 # Third-party deps (resolved best via vcpkg on Windows)
 aifs_find_required_package(CURL)
+if(APPLE)
+    # Execute the same policy used by every HTTP client against the selected
+    # libcurl. Finding headers/libraries alone does not establish native trust.
+    unset(AIFS_CURL_TRUST_RUN CACHE)
+    unset(AIFS_CURL_TRUST_COMPILED CACHE)
+    try_run(AIFS_CURL_TRUST_RUN AIFS_CURL_TRUST_COMPILED
+        "${CMAKE_CURRENT_BINARY_DIR}/curl-trust-check"
+        SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/scripts/curl_tls_probe.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp"
+        CMAKE_FLAGS
+            "-DINCLUDE_DIRECTORIES=${CMAKE_CURRENT_SOURCE_DIR}/include"
+            "-DCMAKE_CXX_STANDARD=20"
+        LINK_LIBRARIES CURL::libcurl
+        COMPILE_OUTPUT_VARIABLE _aifs_curl_trust_compile_output
+        RUN_OUTPUT_VARIABLE _aifs_curl_trust_output
+    )
+    if(NOT AIFS_CURL_TRUST_COMPILED OR NOT "${AIFS_CURL_TRUST_RUN}" STREQUAL "0")
+        message(FATAL_ERROR
+            "macOS requires libcurl with Apple native certificate verification "
+            "(active Secure Transport; AppleSecTrust alone is insufficient). "
+            "Select the macOS SDK/system libcurl; clear a cached CURL_ROOT and "
+            "reconfigure. No bundled-CA fallback is used.\n"
+            "${_aifs_curl_trust_compile_output}\n${_aifs_curl_trust_output}")
+    endif()
+    message(STATUS "Verified macOS native TLS trust: ${_aifs_curl_trust_output}")
+endif()
 aifs_find_required_package(OpenSSL)
 aifs_find_required_package(SQLite3)
 if(TARGET SQLite3::SQLite3)
@@ -562,91 +741,178 @@ endif()
 set(PDFIUM_PLATFORM_DIR "")
 set(PDFIUM_LIBRARY "")
 set(PDFIUM_RUNTIME "")
+set(PDFIUM_INCLUDE_DIR "")
 set(_aifs_pdfium_missing_reason "")
+set(_aifs_pdfium_ready FALSE)
+set(_aifs_pdfium_uses_embedded_runtime FALSE)
 
-if(WIN32)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/windows-x64")
-        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/pdfium.dll.lib")
-        set(PDFIUM_RUNTIME "${PDFIUM_PLATFORM_DIR}/bin/pdfium.dll")
-    else()
-        set(_aifs_pdfium_missing_reason
-            "Embedded PDFium is only vendored for 64-bit Windows builds.")
-    endif()
-elseif(APPLE)
-    set(_aifs_pdfium_apple_arch "")
-    if(CMAKE_OSX_ARCHITECTURES)
-        list(LENGTH CMAKE_OSX_ARCHITECTURES _aifs_pdfium_arch_count)
-        if(_aifs_pdfium_arch_count GREATER 1)
-            set(_aifs_pdfium_missing_reason
-                "Embedded PDFium is vendored per-architecture. Configure a single macOS architecture instead of a universal build.")
-        else()
-            list(GET CMAKE_OSX_ARCHITECTURES 0 _aifs_pdfium_apple_arch)
-        endif()
-    endif()
-    if(NOT _aifs_pdfium_apple_arch)
-        set(_aifs_pdfium_apple_arch "${CMAKE_SYSTEM_PROCESSOR}")
-    endif()
-    string(TOLOWER "${_aifs_pdfium_apple_arch}" _aifs_pdfium_apple_arch)
-    if(_aifs_pdfium_apple_arch MATCHES "^(arm64|aarch64)$")
-        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-arm64")
-        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
-        set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
-    elseif(_aifs_pdfium_apple_arch MATCHES "^(x86_64|amd64)$")
-        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-x64")
-        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
-        set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
-    else()
-        set(_aifs_pdfium_missing_reason
-            "Embedded PDFium is not vendored for macOS architecture '${_aifs_pdfium_apple_arch}'.")
-    endif()
-elseif(UNIX)
-    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _aifs_pdfium_linux_arch)
-    if(_aifs_pdfium_linux_arch MATCHES "^(x86_64|amd64)$")
-        set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/linux-x64")
-        set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.so")
-        set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
-    else()
-        set(_aifs_pdfium_missing_reason
-            "Embedded PDFium is not vendored for Linux architecture '${CMAKE_SYSTEM_PROCESSOR}'.")
+set(_aifs_try_system_pdfium FALSE)
+set(_aifs_try_embedded_pdfium FALSE)
+if(AI_FILE_SORTER_PDF_BACKEND STREQUAL "system-pdfium")
+    set(_aifs_try_system_pdfium TRUE)
+elseif(AI_FILE_SORTER_PDF_BACKEND STREQUAL "embedded-pdfium")
+    set(_aifs_try_embedded_pdfium TRUE)
+elseif(AI_FILE_SORTER_PDF_BACKEND STREQUAL "auto")
+    set(_aifs_try_system_pdfium TRUE)
+    set(_aifs_try_embedded_pdfium TRUE)
+endif()
+
+if(_aifs_try_system_pdfium)
+    find_path(SYSTEM_PDFIUM_INCLUDE_DIR
+        NAMES fpdfview.h
+        PATH_SUFFIXES pdfium)
+    find_library(SYSTEM_PDFIUM_LIBRARY NAMES pdfium)
+    if(SYSTEM_PDFIUM_INCLUDE_DIR AND SYSTEM_PDFIUM_LIBRARY)
+        add_library(pdfium SHARED IMPORTED)
+        set_target_properties(pdfium PROPERTIES
+            IMPORTED_LOCATION "${SYSTEM_PDFIUM_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${SYSTEM_PDFIUM_INCLUDE_DIR}"
+        )
+        set(PDFIUM_INCLUDE_DIR "${SYSTEM_PDFIUM_INCLUDE_DIR}")
+        set(PDFIUM_LIBRARY "${SYSTEM_PDFIUM_LIBRARY}")
+        set(_aifs_pdfium_ready TRUE)
+        message(STATUS "Using system PDFium from '${SYSTEM_PDFIUM_LIBRARY}'.")
+    elseif(AI_FILE_SORTER_PDF_BACKEND STREQUAL "system-pdfium")
+        message(FATAL_ERROR
+            "AI_FILE_SORTER_PDF_BACKEND=system-pdfium was requested, but fpdfview.h "
+            "and libpdfium were not found.")
     endif()
 endif()
 
-set(_aifs_pdfium_ready FALSE)
-if(PDFIUM_PLATFORM_DIR
-   AND EXISTS "${PDFIUM_PLATFORM_DIR}/include/fpdfview.h"
-   AND EXISTS "${PDFIUM_LIBRARY}"
-   AND PDFIUM_RUNTIME
-   AND EXISTS "${PDFIUM_RUNTIME}")
-    set(_aifs_pdfium_ready TRUE)
+if(NOT _aifs_pdfium_ready AND _aifs_try_embedded_pdfium)
+    if(WIN32)
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/windows-x64")
+            set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/pdfium.dll.lib")
+            set(PDFIUM_RUNTIME "${PDFIUM_PLATFORM_DIR}/bin/pdfium.dll")
+        else()
+            set(_aifs_pdfium_missing_reason
+                "Embedded PDFium is only vendored for 64-bit Windows builds.")
+        endif()
+    elseif(APPLE)
+        set(_aifs_pdfium_apple_arch "")
+        if(CMAKE_OSX_ARCHITECTURES)
+            list(LENGTH CMAKE_OSX_ARCHITECTURES _aifs_pdfium_arch_count)
+            if(_aifs_pdfium_arch_count GREATER 1)
+                set(_aifs_pdfium_missing_reason
+                    "Embedded PDFium is vendored per-architecture. Configure a single macOS architecture instead of a universal build.")
+            else()
+                list(GET CMAKE_OSX_ARCHITECTURES 0 _aifs_pdfium_apple_arch)
+            endif()
+        endif()
+        if(NOT _aifs_pdfium_apple_arch)
+            set(_aifs_pdfium_apple_arch "${CMAKE_SYSTEM_PROCESSOR}")
+        endif()
+        string(TOLOWER "${_aifs_pdfium_apple_arch}" _aifs_pdfium_apple_arch)
+        if(_aifs_pdfium_apple_arch MATCHES "^(arm64|aarch64)$")
+            set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-arm64")
+            set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
+            set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+        elseif(_aifs_pdfium_apple_arch MATCHES "^(x86_64|amd64)$")
+            set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/macos-x64")
+            set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.dylib")
+            set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+        else()
+            set(_aifs_pdfium_missing_reason
+                "Embedded PDFium is not vendored for macOS architecture '${_aifs_pdfium_apple_arch}'.")
+        endif()
+    elseif(UNIX)
+        string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" _aifs_pdfium_linux_arch)
+        if(_aifs_pdfium_linux_arch MATCHES "^(x86_64|amd64)$")
+            set(PDFIUM_PLATFORM_DIR "${PDFIUM_DIR}/linux-x64")
+            set(PDFIUM_LIBRARY "${PDFIUM_PLATFORM_DIR}/lib/libpdfium.so")
+            set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+        else()
+            set(_aifs_pdfium_missing_reason
+                "Embedded PDFium is not vendored for Linux architecture '${CMAKE_SYSTEM_PROCESSOR}'.")
+        endif()
+    endif()
+
+    if(PDFIUM_PLATFORM_DIR
+       AND EXISTS "${PDFIUM_PLATFORM_DIR}/include/fpdfview.h"
+       AND EXISTS "${PDFIUM_LIBRARY}"
+       AND PDFIUM_RUNTIME
+       AND EXISTS "${PDFIUM_RUNTIME}")
+        add_library(pdfium SHARED IMPORTED)
+        if(APPLE)
+            # Link against a normalized build-local copy. The vendored dylib's
+            # ./libpdfium.dylib install name otherwise depends on the launch cwd.
+            set(_aifs_pdfium_source "${PDFIUM_LIBRARY}")
+            set(PDFIUM_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/pdfium-runtime/libpdfium.dylib")
+            set(PDFIUM_RUNTIME "${PDFIUM_LIBRARY}")
+            set(_aifs_pdfium_codesign_script
+                "${CMAKE_CURRENT_SOURCE_DIR}/scripts/adhoc_codesign_macos.sh")
+            add_custom_command(
+                OUTPUT "${PDFIUM_RUNTIME}"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/pdfium-runtime"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_aifs_pdfium_source}" "${PDFIUM_RUNTIME}"
+                COMMAND /bin/chmod u+w "${PDFIUM_RUNTIME}"
+                COMMAND "${CMAKE_INSTALL_NAME_TOOL}" -id "@rpath/libpdfium.dylib" "${PDFIUM_RUNTIME}"
+                COMMAND /bin/bash "${_aifs_pdfium_codesign_script}" "${PDFIUM_RUNTIME}"
+                DEPENDS "${_aifs_pdfium_source}" "${_aifs_pdfium_codesign_script}"
+                COMMENT "Normalizing and signing the macOS PDFium runtime"
+                VERBATIM
+            )
+            add_custom_target(aifs_pdfium_runtime DEPENDS "${PDFIUM_RUNTIME}")
+            add_dependencies(pdfium aifs_pdfium_runtime)
+            set_target_properties(pdfium PROPERTIES IMPORTED_SONAME "@rpath/libpdfium.dylib")
+        endif()
+        if(WIN32)
+            set_target_properties(pdfium PROPERTIES
+                IMPORTED_IMPLIB "${PDFIUM_LIBRARY}"
+                IMPORTED_LOCATION "${PDFIUM_RUNTIME}"
+                INTERFACE_INCLUDE_DIRECTORIES "${PDFIUM_PLATFORM_DIR}/include"
+            )
+        else()
+            set_target_properties(pdfium PROPERTIES
+                IMPORTED_LOCATION "${PDFIUM_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${PDFIUM_PLATFORM_DIR}/include"
+            )
+        endif()
+        set(PDFIUM_INCLUDE_DIR "${PDFIUM_PLATFORM_DIR}/include")
+        set(_aifs_pdfium_ready TRUE)
+        set(_aifs_pdfium_uses_embedded_runtime TRUE)
+        message(STATUS "Using embedded PDFium from '${PDFIUM_PLATFORM_DIR}'.")
+    elseif(AI_FILE_SORTER_PDF_BACKEND STREQUAL "embedded-pdfium")
+        if(NOT _aifs_pdfium_missing_reason)
+            set(_aifs_pdfium_missing_reason
+                "Embedded PDFium is incomplete under '${PDFIUM_PLATFORM_DIR}'. Run app/scripts/vendor_doc_deps.sh or app/scripts/vendor_doc_deps.ps1 to populate the vendored runtime files.")
+        endif()
+        message(FATAL_ERROR "${_aifs_pdfium_missing_reason}")
+    endif()
 endif()
 
 if(_aifs_pdfium_ready)
     add_compile_definitions(AI_FILE_SORTER_USE_PDFIUM)
-    list(APPEND DOC_DEPS_INCLUDE_DIRS "${PDFIUM_PLATFORM_DIR}/include")
-    add_library(pdfium SHARED IMPORTED)
-    if(WIN32)
-        set_target_properties(pdfium PROPERTIES
-            IMPORTED_IMPLIB "${PDFIUM_LIBRARY}"
-            IMPORTED_LOCATION "${PDFIUM_RUNTIME}"
-        )
-    else()
-        set_target_properties(pdfium PROPERTIES
-            IMPORTED_LOCATION "${PDFIUM_LIBRARY}"
-        )
-    endif()
+    list(APPEND DOC_DEPS_INCLUDE_DIRS "${PDFIUM_INCLUDE_DIR}")
     list(APPEND DOC_DEPS_LIBS pdfium)
-elseif(PDFIUM_PLATFORM_DIR OR _aifs_pdfium_missing_reason)
-    if(NOT _aifs_pdfium_missing_reason)
-        set(_aifs_pdfium_missing_reason
-            "Embedded PDFium is incomplete under '${PDFIUM_PLATFORM_DIR}'. Run app/scripts/vendor_doc_deps.sh or app/scripts/vendor_doc_deps.ps1 to populate the vendored runtime files.")
-    endif()
-    if(AI_FILE_SORTER_REQUIRE_EMBEDDED_PDF_BACKEND)
-        message(FATAL_ERROR "${_aifs_pdfium_missing_reason}")
-    else()
-        message(WARNING "${_aifs_pdfium_missing_reason} Falling back to 'pdftotext' when available.")
-    endif()
+elseif(AI_FILE_SORTER_PDF_BACKEND STREQUAL "pdftotext")
+    message(STATUS "PDFium disabled: PDF extraction will use 'pdftotext' when available.")
+else()
+    message(WARNING "PDFium was not found. Falling back to 'pdftotext' when available.")
 endif()
+
+function(aifs_stage_pdfium_runtime target_name)
+    if(NOT _aifs_pdfium_uses_embedded_runtime)
+        return()
+    endif()
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${PDFIUM_RUNTIME}" "$<TARGET_FILE_DIR:${target_name}>"
+        VERBATIM
+    )
+    if(NOT WIN32)
+        if(APPLE)
+            set(_pdfium_rpath "@loader_path")
+        else()
+            set(_pdfium_rpath "$ORIGIN")
+        endif()
+        set_target_properties(${target_name} PROPERTIES
+            BUILD_RPATH "${_pdfium_rpath}"
+            INSTALL_RPATH "${_pdfium_rpath}"
+        )
+    endif()
+endfunction()
 
 # Sources
 set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
@@ -694,31 +960,27 @@ aifs_apply_update_mode(aifilesorter)
 
 target_include_directories(aifilesorter PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
     ${DOC_DEPS_INCLUDE_DIRS}
 )
 
-if(_aifs_enable_translation_generation)
-    qt_add_lupdate(
-        aifilesorter
-        NO_GLOBAL_TARGET
-        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-        SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
-        OPTIONS -no-obsolete
-    )
+qt_add_lupdate(
+    aifilesorter
+    NO_GLOBAL_TARGET
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp" ${APP_HEADER_SOURCES}
+    OPTIONS -no-obsolete
+)
 
-    set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
-        PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
+set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
+    PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
 
-    qt_add_lrelease(
-        aifilesorter
-        TS_FILES ${AIFS_TRANSLATION_TS_FILES}
-        QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
-    )
+qt_add_lrelease(
+    aifilesorter
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
+)
 
-    set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
-endif()
+set_source_files_properties(${AIFS_TRANSLATION_QM_FILES} PROPERTIES GENERATED TRUE)
 
 function(aifs_add_translation_resources target_name)
     if(NOT AIFS_TRANSLATION_QM_FILES)
@@ -786,6 +1048,7 @@ set(AIFS_HELP_RESOURCE_FILES
 )
 
 set(AIFS_WHATS_NEW_RESOURCE_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_da.md"
@@ -824,7 +1087,6 @@ set(APP_RESOURCE_FILES
     ${AIFS_IMAGE_RESOURCE_FILES}
     ${AIFS_HELP_RESOURCE_FILES}
     ${AIFS_WHATS_NEW_RESOURCE_FILES}
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
 )
 
 set_source_files_properties(
@@ -852,17 +1114,40 @@ foreach(_aifs_whats_new_resource IN LISTS AIFS_WHATS_NEW_RESOURCE_FILES)
         PROPERTIES QT_RESOURCE_ALIAS "whats_new/${_aifs_whats_new_name}"
     )
 endforeach()
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/resources/certs/cacert.pem"
-    PROPERTIES QT_RESOURCE_ALIAS "certs/cacert.pem"
-)
 
 qt_add_resources(aifilesorter "app_resources"
     PREFIX "/dev/hfstudio/AIFileSorter"
     FILES ${APP_RESOURCE_FILES}
 )
 
-if(WIN32)
+set(AIFS_LLAMA_INCLUDE_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/common"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/vendor"
+)
+set(AIFS_LLAMA_LINK_LIBRARIES llama llama-common)
+set(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK FALSE)
+set(HAVE_MTMD_HELPER_LOG_SET FALSE)
+list(FIND _aifs_llama_backend_list "cuda" _aifs_llama_cuda_backend_index)
+list(FIND _aifs_llama_backend_list "vulkan" _aifs_llama_vulkan_backend_index)
+set(_aifs_llama_has_cuda_backend FALSE)
+set(_aifs_llama_has_vulkan_backend FALSE)
+if(NOT _aifs_llama_cuda_backend_index EQUAL -1)
+    set(_aifs_llama_has_cuda_backend TRUE)
+endif()
+if(NOT _aifs_llama_vulkan_backend_index EQUAL -1)
+    set(_aifs_llama_has_vulkan_backend TRUE)
+endif()
+
+if(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
+    list(APPEND AIFS_LLAMA_INCLUDE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
+    )
+    if(NOT WIN32)
+        message(FATAL_ERROR
+            "AI_FILE_SORTER_LLAMA_PROVIDER=precompiled is currently supported only for "
+            "Windows CMake builds. Use bundled-source or system on Linux/macOS.")
+    endif()
     if(DEFINED ENV{WindowsSdkDir} AND DEFINED ENV{WindowsSDKLibVersion})
         set(WIN_SDK_UM_DIR "$ENV{WindowsSdkDir}Lib/$ENV{WindowsSDKLibVersion}/um/x64")
         set(WIN_SDK_UCRT_DIR "$ENV{WindowsSdkDir}Lib/$ENV{WindowsSDKLibVersion}/ucrt/x64")
@@ -906,7 +1191,7 @@ if(WIN32)
         IMPORTED_LOCATION "${LLAMA_CPU_DLL}"
     )
 
-    foreach(libName IN ITEMS ggml ggml-base ggml-cpu)
+    foreach(libName IN ITEMS ggml ggml-base ggml-cpu llama-common)
         set(import_path "${PRECOMPILED_CPU_LIB_DIR}/${libName}.lib")
         set(dll_path "${PRECOMPILED_CPU_BIN_DIR}/${libName}.dll")
         if(NOT EXISTS "${import_path}")
@@ -915,7 +1200,11 @@ if(WIN32)
         if(NOT EXISTS "${dll_path}")
             message(FATAL_ERROR "Missing ${dll_path}. Run app/scripts/build_llama_windows.ps1 cuda=off vcpkgroot=<path> to stage runtime DLLs.")
         endif()
-        string(REPLACE "-" "_" imported_target "${libName}")
+        if(libName STREQUAL "llama-common")
+            set(imported_target "llama-common")
+        else()
+            string(REPLACE "-" "_" imported_target "${libName}")
+        endif()
         add_library(${imported_target} SHARED IMPORTED)
         set_target_properties(${imported_target} PROPERTIES
             IMPORTED_IMPLIB "${import_path}"
@@ -931,7 +1220,6 @@ if(WIN32)
             IMPORTED_IMPLIB "${MTMD_IMPORT}"
             IMPORTED_LOCATION "${MTMD_DLL}"
         )
-        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
         set(_aifs_saved_required_libs "${CMAKE_REQUIRED_LIBRARIES}")
         set(CMAKE_REQUIRED_LIBRARIES "${MTMD_IMPORT}")
         check_cxx_source_compiles([[
@@ -950,19 +1238,102 @@ if(WIN32)
         ]] HAVE_MTMD_HELPER_LOG_SET)
         set(CMAKE_REQUIRED_LIBRARIES "${_aifs_saved_required_libs}")
         unset(_aifs_saved_required_libs)
-        if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
-            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
-        endif()
-        if(HAVE_MTMD_HELPER_LOG_SET)
-            target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
-        endif()
     else()
         message(WARNING "Visual LLM support disabled: missing mtmd.lib/mtmd.dll under app/lib/precompiled/cpu. Run app/scripts/build_llama_windows.ps1 to stage mtmd.")
     endif()
-else()
+elseif(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "system")
+    if(WIN32)
+        message(FATAL_ERROR
+            "AI_FILE_SORTER_LLAMA_PROVIDER=system is not supported for Windows builds.")
+    endif()
+
+    find_package(llama CONFIG QUIET)
+    if(NOT TARGET llama)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(AIFS_LLAMA REQUIRED IMPORTED_TARGET llama)
+        add_library(llama INTERFACE IMPORTED)
+        target_link_libraries(llama INTERFACE PkgConfig::AIFS_LLAMA)
+    endif()
+
+    find_path(AIFS_SYSTEM_LLAMA_INCLUDE_DIR NAMES llama.h)
+    find_path(AIFS_SYSTEM_GGML_INCLUDE_DIR NAMES ggml-backend.h)
+    find_path(AIFS_SYSTEM_GGUF_INCLUDE_DIR NAMES gguf.h)
+    find_path(AIFS_SYSTEM_MTMD_INCLUDE_DIR NAMES mtmd.h mtmd-helper.h)
+    find_library(AIFS_SYSTEM_MTMD_LIBRARY NAMES mtmd)
+    find_library(AIFS_SYSTEM_LLAMA_COMMON_LIBRARY NAMES llama-common)
+    if(NOT AIFS_SYSTEM_LLAMA_INCLUDE_DIR
+       OR NOT AIFS_SYSTEM_GGML_INCLUDE_DIR
+       OR NOT AIFS_SYSTEM_GGUF_INCLUDE_DIR
+       OR NOT AIFS_SYSTEM_MTMD_INCLUDE_DIR
+       OR NOT AIFS_SYSTEM_MTMD_LIBRARY
+       OR NOT AIFS_SYSTEM_LLAMA_COMMON_LIBRARY)
+        message(FATAL_ERROR
+            "AI_FILE_SORTER_LLAMA_PROVIDER=system requires system llama.cpp development "
+            "artifacts for llama.h, ggml-backend.h, gguf.h, mtmd.h, mtmd-helper.h, "
+            "libllama, libggml, libmtmd, and libllama-common matching the bundled revision.")
+    endif()
+
+    if(NOT TARGET llama-common)
+        add_library(llama-common UNKNOWN IMPORTED)
+        set_target_properties(llama-common PROPERTIES
+            IMPORTED_LOCATION "${AIFS_SYSTEM_LLAMA_COMMON_LIBRARY}"
+            INTERFACE_LINK_LIBRARIES "llama"
+        )
+    endif()
+
+    add_library(mtmd UNKNOWN IMPORTED)
+    set_target_properties(mtmd PROPERTIES
+        IMPORTED_LOCATION "${AIFS_SYSTEM_MTMD_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${AIFS_SYSTEM_MTMD_INCLUDE_DIR}"
+        INTERFACE_LINK_LIBRARIES "llama"
+    )
+    list(APPEND AIFS_LLAMA_INCLUDE_DIRS
+        "${AIFS_SYSTEM_LLAMA_INCLUDE_DIR}"
+        "${AIFS_SYSTEM_GGML_INCLUDE_DIR}"
+        "${AIFS_SYSTEM_GGUF_INCLUDE_DIR}"
+        "${AIFS_SYSTEM_MTMD_INCLUDE_DIR}"
+    )
+    list(REMOVE_DUPLICATES AIFS_LLAMA_INCLUDE_DIRS)
+
+    set(_aifs_saved_required_includes "${CMAKE_REQUIRED_INCLUDES}")
+    set(CMAKE_REQUIRED_INCLUDES ${AIFS_LLAMA_INCLUDE_DIRS})
+    check_symbol_exists(mtmd_helper_set_progress_callback "mtmd-helper.h" HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+    check_symbol_exists(mtmd_helper_log_set "mtmd-helper.h" HAVE_MTMD_HELPER_LOG_SET)
+    set(CMAKE_REQUIRED_INCLUDES "${_aifs_saved_required_includes}")
+    unset(_aifs_saved_required_includes)
+
+    message(STATUS "Using system llama.cpp provider.")
+elseif(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "bundled-source")
+    if(WIN32)
+        message(FATAL_ERROR
+            "AI_FILE_SORTER_LLAMA_PROVIDER=bundled-source is not supported for Windows "
+            "CMake builds. Use precompiled on Windows.")
+    endif()
+    if(_aifs_llama_has_cuda_backend AND _aifs_llama_has_vulkan_backend)
+        message(FATAL_ERROR
+            "bundled-source llama builds support only one accelerator backend per build. "
+            "Choose either cuda or vulkan in AI_FILE_SORTER_LLAMA_BACKENDS.")
+    endif()
+
     # Build llama.cpp from the included submodule for non-Windows platforms
     set(LLAMA_BUILD_COMMON ON CACHE BOOL "llama: build common utils library" FORCE)
+    set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "llama: build tools" FORCE)
+    set(LLAMA_BUILD_APP OFF CACHE BOOL "llama: build unified binary" FORCE)
+    set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "llama: build examples" FORCE)
+    set(LLAMA_BUILD_TESTS OFF CACHE BOOL "llama: build tests" FORCE)
+    set(LLAMA_BUILD_MTMD ON CACHE BOOL "llama: build visual library" FORCE)
+    set(MTMD_VIDEO OFF CACHE BOOL "mtmd: build video support" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libs" FORCE)
+    if(_aifs_llama_has_cuda_backend)
+        set(GGML_CUDA ON CACHE BOOL "ggml: enable CUDA backend" FORCE)
+    else()
+        set(GGML_CUDA OFF CACHE BOOL "ggml: enable CUDA backend" FORCE)
+    endif()
+    if(_aifs_llama_has_vulkan_backend)
+        set(GGML_VULKAN ON CACHE BOOL "ggml: enable Vulkan backend" FORCE)
+    else()
+        set(GGML_VULKAN OFF CACHE BOOL "ggml: enable Vulkan backend" FORCE)
+    endif()
     if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|X86_64|amd64|AMD64)$")
         # Keep x64 Linux builds compatible with older SSE4.2-capable CPUs instead of
         # auto-targeting AVX/F16C/FMA/AVX2/BMI2 based on the build host.
@@ -980,15 +1351,26 @@ else()
         set(GGML_AVX512_BF16 OFF CACHE BOOL "ggml: enable AVX512-BF16" FORCE)
     endif()
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp" "${CMAKE_CURRENT_BINARY_DIR}/llama-build")
+    if(TARGET vendor-hash)
+        # MediaInfo exports incompatible functions with the same SHA-256 names.
+        target_compile_definitions(vendor-hash PRIVATE
+            sha256_init=aifs_llama_sha256_init
+            sha256_update=aifs_llama_sha256_update
+            sha256_final=aifs_llama_sha256_final
+            sha256_hash=aifs_llama_sha256_hash
+        )
+    endif()
     get_directory_property(_llama_install_version DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/llama-build" DEFINITION LLAMA_INSTALL_VERSION)
     if (NOT _llama_install_version OR _llama_install_version STREQUAL "LLAMA_INSTALL_VERSION-NOTFOUND")
         set(_llama_install_version "0.0.0")
     endif()
     set(LLAMA_INSTALL_VERSION "${_llama_install_version}")
-    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd" "${CMAKE_CURRENT_BINARY_DIR}/mtmd-build")
-    target_link_libraries(aifilesorter PRIVATE llama)
-    target_link_libraries(aifilesorter PRIVATE mtmd)
-    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_HAS_MTMD)
+    list(APPEND AIFS_LLAMA_INCLUDE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/ggml/include"
+    )
+    set(_aifs_saved_required_includes "${CMAKE_REQUIRED_INCLUDES}")
     set(CMAKE_REQUIRED_INCLUDES
         "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/tools/mtmd"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/external/llama.cpp/include"
@@ -996,17 +1378,33 @@ else()
     )
     check_symbol_exists(mtmd_helper_set_progress_callback "mtmd-helper.h" HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
     check_symbol_exists(mtmd_helper_log_set "mtmd-helper.h" HAVE_MTMD_HELPER_LOG_SET)
-    set(CMAKE_REQUIRED_INCLUDES)
-    if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
-        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
-    endif()
-    if(HAVE_MTMD_HELPER_LOG_SET)
-        target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
-    endif()
+    set(CMAKE_REQUIRED_INCLUDES "${_aifs_saved_required_includes}")
+    unset(_aifs_saved_required_includes)
     if(MSVC)
         target_compile_options(llama PRIVATE /Zc:char8_t-)
     endif()
 endif()
+
+if(TARGET mtmd)
+    list(APPEND AIFS_LLAMA_LINK_LIBRARIES mtmd)
+endif()
+
+function(aifs_apply_llama_feature_config target_name)
+    if(TARGET mtmd)
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_HAS_MTMD)
+    endif()
+    if(HAVE_MTMD_HELPER_SET_PROGRESS_CALLBACK)
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_MTMD_PROGRESS_CALLBACK)
+    endif()
+    if(HAVE_MTMD_HELPER_LOG_SET)
+        target_compile_definitions(${target_name} PRIVATE AI_FILE_SORTER_MTMD_LOG_CALLBACK)
+    endif()
+endfunction()
+
+if(AIFS_LLAMA_INCLUDE_DIRS)
+    target_include_directories(aifilesorter PRIVATE ${AIFS_LLAMA_INCLUDE_DIRS})
+endif()
+aifs_apply_llama_feature_config(aifilesorter)
 
 # Link libraries
 target_link_libraries(aifilesorter PRIVATE
@@ -1018,41 +1416,70 @@ target_link_libraries(aifilesorter PRIVATE
     fmt::fmt
     spdlog::spdlog
     Intl::Intl
-    llama           # imported on Windows or built from submodule on other platforms
+    ${AIFS_LLAMA_LINK_LIBRARIES}
     ${MEDIAINFO_DEPS_LIBS}
     ${DOC_DEPS_LIBS}
 )
+set(_aifs_folder_structure_plugin_public_keys_define
+    "${AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS}")
+string(REPLACE "\\" "\\\\" _aifs_folder_structure_plugin_public_keys_define
+    "${_aifs_folder_structure_plugin_public_keys_define}")
+string(REPLACE "\"" "\\\"" _aifs_folder_structure_plugin_public_keys_define
+    "${_aifs_folder_structure_plugin_public_keys_define}")
+string(REPLACE ";" "\\;" _aifs_folder_structure_plugin_public_keys_define
+    "${_aifs_folder_structure_plugin_public_keys_define}")
+set(_aifs_storage_plugin_public_keys_define
+    "${AI_FILE_SORTER_STORAGE_PLUGIN_PUBLIC_KEYS}")
+string(REPLACE "\\" "\\\\" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+string(REPLACE "\"" "\\\"" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+string(REPLACE ";" "\\;" _aifs_storage_plugin_public_keys_define
+    "${_aifs_storage_plugin_public_keys_define}")
+set(_aifs_plugin_entitlement_public_keys_define
+    "${AI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS}")
+string(REPLACE "\\" "\\\\" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
+string(REPLACE "\"" "\\\"" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
+string(REPLACE ";" "\\;" _aifs_plugin_entitlement_public_keys_define
+    "${_aifs_plugin_entitlement_public_keys_define}")
+
 target_compile_definitions(aifilesorter PRIVATE
     AIFS_STORAGE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_STORAGE_PLUGIN_CATALOG_URL}"
+    AIFS_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL="${AI_FILE_SORTER_FOLDER_STRUCTURE_PLUGIN_CATALOG_URL}"
+    AIFS_FOLDER_STRUCTURE_PLUGIN_PUBLIC_KEYS="${_aifs_folder_structure_plugin_public_keys_define}"
+    AIFS_STORAGE_PLUGIN_PUBLIC_KEYS="${_aifs_storage_plugin_public_keys_define}"
+    AIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="${_aifs_plugin_entitlement_public_keys_define}"
 )
+aifs_apply_plugin_build_config(aifilesorter)
+if(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
+    target_compile_definitions(aifilesorter PRIVATE AIFS_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
+endif()
 
 if(WIN32)
     target_link_libraries(aifilesorter PRIVATE ggml ggml_base ggml_cpu)
+endif()
+
+if(WIN32 AND MSVC AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
+    # Vulkan payloads can import vulkan-1.dll through ggml.dll. Resolve these
+    # imports only after main has validated Vulkan and selected a safe runtime.
+    target_compile_definitions(aifilesorter PRIVATE AI_FILE_SORTER_DELAY_LOAD_GGML)
+    target_link_libraries(aifilesorter PRIVATE delayimp)
+    foreach(_aifs_delayed_runtime IN ITEMS ggml ggml-base llama llama-common)
+        target_link_options(aifilesorter PRIVATE "/DELAYLOAD:${_aifs_delayed_runtime}.dll")
+    endforeach()
     if(TARGET mtmd)
-        target_link_libraries(aifilesorter PRIVATE mtmd)
+        target_link_options(aifilesorter PRIVATE "/DELAYLOAD:mtmd.dll")
     endif()
 endif()
 
-if(_aifs_pdfium_ready)
-    if(PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-        add_custom_command(TARGET aifilesorter POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PDFIUM_RUNTIME}"
-                "$<TARGET_FILE_DIR:aifilesorter>"
-        )
-    endif()
-    if(NOT WIN32)
-        if(APPLE)
-            set(_pdfium_rpath "@loader_path")
-        else()
-            set(_pdfium_rpath "$ORIGIN")
-        endif()
-        set_target_properties(aifilesorter PROPERTIES
-            BUILD_RPATH "${_pdfium_rpath}"
-            INSTALL_RPATH "${_pdfium_rpath}"
-        )
-        unset(_pdfium_rpath)
-    endif()
+aifs_stage_pdfium_runtime(aifilesorter)
+
+if(UNIX AND NOT APPLE)
+    install(TARGETS aifilesorter
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
 endif()
 
 aifs_stage_windows_qt_plugins(aifilesorter)
@@ -1065,6 +1492,7 @@ if(WIN32 AND _aifs_windows_enable_starter)
         "${CMAKE_CURRENT_SOURCE_DIR}/startapp_windows.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/GgmlRuntimePaths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaRuntimeSelection.cpp"
     )
     set_target_properties(${STARTER_TARGET} PROPERTIES
         OUTPUT_NAME "aifilesorter"
@@ -1271,6 +1699,12 @@ if(WIN32)
         "${PRECOMPILED_CUDA_BIN_DIR}/*")
     file(GLOB _aifs_precompiled_vulkan_payload LIST_DIRECTORIES false
         "${PRECOMPILED_VULKAN_BIN_DIR}/*")
+    # Backend payloads must use the application's selected curl, including when
+    # old precompiled directories still contain a different runtime.
+    foreach(_aifs_payload IN ITEMS _aifs_precompiled_cpu_payload
+            _aifs_precompiled_cuda_payload _aifs_precompiled_vulkan_payload)
+        list(FILTER ${_aifs_payload} EXCLUDE REGEX "/libcurl[.]dll$")
+    endforeach()
 
     if(_aifs_precompiled_cpu_payload)
         add_custom_command(TARGET aifilesorter POST_BUILD
@@ -1313,6 +1747,7 @@ if(WIN32)
 
     set(_aifs_root_ggml_runtime_dlls
         llama.dll
+        llama-common.dll
         mtmd.dll
         ggml.dll
         ggml-base.dll
@@ -1343,6 +1778,25 @@ if(WIN32)
             )
         endforeach()
     endif()
+endif()
+
+if(WIN32)
+    # Refresh actual dependency DLLs even in an existing release tree, then test
+    # the executable that will ship. A cached curl DLL must not select trust.
+    if(VCPKG_TARGET_TRIPLET)
+        add_custom_command(TARGET aifilesorter POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                "-DAIFS_VCPKG_INSTALLED_ROOT=${AIFS_VCPKG_INSTALLED_ROOT}"
+                "-DAIFS_VCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}"
+                "-DAIFS_TARGET_CONFIG=$<CONFIG>"
+                "-DAIFS_DEST_DIR=$<TARGET_FILE_DIR:aifilesorter>"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_vcpkg_runtime.cmake")
+    endif()
+    add_custom_command(TARGET aifilesorter POST_BUILD
+        COMMAND "${POWERSHELL_EXECUTABLE}" -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify_windows_tls.ps1"
+            -Directory "$<TARGET_FILE_DIR:aifilesorter>" -RemoveLegacyBundle
+        VERBATIM)
 endif()
 
 if(AI_FILE_SORTER_BUILD_TESTS)
@@ -1441,25 +1895,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             aifs_stage_windows_qt_plugins(${target_name})
         endif()
 
-        if(_aifs_pdfium_ready AND PDFIUM_RUNTIME AND EXISTS "${PDFIUM_RUNTIME}")
-            add_custom_command(TARGET ${target_name} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${PDFIUM_RUNTIME}"
-                    "$<TARGET_FILE_DIR:${target_name}>"
-            )
-        endif()
-        if(_aifs_pdfium_ready AND NOT WIN32)
-            if(APPLE)
-                set(_pdfium_rpath "@loader_path")
-            else()
-                set(_pdfium_rpath "$ORIGIN")
-            endif()
-            set_target_properties(${target_name} PROPERTIES
-                BUILD_RPATH "${_pdfium_rpath}"
-                INSTALL_RPATH "${_pdfium_rpath}"
-            )
-            unset(_pdfium_rpath)
-        endif()
+        aifs_stage_pdfium_runtime(${target_name})
     endfunction()
 
     function(aifs_add_windows_test_executable target_name)
@@ -1487,48 +1923,29 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endforeach()
     endfunction()
 
-    aifs_add_windows_test_executable(aifs_onedrive_storage_plugin
-        "${CMAKE_CURRENT_SOURCE_DIR}/plugins/onedrive_storage_plugin_main.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/CloudPathSupport.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/FileScanner.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/LocalFsProvider.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveStorageProvider.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/ProtectedProjectDetector.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
-    )
-    target_include_directories(aifs_onedrive_storage_plugin PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
-    )
-    target_link_libraries(aifs_onedrive_storage_plugin PRIVATE
-        Qt6::Core
-        CURL::libcurl
-        spdlog::spdlog
-        fmt::fmt
-    )
-    if(WIN32)
-        target_compile_definitions(aifs_onedrive_storage_plugin PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-        target_link_libraries(aifs_onedrive_storage_plugin PRIVATE ${WIN_SYSTEM_LIBS})
-    endif()
-    set_target_properties(aifs_onedrive_storage_plugin PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    )
-
-    target_compile_definitions(aifilesorter PRIVATE
-        AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$<TARGET_FILE_NAME:aifs_onedrive_storage_plugin>"
-    )
-    add_dependencies(aifilesorter aifs_onedrive_storage_plugin)
-
     aifs_add_windows_test_executable(ai_file_sorter_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/StoragePluginConformanceHarness.cpp"
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_curl_tls.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_tree_catalog.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_purpose_metadata.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_structure_plugins.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_structure_templates.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_structure_localization.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_johnny_decimal_tools.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_protected_project_detector.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_backend.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_llm_prompt_builder.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_local_inference_options.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_native_chat_template.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_request_runner.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_inference_audit.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_tree_llm_router.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_tree_selection_contract.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_native_json_schema_grammar.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ggml_runtime_paths.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_downloader.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_custom_llm.cpp"
@@ -1541,20 +1958,25 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_updater_build_modes.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_version.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_visual_llm_runtime.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_visual_input_budget.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_visual_backend_model.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llm_selection_dialog_visual.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_category_language_menu.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_translation.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_image_options.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_sorting_rules.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_storage_support.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_progress_controller.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_connection.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_visual_fallback.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_settings_image_options.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_windows_network_locations.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_ui_translator.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_maintenance_dialog.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_suitability_benchmark_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_main_app_cache_action.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_conformance.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_storage_plugin_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_categorization_dialog.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_review_file_naming.cpp"
@@ -1565,11 +1987,17 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cli_reporter.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_support_prompt.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_remote_api_error.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_custom_api_endpoint.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_http_image_analyzer.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_consistency_pass.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_whitelist_and_prompt.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_app_test_runner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_user_learning_store.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_database_manager_rename_only.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_interactions.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_content_analysis_cache.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_document_analysis_budget.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_content_context_routing.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_image_rename_metadata_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_filename_localization_service.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_llava_image_analyzer.cpp"
@@ -1593,10 +2021,16 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     target_include_directories(ai_file_sorter_tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/include/llama"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit"
+        ${AIFS_LLAMA_INCLUDE_DIRS}
         ${DOC_DEPS_INCLUDE_DIRS}
     )
+
+    if(AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "bundled-source" AND TARGET vendor-hash)
+        target_sources(ai_file_sorter_tests PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_bundled_llama_hash.cpp")
+    endif()
 
     target_link_libraries(ai_file_sorter_tests PRIVATE
         Catch2::Catch2WithMain
@@ -1610,7 +2044,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         spdlog::spdlog
         fmt::fmt
         Intl::Intl
-        llama
+        ${AIFS_LLAMA_LINK_LIBRARIES}
         ${MEDIAINFO_DEPS_LIBS}
         ${DOC_DEPS_LIBS}
     )
@@ -1624,12 +2058,12 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     target_compile_definitions(ai_file_sorter_tests PRIVATE
         AI_FILE_SORTER_TEST_BUILD=1
-        AIFS_ONEDRIVE_STORAGE_PLUGIN_NAME="$<TARGET_FILE_NAME:aifs_onedrive_storage_plugin>"
         AIFS_STORAGE_PLUGIN_STUB_NAME="$<TARGET_FILE_NAME:aifs_storage_plugin_stub>"
         WIN32_LEAN_AND_MEAN
         NOMINMAX
     )
-    add_dependencies(ai_file_sorter_tests aifs_onedrive_storage_plugin)
+    aifs_apply_plugin_build_config(ai_file_sorter_tests)
+    aifs_apply_llama_feature_config(ai_file_sorter_tests)
     add_dependencies(ai_file_sorter_tests aifs_storage_plugin_stub)
     aifs_apply_update_mode(ai_file_sorter_tests)
     aifs_apply_expected_update_mode(ai_file_sorter_tests "${_aifs_effective_update_mode}")
@@ -1652,14 +2086,33 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     if(WIN32)
         add_custom_command(TARGET ai_file_sorter_tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:aifs_onedrive_storage_plugin>
                 $<TARGET_FILE:aifs_storage_plugin_stub>
                 $<TARGET_FILE_DIR:ai_file_sorter_tests>
         )
     endif()
 
+    aifs_add_windows_test_executable(aifs_storage_plugin_conformance
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/tools/storage_plugin_conformance_main.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers/StoragePluginConformanceHarness.cpp"
+    )
+    target_include_directories(aifs_storage_plugin_conformance PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/helpers"
+    )
+    target_link_libraries(aifs_storage_plugin_conformance PRIVATE Qt6::Core)
+    add_dependencies(aifs_storage_plugin_conformance aifs_storage_plugin_stub)
+    aifs_set_windows_test_runtime_output(aifs_storage_plugin_conformance)
+    aifs_stage_test_runtime(aifs_storage_plugin_conformance)
+    if(WIN32)
+        add_custom_command(TARGET aifs_storage_plugin_conformance POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:aifs_storage_plugin_stub>
+                $<TARGET_FILE_DIR:aifs_storage_plugin_conformance>
+        )
+    endif()
+
     if(WIN32)
         set(AIFS_UPDATER_MODE_TEST_APP_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/IniConfig.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Settings.cpp"
@@ -1670,6 +2123,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Utils.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/VisualModelCatalog.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaProbe.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/WindowsCudaRuntimeSelection.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Version.cpp"
         )
 
@@ -1722,6 +2176,73 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     if(BUILD_TESTING)
         add_test(NAME ai_file_sorter_tests COMMAND ai_file_sorter_tests)
+        find_package(Python3 COMPONENTS Interpreter QUIET)
+        if(Python3_Interpreter_FOUND)
+            # Exercise startup/logging in the production executable, not only the test-linked services.
+            add_dependencies(ai_file_sorter_tests aifilesorter)
+            set(_aifs_headless_stdout_runtime_args "")
+            if(APPLE AND _aifs_pdfium_uses_embedded_runtime)
+                list(APPEND _aifs_headless_stdout_runtime_args --check-macos-pdfium)
+            endif()
+            add_test(
+                NAME headless_stdout_contract
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/../tests/integration/test_headless_stdout.py
+                    --app $<TARGET_FILE:aifilesorter> ${_aifs_headless_stdout_runtime_args} -v
+            )
+            set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
+            if(WIN32 AND STARTER_TARGET)
+                add_dependencies(ai_file_sorter_tests ${STARTER_TARGET})
+                add_test(NAME headless_launcher_stdout_contract
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/../tests/integration/test_headless_stdout.py
+                        --app $<TARGET_FILE:${STARTER_TARGET}> -v)
+                set_tests_properties(headless_launcher_stdout_contract PROPERTIES
+                    LABELS "windows;headless;integration" TIMEOUT 120)
+            endif()
+            add_test(
+                NAME live_llm_process_cleanup
+                COMMAND ${Python3_EXECUTABLE} -m unittest discover
+                    -s ${CMAKE_SOURCE_DIR}/../tests/live_llm
+                    -p test_headless_live_llm_processes.py -v)
+            set_tests_properties(live_llm_process_cleanup PROPERTIES
+                LABELS "headless;integration" TIMEOUT 60)
+            if(WIN32 AND MSVC AND AI_FILE_SORTER_LLAMA_PROVIDER STREQUAL "precompiled")
+                add_library(aifs_incompatible_vulkan_loader SHARED
+                    "${CMAKE_SOURCE_DIR}/../tests/fixtures/incompatible_vulkan_loader.cpp")
+                set_target_properties(aifs_incompatible_vulkan_loader PROPERTIES
+                    OUTPUT_NAME "vulkan-1"
+                    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/vulkan-fixture/$<CONFIG>")
+                add_dependencies(ai_file_sorter_tests aifs_incompatible_vulkan_loader)
+                set(_aifs_startup_launcher_args "")
+                if(STARTER_TARGET)
+                    add_dependencies(ai_file_sorter_tests ${STARTER_TARGET})
+                    list(APPEND _aifs_startup_launcher_args --launcher $<TARGET_FILE:${STARTER_TARGET}>)
+                endif()
+                add_test(
+                    NAME windows_vulkan_startup
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/../tests/integration/test_windows_vulkan_startup.py
+                        --app $<TARGET_FILE:aifilesorter>
+                        --incompatible-loader $<TARGET_FILE:aifs_incompatible_vulkan_loader>
+                        ${_aifs_startup_launcher_args} -v)
+                set_tests_properties(windows_vulkan_startup PROPERTIES
+                    LABELS "windows;packaging;integration" TIMEOUT 180)
+            endif()
+        endif()
+        set(_aifs_storage_plugin_stub_for_conformance "$<TARGET_FILE:aifs_storage_plugin_stub>")
+        if(WIN32)
+            set(_aifs_storage_plugin_stub_for_conformance
+                "$<TARGET_FILE_DIR:aifs_storage_plugin_conformance>/$<TARGET_FILE_NAME:aifs_storage_plugin_stub>")
+        endif()
+        add_test(
+            NAME storage_plugin_conformance_stub
+            COMMAND
+                aifs_storage_plugin_conformance
+                --connector "${_aifs_storage_plugin_stub_for_conformance}"
+                --provider-id mockcloud
+                --plugin-id mockcloud_storage_support
+        )
         if(WIN32)
             add_test(NAME ai_file_sorter_updater_notify_only_tests COMMAND ai_file_sorter_updater_notify_only_tests)
             add_test(NAME ai_file_sorter_updater_disabled_tests COMMAND ai_file_sorter_updater_disabled_tests)
@@ -1748,7 +2269,62 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         endif()
     endif()
 
+    if(WIN32)
+        find_program(AI_FILE_SORTER_POWERSHELL_EXECUTABLE NAMES pwsh powershell REQUIRED)
+        add_test(
+            NAME windows_cuda_runtime_staging
+            COMMAND ${AI_FILE_SORTER_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass
+                -File ${CMAKE_SOURCE_DIR}/../tests/test_windows_cuda_runtime.ps1
+        )
+        set_tests_properties(windows_cuda_runtime_staging PROPERTIES LABELS "build;cuda" TIMEOUT 60)
+    endif()
+
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    add_executable(aifs_curl_tls_probe
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/curl_tls_probe.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp")
+    target_include_directories(aifs_curl_tls_probe PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_link_libraries(aifs_curl_tls_probe PRIVATE CURL::libcurl)
+    if(WIN32)
+        aifs_set_windows_test_runtime_output(aifs_curl_tls_probe)
+        aifs_stage_test_runtime(aifs_curl_tls_probe)
+    endif()
+    add_dependencies(ai_file_sorter_tests aifs_curl_tls_probe)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME curl_tls_trust
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/../tests/integration/test_curl_tls.py
+                --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
+        set_tests_properties(curl_tls_trust PROPERTIES LABELS "tls;integration" TIMEOUT 60)
+        if(APPLE)
+            add_test(NAME macos_bundle_runtime
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/../tests/test_macos_bundle_runtime.py -v)
+            set_tests_properties(macos_bundle_runtime PROPERTIES LABELS "build;packaging" TIMEOUT 60)
+        endif()
+        if(WIN32)
+            add_test(NAME windows_curl_tls_revocation
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/../tests/integration/test_windows_curl_tls.py
+                    --probe $<TARGET_FILE:aifs_curl_tls_probe> -v)
+            set_tests_properties(windows_curl_tls_revocation PROPERTIES
+                LABELS "windows;tls;integration" TIMEOUT 120)
+            add_test(NAME windows_tls_layout
+                COMMAND ${AI_FILE_SORTER_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass
+                    -File ${CMAKE_SOURCE_DIR}/../tests/test_windows_tls_layout.ps1
+                    -Directory $<TARGET_FILE_DIR:aifilesorter> -Python ${Python3_EXECUTABLE})
+            set_tests_properties(windows_tls_layout PROPERTIES LABELS "windows;tls;packaging" TIMEOUT 60)
+        endif()
+    endif()
     if(NOT WIN32)
+        find_program(AI_FILE_SORTER_MAKE_EXECUTABLE NAMES gmake make)
+        if(Python3_Interpreter_FOUND AND AI_FILE_SORTER_MAKE_EXECUTABLE)
+            add_test(
+                NAME make_build_config
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/../tests/test_make_build_config.py -v
+            )
+            set_tests_properties(make_build_config PROPERTIES LABELS "build" TIMEOUT 60)
+        endif()
         add_test(
             NAME integration_run_all
             COMMAND ${CMAKE_COMMAND} -E env bash ${CMAKE_SOURCE_DIR}/../tests/run_all_tests.sh

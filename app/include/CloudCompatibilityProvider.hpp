@@ -20,6 +20,7 @@ public:
                                StorageProviderCapabilities capabilities = {});
 
     std::string id() const override;
+    std::string comparison_key(const std::string& path) const override;
     StorageProviderDetection detect(const std::string& root_path) const override;
     StorageProviderCapabilities capabilities() const override;
     std::vector<FileEntry> list_directory(const std::string& directory,
@@ -33,6 +34,16 @@ public:
                                      const std::string& destination) const override;
     StorageMutationResult undo_move(const std::string& source,
                                     const std::string& destination) const override;
+    /**
+     * @brief Restores a move and removes only directories recorded as app-created.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @param created_directories Directories the app created for the move.
+     * @return Mutation result describing the undo outcome.
+     */
+    StorageMutationResult undo_move(const std::string& source,
+                                    const std::string& destination,
+                                    const std::vector<std::string>& created_directories) const override;
 
 private:
     std::string provider_id_;

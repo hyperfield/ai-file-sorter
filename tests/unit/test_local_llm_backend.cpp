@@ -5,6 +5,16 @@
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
 
+TEST_CASE("llama context defaults expose valid callbacks through the configured headers") {
+    const auto params = llama_context_default_params();
+    CHECK(params.n_threads > 0);
+    CHECK(params.n_threads_batch > 0);
+    CHECK(params.cb_eval == nullptr);
+    CHECK(params.cb_eval_user_data == nullptr);
+    CHECK(params.abort_callback == nullptr);
+    CHECK(params.abort_callback_data == nullptr);
+}
+
 #ifndef GGML_USE_METAL
 
 namespace {
@@ -45,10 +55,10 @@ TEST_CASE("Image categorization uses an image-specific system prompt") {
         prompt_path,
         FileType::File);
 
-    CHECK(prompt.find("always use Images as the main category") != std::string::npos);
-    CHECK(prompt.find("Allowed main categories") != std::string::npos);
-    CHECK(prompt.find("Reply with exactly one line in the format Images : <Subcategory>") != std::string::npos);
-    CHECK(prompt.find("Dashboards, Forms, Product Pages, Interfaces, File Managers") != std::string::npos);
+    CHECK(prompt.find("Without an allowed-category list, use Images as the main category") != std::string::npos);
+    CHECK(prompt.find("Copy provided allowed category and subcategory labels exactly") != std::string::npos);
+    CHECK(prompt.find("Reply with one line in the format <Main category> : <Subcategory>") != std::string::npos);
+    CHECK(prompt.find("A screenshot depicts content") != std::string::npos);
     CHECK(prompt.find("Use any provided image description as the primary evidence") != std::string::npos);
     CHECK(prompt.find("If the file is an installer") == std::string::npos);
     CHECK(prompt.find("If uncertain, make your best guess from the name only") == std::string::npos);
@@ -73,7 +83,7 @@ TEST_CASE("Image categorization uses refined local prompts when refined mode is 
         FileType::File,
         consistency_context);
 
-    CHECK(system_prompt.find("always use Images as the main category") == std::string::npos);
+    CHECK(system_prompt.find("Without an allowed-category list, use Images as the main category") == std::string::npos);
     CHECK(system_prompt.find("you may also choose a more content-specific main category") != std::string::npos);
     CHECK(system_prompt.find("format <Main category> : <Subcategory>") != std::string::npos);
     CHECK(user_prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);
@@ -85,9 +95,9 @@ TEST_CASE("Generic file categorization keeps the general system prompt") {
         "home/theuser/Downloads/freetube_0.23.5_amd64.deb",
         FileType::File);
 
-    CHECK(prompt.find("Allowed main categories") != std::string::npos);
+    CHECK(prompt.find("Copy provided allowed category and subcategory labels exactly") != std::string::npos);
     CHECK(prompt.find("If the file is an installer") != std::string::npos);
-    CHECK(prompt.find("If uncertain, make your best guess from the name only") != std::string::npos);
+    CHECK(prompt.find("any content evidence provided") != std::string::npos);
 }
 
 TEST_CASE("Document categorization uses a document-specific system prompt") {
@@ -97,10 +107,10 @@ TEST_CASE("Document categorization uses a document-specific system prompt") {
             FileType::File);
 
         CHECK(prompt.find("filesystem organization") != std::string::npos);
-        CHECK(prompt.find("Allowed main categories") != std::string::npos);
+        CHECK(prompt.find("Copy provided allowed category and subcategory labels exactly") != std::string::npos);
         CHECK(prompt.find("keep the main category broad and filesystem-friendly") != std::string::npos);
         CHECK(prompt.find("If the file is an installer") == std::string::npos);
-        CHECK(prompt.find("always use Images as the main category") == std::string::npos);
+        CHECK(prompt.find("Without an allowed-category list, use Images as the main category") == std::string::npos);
     };
 
     check_document_prompt("home/theuser/Downloads/pci_dss_quick_reference.pdf");
@@ -128,9 +138,9 @@ TEST_CASE("Image categorization uses a concise user prompt without guidance bloc
 
     CHECK(prompt.find("Categorize this image file for file organization.") == 0);
     CHECK(prompt.find("File name: samsung_qn90c_tv.jpeg") != std::string::npos);
-    CHECK(prompt.find("Path: home/theuser/Downloads/samsung_qn90c_tv.jpeg") != std::string::npos);
+    CHECK(prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(prompt.find("Image description: Product page screenshot showing Samsung QN90C televisions arranged in a grid, with specifications and prices.") != std::string::npos);
-    CHECK(prompt.find("Answer with exactly one line:\nImages : <Subcategory>") != std::string::npos);
+    CHECK(prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);
     CHECK(prompt.find("Image categorization guidance:") == std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
     CHECK(prompt.find("Full path:") == std::string::npos);
@@ -157,7 +167,7 @@ TEST_CASE("Document categorization uses a document-specific user prompt") {
 
     CHECK(prompt.find("Categorize this document file for file organization.") == 0);
     CHECK(prompt.find("File name: pci_dss_quick_reference.pdf") != std::string::npos);
-    CHECK(prompt.find("Path: home/theuser/Downloads/pci_dss_quick_reference.pdf") != std::string::npos);
+    CHECK(prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(prompt.find("Document summary: Quick reference to PCI DSS controls for merchants and service providers.") != std::string::npos);
     CHECK(prompt.find("Document categorization guidance:") != std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
@@ -174,7 +184,7 @@ TEST_CASE("Document categorization uses a document-specific user prompt") {
 
     CHECK(legacy_prompt.find("Categorize this document file for file organization.") == 0);
     CHECK(legacy_prompt.find("File name: file-sample_100kB.doc") != std::string::npos);
-    CHECK(legacy_prompt.find("Path: home/theuser/Downloads/file-sample_100kB.doc") != std::string::npos);
+    CHECK(legacy_prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(legacy_prompt.find("Document summary:") == std::string::npos);
     CHECK(legacy_prompt.find("Allowed main categories") != std::string::npos);
     CHECK(legacy_prompt.find("Full path:") == std::string::npos);
@@ -193,7 +203,7 @@ TEST_CASE("Generic file categorization user prompt includes explicit answer form
         "5) Other");
 
     CHECK(prompt.find("Categorize this file.") == 0);
-    CHECK(prompt.find("Full path: home/theuser/Downloads/Git-2.50.0.2-64-bit.exe") != std::string::npos);
+    CHECK(prompt.find("home/theuser/Downloads/") == std::string::npos);
     CHECK(prompt.find("File name: Git-2.50.0.2-64-bit.exe") != std::string::npos);
     CHECK(prompt.find("Allowed main categories") != std::string::npos);
     CHECK(prompt.find("Answer with exactly one line:\n<Main category> : <Subcategory>") != std::string::npos);
@@ -235,6 +245,24 @@ TEST_CASE("LocalLLMClient deduplicates matching retry estimates before reducing 
         LocalLLMTestAccess::gpu_layer_retry_candidates_for_testing(15, 15);
 
     REQUIRE(candidates == std::vector<int>{15, 11, 8, 6, 4, 3, 2, 1});
+}
+
+TEST_CASE("Metal layer estimator honors constrained device memory metrics") {
+    TempModelFile model(48, 80ULL * 1024ULL * 1024ULL);
+
+    const auto constrained = LocalLLMTestAccess::estimate_metal_layers_for_testing(
+        model.path().string(),
+        40ULL * 1024ULL * 1024ULL,
+        30ULL * 1024ULL * 1024ULL);
+    const auto abundant = LocalLLMTestAccess::estimate_metal_layers_for_testing(
+        model.path().string(),
+        320ULL * 1024ULL * 1024ULL,
+        240ULL * 1024ULL * 1024ULL);
+
+    REQUIRE(constrained.layers > 0);
+    CHECK(constrained.layers < abundant.layers);
+    CHECK(abundant.layers == 48);
+    CHECK(constrained.reason == "estimated from GPU memory headroom");
 }
 
 TEST_CASE("CUDA override is applied when backend is available") {

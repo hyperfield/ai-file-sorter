@@ -6,19 +6,6 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-    inputs:
-      linux_target:
-        description: Linux target to build
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - ubuntu-lts
-          - debian-stable
-          - fedora-latest
-          - rocky-latest
-          - arch-latest
 
 permissions:
   contents: read
@@ -39,17 +26,18 @@ jobs:
       matrix:
         include:
           - name: ubuntu-lts
-            image: ubuntu:latest
+            image: ubuntu:24.04
             artifact_kind: deb
+            cuda_host_compiler: /usr/bin/g++-12
             install: |
               export DEBIAN_FRONTEND=noninteractive
               apt-get update
               apt-get install -y --no-install-recommends \
-                build-essential ca-certificates cmake git make ninja-build patchelf pkg-config python3 \
-                qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
+                build-essential ca-certificates cmake git make ninja-build openssl patchelf pkg-config python3 \
+                qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools \
                 libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
-                libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
-                gettext glslc spirv-headers g++-13 nvidia-cuda-toolkit
+                libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev libwebp7 zlib1g-dev \
+                gettext glslc libvulkan-dev spirv-headers g++-12 nvidia-cuda-toolkit
 
           - name: debian-stable
             image: debian:stable
@@ -59,11 +47,11 @@ jobs:
               sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources
               apt-get update
               apt-get install -y --no-install-recommends \
-                build-essential ca-certificates cmake git make ninja-build patchelf pkg-config python3 \
-                qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev-tools \
-                libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
-                libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev zlib1g-dev \
-                gettext glslc spirv-headers g++-13 g++-14 nvidia-cuda-toolkit
+                build-essential ca-certificates cmake git make ninja-build openssl patchelf pkg-config python3 \
+                qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools \
+                libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
+                libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev libwebp7 zlib1g-dev \
+                gettext glslc g++-14 nvidia-cuda-toolkit
 
           - name: fedora-latest
             image: fedora:latest
@@ -77,26 +65,9 @@ jobs:
               dnf install -y \
                 cmake gcc-c++ gcc15-c++ git make ninja-build patchelf pkgconf-pkg-config python3 rpm-build \
                 qt6-qtbase-devel qt6-qttools-devel \
-                libcurl-devel jsoncpp-devel sqlite-devel openssl-devel \
+                libcurl-devel jsoncpp-devel sqlite-devel openssl openssl-devel \
                 fmt-devel spdlog-devel libmediainfo-devel openblas-devel zlib-devel \
-                gettext-devel glslc spirv-headers-devel cuda-toolkit
-
-          - name: rocky-latest
-            image: quay.io/rockylinux/rockylinux:10
-            artifact_kind: rpm
-            install: |
-              dnf install -y ca-certificates dnf-plugins-core epel-release
-              dnf config-manager --set-enabled crb
-              distro="rhel$(rpm -E %rhel)"
-              dnf config-manager \
-                --add-repo="https://developer.download.nvidia.com/compute/cuda/repos/${distro}/x86_64/cuda-${distro}.repo"
-              dnf clean expire-cache
-              dnf install --nobest -y \
-                cmake gcc-c++ git make ninja-build patchelf pkgconf-pkg-config python3 rpm-build \
-                qt6-qtbase-devel qt6-qttools-devel \
-                libcurl-devel jsoncpp-devel sqlite-devel openssl-devel \
-                fmt-devel spdlog-devel libmediainfo-devel openblas-devel zlib-devel \
-                gettext-devel glslc spirv-headers-devel cuda-toolkit
+                gettext-devel glslc cuda-toolkit
 
           - name: arch-latest
             image: archlinux:latest
@@ -108,7 +79,7 @@ jobs:
                 base-devel ca-certificates cmake git ninja patchelf pkgconf python zstd \
                 qt6-base qt6-tools curl jsoncpp sqlite openssl \
                 fmt spdlog libmediainfo openblas zlib gettext \
-                shaderc spirv-headers vulkan-headers vulkan-icd-loader cuda gcc15
+                shaderc cuda gcc15
     defaults:
       run:
         shell: bash
@@ -116,46 +87,44 @@ jobs:
       AI_FILE_SORTER_BUILD_JOBS: 2
       AI_FILE_SORTER_LINUX_RUNTIME_JOBS: 2
       CUDAARCHS: "75;80;86;89;90"
+      NVCC_CCBIN: ${{ matrix.cuda_host_compiler }}
       QT_QPA_PLATFORM: offscreen
     steps:
       - name: Install build dependencies
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
         run: ${{ matrix.install }}
 
       - name: Check out repository
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Show toolchain
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
         run: |
           cat /etc/os-release
           cmake --version
           c++ --version
-          export PATH="/usr/local/cuda-13.4/bin:/usr/local/cuda-13.3/bin:/usr/local/cuda-13.2/bin:/usr/local/cuda-13.1/bin:/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
+          export PATH="/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
           nvcc --version
           pkg-config --modversion Qt6Core
           pkg-config --modversion libmediainfo
-          if ! pkg-config --modversion openblas && ! pkg-config --modversion openblas64; then
-            echo "OpenBLAS pkg-config metadata not available; falling back to header/library detection."
-            find /usr -path '*openblas*' \( -name cblas.h -o -name libopenblas.so \) | sort
-          fi
+          pkg-config --modversion openblas || pkg-config --modversion openblas64
+
+      - name: Check Debian dependency handling
+        run: python3 -m unittest discover -s tests/packaging -v
 
       - name: Build llama runtime variants
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
         run: |
-          export PATH="/usr/local/cuda-13.4/bin:/usr/local/cuda-13.3/bin:/usr/local/cuda-13.2/bin:/usr/local/cuda-13.1/bin:/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
+          export PATH="/usr/local/cuda/bin:/opt/cuda/bin:$PATH"
           ./app/scripts/build_llama_linux.sh cuda=off vulkan=on blas=on
           ./app/scripts/build_llama_linux.sh cuda=on vulkan=off blas=on cuda-arch="$CUDAARCHS"
 
       - name: Build app
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
         run: make -C app -j"$AI_FILE_SORTER_BUILD_JOBS"
 
+      - name: Verify TLS trust
+        run: make -C app test_tls
+
       - name: Package artifact
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
         run: |
           mkdir -p dist/ci-artifacts
           case "${{ matrix.artifact_kind }}" in
@@ -174,9 +143,93 @@ jobs:
           esac
 
       - name: Upload artifact
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.linux_target == 'all' || inputs.linux_target == matrix.name }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: aifilesorter-linux-${{ matrix.name }}
           path: dist/ci-artifacts/*
           if-no-files-found: error
+
+  verify-ubuntu-package:
+    name: Install and start package on Ubuntu 24.04
+    needs: build-linux
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      QT_QPA_PLATFORM: offscreen
+      AI_FILE_SORTER_GPU_BACKEND: cpu
+    steps:
+      - name: Download Ubuntu package
+        uses: actions/download-artifact@v4
+        with:
+          name: aifilesorter-linux-ubuntu-lts
+          path: /tmp/aifs-packages
+
+      - name: Install with runtime dependencies only
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends /tmp/aifs-packages/*.deb
+
+      - name: Verify CPU libraries, launcher, and headless startup
+        shell: bash
+        run: |
+          for library in /opt/aifilesorter/lib/precompiled/cpu/bin/*.so*; do
+            /lib64/ld-linux-x86-64.so.2 --list "$library"
+          done
+          aifilesorter --cuda=off --vulkan=off --self-test
+          aifilesorter --cuda=off --vulkan=off --headless-help
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python for Windows TLS regressions
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Require OpenSSL certificate fixture generator
+        shell: pwsh
+        run: |
+          $fixtureTools = Join-Path $env:ProgramFiles 'Git\usr\bin'
+          if (-not (Test-Path (Join-Path $fixtureTools 'openssl.exe'))) {
+            throw 'OpenSSL is required for the Windows TLS regression fixtures.'
+          }
+          $fixtureTools | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Enable long paths
+        run: git config --system core.longpaths true
+
+      - name: Set up vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:GITHUB_WORKSPACE\vcpkg"
+          & "$env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat"
+
+      - name: Build llama runtime
+        shell: pwsh
+        run: |
+          $vcpkgRoot = "$env:GITHUB_WORKSPACE\vcpkg"
+          & "$env:GITHUB_WORKSPACE\app\scripts\build_llama_windows.ps1" `
+            "cuda=off" `
+            "vulkan=off" `
+            "blas=off" `
+            "vcpkgroot=$vcpkgRoot"
+
+      - name: Build and test Windows app
+        shell: pwsh
+        run: |
+          $vcpkgRoot = "$env:GITHUB_WORKSPACE\vcpkg"
+          & "$env:GITHUB_WORKSPACE\app\build_windows.ps1" `
+            -Configuration Release `
+            -VcpkgRoot $vcpkgRoot `
+            -BuildTests `
+            -RunTests `
+            -Parallel 4

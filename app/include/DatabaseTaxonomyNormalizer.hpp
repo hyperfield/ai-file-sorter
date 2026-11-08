@@ -19,7 +19,7 @@ struct NormalizedCategory {
 /**
  * @brief Normalize a category label for taxonomy comparisons.
  * @param input Display label to normalize.
- * @return Lowercase alphanumeric label with normalized spacing.
+ * @return NFC case-folded Unicode letters, numbers, and attached marks with normalized spacing.
  */
 std::string normalize_label(const std::string& input);
 
@@ -39,7 +39,7 @@ std::string strip_trailing_stopwords(const std::string& normalized);
 NormalizedCategory normalize_category(std::string category, std::string subcategory);
 
 /**
- * @brief Calculate normalized edit-distance similarity for taxonomy fuzzy matching.
+ * @brief Calculate code-point edit-distance similarity for taxonomy fuzzy matching.
  * @param a First normalized label.
  * @param b Second normalized label.
  * @return Similarity score in the range 0.0 to 1.0.

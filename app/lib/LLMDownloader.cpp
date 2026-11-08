@@ -1,3 +1,5 @@
+#include "CurlTls.hpp"
+#include <memory>
 #include "LLMDownloader.hpp"
 #include "GgufFileValidation.hpp"
 #include "Utils.hpp"
@@ -220,7 +222,8 @@ size_t LLMDownloader::discard_callback(char* ptr, size_t size, size_t nmemb, voi
 
 void LLMDownloader::parse_headers()
 {
-    CURL* curl = curl_easy_init();
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), curl_easy_cleanup);
+    CURL* curl = handle.get();
 
     if (!curl) {
         throw std::runtime_error("Failed to initialize CURL");
@@ -240,7 +243,7 @@ void LLMDownloader::parse_headers()
         real_content_length = cl;
     }
 
-    curl_easy_cleanup(curl);
+    handle.reset();
 
     if (res != CURLE_OK) {
         throw std::runtime_error("CURL HEAD request failed: " + std::string(curl_easy_strerror(res)));
@@ -363,10 +366,11 @@ void LLMDownloader::perform_download()
         return handle;
     };
 
-    CURL* curl = init_curl();
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(init_curl(), curl_easy_cleanup);
+    CURL* curl = handle.get();
     auto cleanup_curl = [&]() {
         if (curl) {
-            curl_easy_cleanup(curl);
+            handle.reset();
             curl = nullptr;
         }
     };
@@ -388,15 +392,14 @@ void LLMDownloader::perform_download()
             return probe(offset, partial_download_path());
         }
 #endif
-        FILE* fp = open_output_file(offset);
+        std::unique_ptr<FILE, decltype(&std::fclose)> fp(open_output_file(offset), std::fclose);
         if (!fp) {
             cleanup_curl();
             throw std::runtime_error("Failed to open file: " + partial_download_path());
         }
 
-        setup_download_curl_options(curl, fp, offset);
+        setup_download_curl_options(curl, fp.get(), offset);
         CURLcode result = curl_easy_perform(curl);
-        fclose(fp);
         return result;
     };
 
@@ -499,14 +502,7 @@ void LLMDownloader::notify_download_complete()
 
 void LLMDownloader::setup_common_curl_options(CURL* curl)
 {
-#ifdef _WIN32
-    try {
-        const auto cert_path = Utils::ensure_ca_bundle();
-        curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-    } catch (const std::exception& ex) {
-        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
-    }
-#endif
+    CurlTls::configure(curl);
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);

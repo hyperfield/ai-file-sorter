@@ -53,6 +53,16 @@ const char* sqlite_cache_table_name(CacheMaintenanceTarget target)
     return nullptr;
 }
 
+bool has_content_evidence(sqlite3* db)
+{
+    sqlite3_stmt* statement = nullptr;
+    const bool prepared = sqlite3_prepare_v2(
+        db, "SELECT 1 FROM content_analysis_cache LIMIT 1;", -1, &statement, nullptr) == SQLITE_OK;
+    const bool present = prepared && sqlite3_step(statement) == SQLITE_ROW;
+    sqlite3_finalize(statement);
+    return present;
+}
+
 } // namespace
 
 CacheMaintenanceService::CacheMaintenanceService(
@@ -212,6 +222,9 @@ std::uintmax_t CacheMaintenanceService::compute_sqlite_cache_size(
 
     if (stmt) {
         sqlite3_finalize(stmt);
+    }
+    if (target == CacheMaintenanceTarget::Categorization && has_content_evidence(db)) {
+        estimated_size = file_size;
     }
     sqlite3_close(db);
     return estimated_size;

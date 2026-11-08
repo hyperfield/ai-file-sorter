@@ -11,6 +11,12 @@ TEST_CASE("Gemma 3 category language support exposes the full language list")
           == all_category_languages());
 }
 
+TEST_CASE("Qwen category language support exposes the full language list")
+{
+    CHECK(supported_category_languages_for_llm_choice(LLMChoice::Local_4b_Qwen35)
+          == all_category_languages());
+}
+
 TEST_CASE("Custom local models keep the full category language list")
 {
     CHECK(supported_category_languages_for_llm_choice(LLMChoice::Custom)

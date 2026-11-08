@@ -16,6 +16,7 @@
 #include <QDockWidget>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
@@ -41,11 +42,18 @@ struct UiTranslatorTestHarness {
 
     QPointer<QLabel> path_label{new QLabel(&window)};
     QPointer<QPushButton> browse_button{new QPushButton(&window)};
+    QPointer<QLabel> destination_path_label{new QLabel(&window)};
+    QPointer<QLineEdit> destination_path_entry{new QLineEdit(&window)};
+    QPointer<QPushButton> destination_browse_button{new QPushButton(&window)};
+    QPointer<QCheckBox> use_analyzed_folder_as_destination_checkbox{new QCheckBox(&window)};
     QPointer<QPushButton> analyze_button{new QPushButton(&window)};
     QPointer<QCheckBox> subcategories_checkbox{new QCheckBox(&window)};
     QPointer<QLabel> style_heading{new QLabel(&window)};
     QPointer<QRadioButton> style_refined{new QRadioButton(&window)};
     QPointer<QRadioButton> style_consistent{new QRadioButton(&window)};
+    QPointer<QComboBox> sorting_mode_selector{new QComboBox(&window)};
+    QPointer<QCheckBox> suggest_new_folders_checkbox{new QCheckBox(&window)};
+    QPointer<QPushButton> create_folder_structure_button{new QPushButton(&window)};
     QPointer<QCheckBox> use_whitelist{new QCheckBox(&window)};
     QPointer<QComboBox> whitelist_selector{new QComboBox(&window)};
     QPointer<QCheckBox> files_checkbox{new QCheckBox(&window)};
@@ -83,6 +91,7 @@ struct UiTranslatorTestHarness {
 
     QAction* file_quit_action = new QAction(&window);
     QAction* run_benchmark_action = new QAction(&window);
+    QAction* create_folder_structure_action = new QAction(&window);
     QAction* copy_action = new QAction(&window);
     QAction* cut_action = new QAction(&window);
     QAction* undo_last_run_action = new QAction(&window);
@@ -91,6 +100,7 @@ struct UiTranslatorTestHarness {
     QAction* delete_action = new QAction(&window);
     QAction* toggle_explorer_action = new QAction(&window);
     QAction* toggle_llm_action = new QAction(&window);
+    QAction* manage_folder_structure_plugins_action = new QAction(&window);
     QAction* manage_storage_plugins_action = new QAction(&window);
     QAction* windows_explorer_extension_install_action = new QAction(&window);
     QAction* windows_explorer_extension_settings_action = new QAction(&window);
@@ -238,16 +248,25 @@ struct UiTranslatorTestHarness {
 
     UiTranslator::Dependencies build_deps()
     {
+        sorting_mode_selector->addItem(QString());
+        sorting_mode_selector->addItem(QString());
         return UiTranslator::Dependencies{
             .window = window,
             .primary = UiTranslator::PrimaryControls{
                 path_label,
                 browse_button,
+                destination_path_label,
+                destination_path_entry,
+                destination_browse_button,
+                use_analyzed_folder_as_destination_checkbox,
                 analyze_button,
                 subcategories_checkbox,
                 style_heading,
                 style_refined,
                 style_consistent,
+                sorting_mode_selector,
+                suggest_new_folders_checkbox,
+                create_folder_structure_button,
                 use_whitelist,
                 whitelist_selector,
                 files_checkbox,
@@ -285,6 +304,7 @@ struct UiTranslatorTestHarness {
             .actions = UiTranslator::ActionControls{
                 file_quit_action,
                 run_benchmark_action,
+                create_folder_structure_action,
                 copy_action,
                 cut_action,
                 undo_last_run_action,
@@ -293,6 +313,7 @@ struct UiTranslatorTestHarness {
                 delete_action,
                 toggle_explorer_action,
                 toggle_llm_action,
+                manage_folder_structure_plugins_action,
                 manage_storage_plugins_action,
                 windows_explorer_extension_install_action,
                 windows_explorer_extension_settings_action,
@@ -357,11 +378,23 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
 {
     REQUIRE(h.path_label->text() == QStringLiteral("Folder:"));
     REQUIRE(h.browse_button->text() == QStringLiteral("Browse…"));
+    REQUIRE(h.destination_path_label->text() == QStringLiteral("Destination:"));
+    REQUIRE(h.destination_path_entry->toolTip() ==
+            QStringLiteral("Choose where categorized items will be placed."));
+    REQUIRE(h.destination_browse_button->text() == QStringLiteral("Browse…"));
+    REQUIRE(h.use_analyzed_folder_as_destination_checkbox->text() ==
+            QStringLiteral("Use analyzed folder"));
     REQUIRE(h.analyze_button->text() == QStringLiteral("Analyze folder"));
     REQUIRE(h.subcategories_checkbox->text() == QStringLiteral("Use subcategories"));
     REQUIRE(h.style_heading->text() == QStringLiteral("Categorization type"));
     REQUIRE(h.style_refined->text() == QStringLiteral("More refined"));
     REQUIRE(h.style_consistent->text() == QStringLiteral("More consistent"));
+    REQUIRE(h.sorting_mode_selector->itemText(0) == QStringLiteral("Create category folders"));
+    REQUIRE(h.sorting_mode_selector->itemText(1) == QStringLiteral("Use existing folder structure"));
+    REQUIRE(h.suggest_new_folders_checkbox->text() == QStringLiteral("Suggest new folders when needed"));
+    REQUIRE(h.create_folder_structure_button->text() == QStringLiteral("Create folder structure..."));
+    REQUIRE(h.create_folder_structure_button->toolTip() ==
+            QStringLiteral("Create a starter folder structure at a location you choose."));
     REQUIRE(h.use_whitelist->text() == QStringLiteral("Use a whitelist"));
     REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
     REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize folders"));
@@ -422,12 +455,15 @@ void verify_menus_and_actions(const UiTranslatorTestHarness& h)
     REQUIRE(MenuMnemonicController::mnemonic_title(h.test_menu) == QStringLiteral("&Tests"));
     REQUIRE(h.language_menu->title() == QStringLiteral("Interface &language"));
     REQUIRE(h.category_language_menu->title() == QStringLiteral("Category &language"));
+    REQUIRE(h.create_folder_structure_action->text() == QStringLiteral("Create folder structure..."));
     REQUIRE(h.run_benchmark_action->text() == QStringLiteral("System compatibility check…"));
     REQUIRE(h.review_history_action->text() ==
             QStringLiteral("Rename and categorization history…"));
     REQUIRE(h.toggle_llm_action->text() == QStringLiteral("Select &LLM…"));
     REQUIRE(h.manage_storage_plugins_action->text() == QStringLiteral("Manage storage plugins…"));
     REQUIRE(h.manage_whitelists_action->text() == QStringLiteral("Manage category whitelists…"));
+    REQUIRE(h.manage_folder_structure_plugins_action->text() ==
+            QStringLiteral("Manage folder structure plugins..."));
     REQUIRE(h.windows_explorer_extension_install_action->text() ==
             QStringLiteral("Install Windows Explorer Extension..."));
     REQUIRE(h.windows_explorer_extension_settings_action->text() == QStringLiteral("Settings..."));

@@ -6,6 +6,7 @@
 #include "Settings.hpp"
 #include "UserLearningStore.hpp"
 #include "WhitelistTestFixtures.hpp"
+#include "CurlTls.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -153,6 +154,7 @@ struct SelfTestContext {
           settings(),
           db(settings.get_config_dir())
     {
+        settings.set_sorting_mode(SortingMode::GeneratedCategories);
     }
 };
 
@@ -219,7 +221,7 @@ AppTestRunner::CaseResult test_large_whitelist_uses_compact_prompt()
                         contains(*captured_context, "Selected whitelist is large") &&
                         contains(*captured_context, "Manuals") &&
                         !contains(*captured_context, "Archive Bucket 79") &&
-                        !contains(*captured_context, "Allowed main categories");
+                        contains(*captured_context, "Allowed main categories (retrieved subset");
     if (passed) {
         return make_case_result("large whitelist uses compact prompt candidates",
                                 true,
@@ -230,7 +232,7 @@ AppTestRunner::CaseResult test_large_whitelist_uses_compact_prompt()
                             "Expected compact candidate block with Manuals and no full whitelist dump.");
 }
 
-AppTestRunner::CaseResult test_large_whitelist_prefers_learned_candidate()
+AppTestRunner::CaseResult test_large_whitelist_preserves_permitted_model_choice()
 {
     SelfTestContext context;
     const auto preset = WhitelistTestFixtures::large_whitelist_preset();
@@ -249,7 +251,7 @@ AppTestRunner::CaseResult test_large_whitelist_prefers_learned_candidate()
     mapping.subcategory = "Camera Guides";
     mapping.context_text = "Camera aperture setup and lens maintenance instructions.";
     if (!learning_store.record_approved_mapping(mapping, &error)) {
-        return make_case_result("large whitelist prefers learned candidate",
+        return make_case_result("large whitelist preserves permitted model choice",
                                 false,
                                 "Could not seed learning store: " + error);
     }
@@ -263,18 +265,18 @@ AppTestRunner::CaseResult test_large_whitelist_prefers_learned_candidate()
                                            captured_context);
 
     const bool passed = categorized.size() == 1 &&
-                        categorized.front().canonical_category == "Manuals" &&
-                        categorized.front().canonical_subcategory == "Camera Guides" &&
+                        categorized.front().canonical_category == "Documents" &&
+                        categorized.front().canonical_subcategory == "General" &&
                         contains(*captured_context, "Manuals : Camera Guides") &&
                         !contains(*captured_context, "User-learned category candidates");
     if (passed) {
-        return make_case_result("large whitelist prefers learned candidate",
+        return make_case_result("large whitelist preserves permitted model choice",
                                 true,
-                                "Review-confirmed Manuals candidate outranked generic Documents output.");
+                                "Permitted model choice retained while allowed learned examples remained available.");
     }
-    return make_case_result("large whitelist prefers learned candidate",
+    return make_case_result("large whitelist preserves permitted model choice",
                             false,
-                            "Expected Manuals : Camera Guides from learned behavior.");
+                            "Expected Documents : General with allowed learned examples in the prompt.");
 }
 
 AppTestRunner::CaseResult test_large_whitelist_preserves_unicode_labels()
@@ -311,9 +313,31 @@ std::vector<AppTestRunner::CaseResult> run_whitelist_suite()
 {
     std::vector<AppTestRunner::CaseResult> results;
     results.push_back(test_large_whitelist_uses_compact_prompt());
-    results.push_back(test_large_whitelist_prefers_learned_candidate());
+    results.push_back(test_large_whitelist_preserves_permitted_model_choice());
     results.push_back(test_large_whitelist_preserves_unicode_labels());
     return results;
+}
+
+AppTestRunner::CaseResult test_platform_tls_trust()
+{
+    constexpr const char* name = "platform TLS trust";
+    try {
+        CurlTls::initialize();
+    } catch (const std::exception& error) {
+        return make_case_result(name, false, error.what());
+    }
+    // The application's other clients may have initialized libcurl already;
+    // this init/cleanup pair owns only the self-test's reference.
+    struct GlobalCleanup {
+        ~GlobalCleanup() { curl_global_cleanup(); }
+    } global_cleanup;
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), curl_easy_cleanup);
+    try {
+        CurlTls::configure(handle.get());
+        return make_case_result(name, true, CurlTls::runtime_description());
+    } catch (const std::exception& error) {
+        return make_case_result(name, false, error.what());
+    }
 }
 
 } // namespace
@@ -333,8 +357,13 @@ AppTestRunner::Result AppTestRunner::run(const Options& options) const
     Result result;
     result.suite = normalize_suite(options.suite);
 
-    if (result.suite != "all" && result.suite != "whitelist") {
-        result.error = "Unknown test suite '" + options.suite + "'. Supported suites: all, whitelist.";
+    const auto suites = available_suites();
+    if (std::find(suites.begin(), suites.end(), result.suite) == suites.end()) {
+        result.error = "Unknown test suite '" + options.suite + "'. Supported suites:";
+        for (const auto& suite : suites) {
+            result.error += " " + suite;
+        }
+        result.error += ".";
         return result;
     }
 
@@ -342,11 +371,16 @@ AppTestRunner::Result AppTestRunner::run(const Options& options) const
         const auto whitelist_results = run_whitelist_suite();
         result.cases.insert(result.cases.end(), whitelist_results.begin(), whitelist_results.end());
     }
+    if (result.suite == "all" || result.suite == "tls") {
+        result.cases.push_back(test_platform_tls_trust());
+    }
 
     return result;
 }
 
 std::vector<std::string> AppTestRunner::available_suites()
 {
-    return {"all", "whitelist"};
+    std::vector<std::string> suites{"all", "whitelist"};
+    suites.push_back("tls");
+    return suites;
 }

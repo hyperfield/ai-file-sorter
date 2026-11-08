@@ -50,15 +50,16 @@ function Get-PluginDefinitions {
         }
     }
 
-    if (-not $definitions) {
-        throw "No plugin build targets are registered for $Platform."
-    }
-
     return $definitions
 }
 
 function Show-PluginDefinitions {
     param([object[]]$Definitions)
+
+    if (-not $Definitions) {
+        Write-Output "No in-repo plugin build targets are registered for windows."
+        return
+    }
 
     Write-Output "Available plugin build targets for windows:"
     foreach ($plugin in $Definitions) {
@@ -113,6 +114,14 @@ $definitions = Get-PluginDefinitions -Platform "windows"
 
 if ($List) {
     Show-PluginDefinitions -Definitions $definitions
+    exit 0
+}
+
+if (-not $definitions) {
+    if ($Plugins) {
+        throw "No in-repo plugin build targets are registered for windows: $($Plugins -join ', ')"
+    }
+    Write-Output "[INFO] No in-repo plugin build targets are registered for windows."
     exit 0
 }
 
