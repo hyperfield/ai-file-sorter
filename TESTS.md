@@ -181,7 +181,7 @@ This verifies installation, CPU library dependencies, the launcher, dynamic
 linking, and deterministic startup. It does not test GPU hardware or model inference.
 
 The `verify-fedora-package` job performs the equivalent clean installation and CPU
-startup checks in `fedora:latest`, using DNF without bypassing dependency checks.
+startup checks in `fedora:44`, using DNF without bypassing dependency checks.
 This also rejects RPM metadata that requires private bundled libraries externally.
 
 ## Visual input context budgets
