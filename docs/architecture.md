@@ -53,6 +53,13 @@ UI-neutral headless flow used by integrations.
   not establish exclusive native trust: OpenSSL can accept additional anchors
   from its default paths or environment. Those alternate runtimes fail closed.
 
+- Photo date extraction stays local. The existing date/place filename preference
+  gates both coordinator enrichment and the metadata service's online-place
+  permission, which defaults off. A date-only category preference cannot enable
+  geocoding. Requests and cache keys share coordinates rounded to three decimal
+  places using the classic numeric locale; no raw EXIF coordinates enter the
+  request URL. Rounding reduces precision but does not guarantee anonymity.
+
 ## Architectural boundaries
 
 - GUI code should remain optional. Headless callers should not need to

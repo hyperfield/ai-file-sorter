@@ -27,11 +27,13 @@
 #include <fstream>
 #include <iomanip>
 #include <initializer_list>
+#include <locale>
 #include <optional>
 #include <regex>
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -39,6 +41,8 @@ namespace {
 constexpr char kExifPrefix[] = "Exif\0\0";
 constexpr char kDefaultNominatimUrl[] = "https://nominatim.openstreetmap.org/reverse";
 constexpr std::chrono::seconds kMinReverseInterval{1};
+// City-level lookups use a roughly 111 m latitude grid, shared with cache identity.
+constexpr int kCoordinateDecimalPlaces = 3;
 constexpr std::array<uint8_t, 8> kPngSignature = {
     0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
 };
@@ -874,7 +878,12 @@ std::optional<std::string> pick_place_name(const Json::Value& root)
 } // namespace
 
 ImageRenameMetadataService::ImageRenameMetadataService(std::string config_dir)
-    : config_dir_(std::move(config_dir))
+    : ImageRenameMetadataService(std::move(config_dir), Options{})
+{
+}
+
+ImageRenameMetadataService::ImageRenameMetadataService(std::string config_dir, Options options)
+    : config_dir_(std::move(config_dir)), options_(std::move(options))
 {
     open_cache_db();
 }
@@ -1051,8 +1060,8 @@ void ImageRenameMetadataService::upsert_cache(const std::string& lat_key,
 }
 
 ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::reverse_geocode(
-    double latitude,
-    double longitude)
+    const std::string& lat_key,
+    const std::string& lon_key)
 {
     ReverseGeocodeResult result;
 
@@ -1065,8 +1074,7 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
     const char* endpoint = std::getenv("AI_FILE_SORTER_NOMINATIM_URL");
     url_builder << ((endpoint && endpoint[0] != '\0') ? endpoint : kDefaultNominatimUrl)
                 << "?format=jsonv2&addressdetails=1&zoom=10&lat="
-                << std::fixed << std::setprecision(7) << latitude
-                << "&lon=" << std::fixed << std::setprecision(7) << longitude;
+                << lat_key << "&lon=" << lon_key;
 
     std::string response;
     curl_easy_setopt(curl, CURLOPT_URL, url_builder.str().c_str());
@@ -1125,8 +1133,8 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
 std::optional<std::string> ImageRenameMetadataService::resolve_place_prefix(double latitude,
                                                                              double longitude)
 {
-    // Requirement: no network available -> no place prefix.
-    if (!network_available()) {
+    // Neither cached places nor connectivity checks bypass the online-place opt-in.
+    if (!options_.allow_online_place_lookup || !network_available()) {
         return std::nullopt;
     }
 
@@ -1146,7 +1154,7 @@ std::optional<std::string> ImageRenameMetadataService::resolve_place_prefix(doub
         }
     }
 
-    const auto geocode = reverse_geocode(latitude, longitude);
+    const auto geocode = reverse_geocode(lat_key, lon_key);
     last_geocode_request_ = std::chrono::steady_clock::now();
 
     if (geocode.success) {
@@ -1267,14 +1275,20 @@ std::optional<std::string> ImageRenameMetadataService::normalize_exif_date(const
 std::string ImageRenameMetadataService::format_coord_key(double value)
 {
     std::ostringstream out;
-    out << std::fixed << std::setprecision(4) << value;
-    return out.str();
+    out.imbue(std::locale::classic());
+    out << std::fixed << std::setprecision(kCoordinateDecimalPlaces) << value;
+    std::string key = out.str();
+    if (key.front() == '-' && key.find_first_not_of("0.", 1) == std::string::npos) {
+        key.erase(0, 1);
+    }
+    return key;
 }
 
 bool ImageRenameMetadataService::network_available()
 {
     if (!network_checked_) {
-        network_available_ = Utils::is_network_available();
+        network_available_ = options_.network_available
+            ? options_.network_available() : Utils::is_network_available();
         network_checked_ = true;
     }
     return network_available_;

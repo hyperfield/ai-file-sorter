@@ -74,6 +74,11 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
   real parent/child processes to check output, exit codes and complete process
   termination after a timeout; no model is required.
 - Updater/feed changes: run the updater and update-feed tests.
+- Photo date/place changes: rebuild the test target and run `[geolocation]`.
+  Synthetic EXIF fixtures and loopback captures cover the place opt-in, offline
+  dates, shared request/cache rounding, locale handling, and coordinator paths
+  with date-only preferences and cached/fallback images. No external geocoder
+  or personal photos are needed.
 - TLS trust changes: rebuild `aifs_curl_tls_probe` and `ai_file_sorter_tests`, run
   CTest's `curl_tls_trust`, the Catch2 `[tls]` cases, and the production app's
   `--self-test=tls`. On Windows also run `windows_curl_tls_revocation` and

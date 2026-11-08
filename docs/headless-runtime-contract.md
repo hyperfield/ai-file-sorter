@@ -195,6 +195,12 @@ values, and values of the wrong type are ignored; an invalid destination therefo
 uses the analyzed root. Unknown properties are ignored. Invalid JSON or a non-object root
 is a file-level error, rather than a request to rewrite app preferences.
 
+`addImageDatePlaceToFilename` is the opt-in for online photo place lookup, even
+with local AI models. Requests to the configured geocoder use coordinates rounded
+to three decimal places, matching the local cache keys. Turning it off prevents
+place lookup; enabling `addImageDateToCategory` alone reads dates locally and does
+not send photo coordinates. These preferences retain their existing JSON types.
+
 ### Filename word-limit overrides
 
 `--settings-overrides-file` accepts two optional whole-number properties:

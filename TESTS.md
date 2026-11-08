@@ -1,5 +1,39 @@
 # Test Suite Guide
 
+## Photo location privacy
+
+Rebuild `ai_file_sorter_tests` and run:
+
+```text
+./build-tests/ai_file_sorter_tests '[geolocation]'
+```
+
+The loopback cases use synthetic TIFF/PNG EXIF dates/GPS coordinates and never send
+requests to an external geocoder. They cover:
+
+- `Image metadata requires an explicit opt-in before any place lookup`: default
+  and disabled services read dates without a connectivity check or HTTP request.
+- `Image capture-date extraction never performs a place lookup`: date extraction
+  stays offline even when the service's place permission is enabled.
+- `Geocoding transmits the same rounded coordinates used by its cache`: captured
+  requests and SQLite keys share three decimal places, covering both hemispheres,
+  rounding boundaries, normalized negative zero, and a comma-decimal C++ locale.
+- `Rounded geocoding cache avoids repeat disclosure and respects disabled lookup`:
+  different photos in the same rounded cell share a result; disabling place
+  lookup prevents even cached place enrichment.
+- `Geocoding skips images without GPS and falls back to dates while offline`:
+  absent GPS and failed connectivity preserve local date-only filenames.
+- `Image date-only and disabled place settings never geocode or prefix filenames`:
+  the real coordinator honors the existing place toggle with date-category
+  enrichment on/off, renaming on/off, and cached successful/unavailable images.
+  Date-category enrichment still works without adding date/place filename prefixes.
+
+The online-place permission is separate from local date extraction internally;
+the existing date/place checkbox remains the user-facing opt-in. No new setting
+or consent dialog is added. Three-decimal rounding reduces precision and is not
+an anonymity guarantee. Run these cases on native Windows/macOS when changing
+platform-specific metadata or networking behavior.
+
 ## Platform TLS trust
 
 Build `aifs_curl_tls_probe` and `ai_file_sorter_tests`, then run:

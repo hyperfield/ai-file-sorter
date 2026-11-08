@@ -1083,7 +1083,9 @@ AnalysisRunResult AnalysisCoordinator::execute()
         std::unordered_map<std::string, std::string> media_rename_suggestions;
         if (add_image_date_place_prefixes || add_image_date_to_category) {
             image_metadata_service =
-                std::make_unique<ImageRenameMetadataService>(app_.settings.get_config_dir());
+                std::make_unique<ImageRenameMetadataService>(app_.settings.get_config_dir(),
+                    ImageRenameMetadataService::Options{
+                        .allow_online_place_lookup = add_image_date_place_prefixes});
         }
         if (add_audio_video_metadata_to_filename) {
             media_metadata_service = std::make_unique<MediaRenameMetadataService>();
@@ -1144,7 +1146,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
 
         auto enrich_image_suggestion = [&](const FileEntry& entry,
                                             const std::string& raw_suggested_name) {
-            if (raw_suggested_name.empty() || !image_metadata_service) {
+            if (!add_image_date_place_prefixes) {
                 return raw_suggested_name;
             }
             return image_metadata_service->enrich_suggested_name(Utils::utf8_to_path(entry.full_path),
