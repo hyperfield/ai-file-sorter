@@ -308,6 +308,7 @@ TEST_CASE("Category language labels strip postfix interface mnemonics")
     EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
 
     Settings settings;
+    settings.set_language(Language::English);
     REQUIRE(settings.save());
 
     MainApp window(settings, /*development_mode=*/false);

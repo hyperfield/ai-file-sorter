@@ -1365,7 +1365,7 @@ Run: `./build-tests/ai_file_sorter_tests "Category language menu keeps visible e
 
 #### Test case: Category language labels strip postfix interface mnemonics
 Purpose: Keep translated postfix accelerators out of category-language labels reused from the interface-language menu.
-Setup: Install a synthetic Swedish translation and create `MainApp` with headless Qt and isolated settings.
+Setup: Install a synthetic Swedish translation and create `MainApp` with headless Qt and isolated settings explicitly set to English, so a host-language catalog cannot override the synthetic translator.
 Procedure: Retranslate with `瑞典文(&W)` and `瑞典文 (&W)` and inspect the Swedish category-language action.
 Expected outcome: Both category-language labels contain only `瑞典文`, without the postfix accelerator or its preceding whitespace.
 Run: `./build-tests/ai_file_sorter_tests "Category language labels strip postfix interface mnemonics"`
