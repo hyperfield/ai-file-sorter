@@ -24,7 +24,7 @@ These Windows/MSVC precompiled-runtime tests require staged CPU and Vulkan
 payloads; launcher cases skip for direct-executable packages. No model or GPU is
 required. They do not test installation or MSIX activation.
 
-## Debian packaging compatibility
+## Linux packaging compatibility
 
 Run `python3 -m unittest discover -s tests/packaging -v`.
 `tests/packaging/test_deb_dependencies.py` covers numeric ABI version ordering,
@@ -32,6 +32,11 @@ the separation of imported versions from exported definitions, rejection of
 the published GLIBC 2.43 runtime requirements on Ubuntu 24.04, newer Qt/C++ ABI
 rejection, compatible payloads, and optional CUDA toolkit/driver dependencies
 without exempting ordinary system libraries.
+
+`tests/packaging/test_rpm_dependencies.py` checks exact bundled SONAME matching,
+versioned dependency forms, RPM spec escaping, retention of ordinary host-library
+requirements, and ELF metadata inspection that ignores misleading filenames and
+symlinks. The ELF inspection case requires GCC and `readelf`.
 
 `tests/packaging/test_run_wrapper.py` generates and executes installed launchers
 against temporary package layouts. It covers packaged CPU/CUDA/Vulkan directory

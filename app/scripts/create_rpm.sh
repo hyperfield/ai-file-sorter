@@ -279,6 +279,9 @@ if [[ "$INCLUDE_CUDA" == "1" ]]; then
 fi
 DESCRIPTION_TEXT+=" The launcher falls back to CPU automatically when GPU backends are unavailable."
 
+# Private libraries do not advertise global Provides, so their SONAME requirements
+# must also be excluded. Ordinary host-library requirements remain generated.
+BUNDLED_REQUIRES_EXCLUDE="$(python3 "$SCRIPT_DIR/rpm_dependencies.py" "$PRECOMPILED_DST")"
 OPTIONAL_REQUIRES_EXCLUDE=""
 if [[ "$INCLUDE_CUDA" == "1" && "$INCLUDE_VULKAN" == "1" ]]; then
     OPTIONAL_REQUIRES_EXCLUDE="%global __requires_exclude_from ^/opt/aifilesorter/lib/precompiled/(cuda|vulkan)(/.*)?$"
@@ -294,6 +297,7 @@ cat > "$SPEC_FILE" <<EOF
 %global debug_package %{nil}
 %global _build_id_links none
 %global __provides_exclude_from ^/opt/aifilesorter/lib/precompiled/.*$
+${BUNDLED_REQUIRES_EXCLUDE}
 ${OPTIONAL_REQUIRES_EXCLUDE}
 Name:           aifilesorter
 Version:        ${RPM_VERSION}
