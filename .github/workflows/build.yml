@@ -39,8 +39,8 @@ jobs:
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev libwebp7 zlib1g-dev \
                 gettext glslc libvulkan-dev spirv-headers g++-12 nvidia-cuda-toolkit
 
-          - name: debian-stable
-            image: debian:stable
+          - name: debian-13
+            image: debian:13
             artifact_kind: deb
             install: |
               export DEBIAN_FRONTEND=noninteractive
@@ -49,12 +49,12 @@ jobs:
               apt-get install -y --no-install-recommends \
                 build-essential ca-certificates cmake git make ninja-build openssl patchelf pkg-config python3 \
                 qt6-base-dev qt6-base-dev-tools qt6-l10n-tools qt6-tools-dev qt6-tools-dev-tools \
-                libcurl4-openssl-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
+                libcurl4-gnutls-dev libjsoncpp-dev libsqlite3-dev libssl-dev \
                 libfmt-dev libspdlog-dev libmediainfo-dev libopenblas-dev libwebp7 zlib1g-dev \
                 gettext glslc g++-14 nvidia-cuda-toolkit
 
-          - name: fedora-latest
-            image: fedora:latest
+          - name: fedora-44
+            image: fedora:44
             artifact_kind: rpm
             install: |
               dnf install -y ca-certificates dnf-plugins-core
@@ -174,6 +174,36 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends /tmp/aifs-packages/*.deb
+
+      - name: Verify CPU libraries, launcher, and headless startup
+        shell: bash
+        run: |
+          for library in /opt/aifilesorter/lib/precompiled/cpu/bin/*.so*; do
+            /lib64/ld-linux-x86-64.so.2 --list "$library"
+          done
+          aifilesorter --cuda=off --vulkan=off --self-test
+          aifilesorter --cuda=off --vulkan=off --headless-help
+
+  verify-fedora-package:
+    name: Install and start package on Fedora 44
+    needs: build-linux
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    env:
+      QT_QPA_PLATFORM: offscreen
+      AI_FILE_SORTER_GPU_BACKEND: cpu
+    steps:
+      - name: Download Fedora package
+        uses: actions/download-artifact@v4
+        with:
+          name: aifilesorter-linux-fedora-44
+          path: /tmp/aifs-packages
+
+      - name: Install with runtime dependencies only
+        shell: bash
+        run: dnf install -y --setopt=install_weak_deps=False /tmp/aifs-packages/*.rpm
 
       - name: Verify CPU libraries, launcher, and headless startup
         shell: bash

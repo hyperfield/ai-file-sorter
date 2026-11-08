@@ -152,7 +152,7 @@ These Windows/MSVC precompiled-runtime tests require staged CPU and Vulkan
 payloads; launcher cases skip for direct-executable packages. No model or GPU is
 required. They do not test installation or application activation.
 
-## Debian packaging compatibility
+## Linux packaging compatibility
 
 Run `python3 -m unittest discover -s tests/packaging -v`.
 `tests/packaging/test_deb_dependencies.py` covers numeric ABI version ordering,
@@ -160,6 +160,11 @@ the separation of imported versions from exported definitions, rejection of
 the published GLIBC 2.43 runtime requirements on Ubuntu 24.04, newer Qt/C++ ABI
 rejection, compatible payloads, and optional CUDA toolkit/driver dependencies
 without exempting ordinary system libraries.
+
+`tests/packaging/test_rpm_dependencies.py` checks exact bundled SONAME matching,
+versioned dependency forms, RPM spec escaping, retention of ordinary host-library
+requirements, and ELF metadata inspection that ignores misleading filenames and
+symlinks. The ELF inspection case requires GCC and `readelf`.
 
 `tests/packaging/test_run_wrapper.py` generates and executes installed launchers
 against temporary package layouts. It covers packaged CPU/CUDA/Vulkan directory
@@ -174,6 +179,10 @@ system loader against every bundled CPU shared library and runs the installed
 Both commands pass `--cuda=off --vulkan=off` to the installed launcher to force CPU mode.
 This verifies installation, CPU library dependencies, the launcher, dynamic
 linking, and deterministic startup. It does not test GPU hardware or model inference.
+
+The `verify-fedora-package` job performs the equivalent clean installation and CPU
+startup checks in `fedora:44`, using DNF without bypassing dependency checks.
+This also rejects RPM metadata that requires private bundled libraries externally.
 
 ## Visual input context budgets
 
