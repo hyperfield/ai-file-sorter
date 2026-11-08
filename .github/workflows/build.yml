@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
   workflow_dispatch:
 
 permissions:
@@ -71,15 +71,17 @@ jobs:
 
           - name: arch-latest
             image: archlinux:latest
-            artifact_kind: tar
+            artifact_kind: arch
             install: |
+              pacman-key --init
+              pacman-key --populate archlinux
               pacman -Sy --noconfirm archlinux-keyring
               pacman -Syu --noconfirm
               pacman -S --noconfirm --needed \
-                base-devel ca-certificates cmake git ninja patchelf pkgconf python zstd \
+                base-devel ca-certificates cmake desktop-file-utils git libarchive ninja patchelf pkgconf python zstd \
                 qt6-base qt6-tools curl jsoncpp sqlite openssl \
-                fmt spdlog libmediainfo openblas zlib gettext \
-                shaderc cuda gcc15
+                fmt spdlog libmediainfo openblas libwebp zlib gettext \
+                shaderc spirv-headers vulkan-headers vulkan-icd-loader cuda gcc15
     defaults:
       run:
         shell: bash
@@ -109,7 +111,7 @@ jobs:
           pkg-config --modversion libmediainfo
           pkg-config --modversion openblas || pkg-config --modversion openblas64
 
-      - name: Check Debian dependency handling
+      - name: Check Linux packaging
         run: python3 -m unittest discover -s tests/packaging -v
 
       - name: Build llama runtime variants
@@ -136,13 +138,9 @@ jobs:
               ./app/scripts/create_rpm.sh --include-all
               cp dist/aifilesorter_rpm/final/*.rpm dist/ci-artifacts/
               ;;
-            tar)
-              tar --zstd -cf "dist/ci-artifacts/aifilesorter-${{ matrix.name }}.tar.zst" \
-                app/bin \
-                app/lib/precompiled \
-                app/lib/ggml \
-                LICENSE \
-                README.md
+            arch)
+              ./app/scripts/package_arch.sh --include-all
+              cp dist/aifilesorter_arch/final/*.pkg.tar.zst dist/ci-artifacts/
               ;;
           esac
 
@@ -215,6 +213,56 @@ jobs:
           done
           aifilesorter --cuda=off --vulkan=off --self-test
           aifilesorter --cuda=off --vulkan=off --headless-help
+
+  verify-arch-package:
+    name: Install and start package on Arch Linux
+    needs: build-linux
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      AI_FILE_SORTER_GPU_BACKEND: cpu
+      OPENBLAS_NUM_THREADS: 1
+    steps:
+      - name: Download Arch package
+        uses: actions/download-artifact@v4
+        with:
+          name: aifilesorter-linux-arch-latest
+          path: /tmp/aifs-packages
+
+      - name: Install runtime dependencies and package
+        shell: bash
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed desktop-file-utils libarchive
+          package=(/tmp/aifs-packages/*.pkg.tar.zst)
+          test "${#package[@]}" -eq 1
+          test -f "${package[0]}"
+          mapfile -t dependencies < <(bsdtar -xOf "${package[0]}" .PKGINFO | sed -n 's/^depend = //p')
+          pacman -S --noconfirm --needed "${dependencies[@]}"
+          pacman -U --noconfirm "${package[@]}"
+
+      - name: Verify desktop integration, CPU libraries, and startup
+        shell: bash
+        run: |
+          pacman -Qkk aifilesorter
+          desktop-file-validate /usr/share/applications/aifilesorter.desktop
+          test -f /usr/share/icons/hicolor/index.theme
+          for library in /opt/aifilesorter/lib/precompiled/cpu/bin/*.so*; do
+            /lib64/ld-linux-x86-64.so.2 --list "$library"
+          done
+          aifilesorter --cuda=off --vulkan=off --self-test
+          aifilesorter --cuda=off --vulkan=off --headless-help
+          pacman -R --noconfirm aifilesorter
+          test ! -e /usr/share/applications/aifilesorter.desktop
+          test ! -e /usr/share/icons/hicolor/256x256/apps/aifilesorter.png
+          test ! -e /usr/bin/aifilesorter
+          test ! -e /opt/aifilesorter/bin/aifilesorter-bin
 
   build-windows:
     runs-on: windows-latest
