@@ -7,12 +7,33 @@
 #include <QVariant>
 #include <QMenu>
 #include <QMenuBar>
+#include <QStringView>
 #include <QTimer>
 
 namespace {
 
 constexpr const char* kMnemonicTitleProperty = "_aifsMnemonicTitle";
 constexpr const char* kMnemonicLifecycleConnectedProperty = "_aifsMnemonicLifecycleConnected";
+
+qsizetype mnemonic_label_end(const QString& value)
+{
+    constexpr qsizetype kPostfixMnemonicLength = 4; // "(&X)"
+    if (value.size() < kPostfixMnemonicLength) {
+        return value.size();
+    }
+
+    const QStringView postfix = QStringView(value).last(kPostfixMnemonicLength);
+    if (postfix.at(0) != QChar('(') || postfix.at(1) != QChar('&')
+        || postfix.at(2) == QChar('&') || postfix.at(3) != QChar(')')) {
+        return value.size();
+    }
+
+    qsizetype end = value.size() - kPostfixMnemonicLength;
+    while (end > 0 && value.at(end - 1).isSpace()) {
+        --end;
+    }
+    return end;
+}
 
 void apply_title_visibility(QMenu* menu, bool visible)
 {
@@ -80,15 +101,16 @@ QString MenuMnemonicController::mnemonic_title(const QMenu* menu)
 
 QString MenuMnemonicController::strip_mnemonic_markers(const QString& value)
 {
+    const qsizetype end = mnemonic_label_end(value);
     QString result;
-    result.reserve(value.size());
-    for (int i = 0; i < value.size(); ++i) {
+    result.reserve(end);
+    for (qsizetype i = 0; i < end; ++i) {
         const QChar ch = value.at(i);
         if (ch != QChar('&')) {
             result.push_back(ch);
             continue;
         }
-        if (i + 1 < value.size() && value.at(i + 1) == QChar('&')) {
+        if (i + 1 < end && value.at(i + 1) == QChar('&')) {
             result.push_back(QChar('&'));
             ++i;
         }
