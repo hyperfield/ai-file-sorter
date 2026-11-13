@@ -166,9 +166,8 @@
             <translation>Tümünü seç</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>Dosya adı değişikliklerini otomatik onayla</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>Yeniden adlandırma önerilerini otomatik olarak seç</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>Deneme çalıştırma (yalnızca önizleme, dosyaları taşıma)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Resim dosyalarını kategorize etme (yalnızca yeniden adlandır)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Resimleri taşımadan yeniden adlandır</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Belge dosyalarını kategorize etme (yalnızca yeniden adlandır)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Belgeleri taşımadan yeniden adlandır</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>Onayla ve işle</translation>
+            <source>Apply changes</source>
+            <translation>Değişiklikleri uygula</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>Kapat</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>Vurgulanan satırları işleme için işaretleyin (Ctrl+Boşluk).</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>Vurgulanmış öğeleri seçin, böylece değişiklikleri uygulayabilirsiniz (Ctrl+Space).</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>Dosya adı değişikliği olan satırları önceden seç. Ayrıca kategorize eden satırlar için kategori otomatik onayı da gerekir.</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>Geçerli yeniden adlandırma önerilerini otomatik olarak seçin. Aynı zamanda sıralama gerektiren öğeler yalnızca otomatik sıralama seçimi açıksa seçilir. %1'i seçmeden önce seçimlerinizi gözden geçirin.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>Kategorizasyonu otomatik onayla</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>Sıralama önerilerini otomatik olarak seç</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>Geçerli kategorizasyonu olan satırları önceden seç. Ayrıca yeniden adlandıran satırlar için dosya adı otomatik onayı da gerekir.</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>Geçerli sıralama önerilerini otomatik olarak seçin. Aynı zamanda yeniden adlandırma gerektiren öğeler yalnızca otomatik yeniden adlandırma seçimi açıksa seçilir. %1'i seçmeden önce seçimlerinizi gözden geçirin.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>Kategori/alt kategori değerlerini vurgulanan satırlara uygulayın.</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>Tüm vurgulanmış öğelerin kategori ve alt kategorisini değiştirin.</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>Seçilmedi</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>Deneme çalıştırma önizlemesi</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>Belge analizi</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>Kategorizasyon</translation>
+            <source>Finding destinations</source>
+            <translation>Hedefler aranıyor</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3590,9 +3584,8 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Analiz edilen klasörü kullan</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>Analiz edilen klasörü hedef kök olarak kullan.</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>Analiz ettiğiniz klasör içinde sırala.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3621,9 +3614,8 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Her kategori içinde alt klasörler oluştur.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>Kategorilendirme türü</translation>
+            <source>Sorting style</source>
+            <translation>Sıralama stili</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3696,9 +3688,8 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Bu çalışma için kullanılacak beyaz listeyi seç.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>Dosyaları kategorilendir</translation>
+            <source>Sort files</source>
+            <translation>Dosyaları sırala</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3706,9 +3697,8 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Dosyaları kategorizasyona dahil et.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>Dizinleri kategorilendir</translation>
+            <source>Sort folders</source>
+            <translation>Klasörleri sırala</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3786,9 +3776,8 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Resim dosyaları için önerilen dosya adlarını göster.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Resim dosyalarını kategorize etme (yalnızca yeniden adlandır)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Resimleri taşımadan yeniden adlandır</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3831,9 +3820,8 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <translation>Belge dosyaları için önerilen dosya adlarını göster.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Belge dosyalarını kategorize etme (yalnızca yeniden adlandır)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Belgeleri taşımadan yeniden adlandır</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3936,6 +3924,134 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
             <location filename="../../lib/UiTranslator.cpp" line="86"></location>
             <source>&amp;Hindi</source>
             <translation>&amp;Hintçe</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>Sıralanacak öğeleri, dosyaların nasıl gruplanacağını ve resimler ile belgelerin nasıl adlandırılacağını seçin.</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>Sıralamak istediğiniz dosyaların bulunduğu klasörü seçin.</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>Sıralanan dosya ve klasörlerin nereye gitmesi gerektiğini seçin. Analiz ettiğiniz klasör içinde sıralamak için bunu boş bırakın. Yalnızca yeniden adlandırma dosyaları taşımaz.</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>Kategori klasörleri içinde alt klasörler oluşturun, örn. Belgeler &gt; Faturalar. Yalnızca kategori klasörleri oluşturulurken uygulanır.</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>Daha ayrıntılı kategoriler için Daha ayrıntılı'i, benzer öğeleri aynı kategori adları altında gruplamak için Daha tutarlı'i seçin.</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>Benzer öğeler farklı kategorilere ayrılsa bile, her öğeyi tanımlamak için daha ayrıntılı kategori adları kullanın.</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>Klasörlerinizin daha tutarlı olması için benzer öğeleri aynı kategori adları altında gruplayın.</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>Yeni kategori klasörleri oluşturun veya seçtiğiniz hedefteki mevcut klasörlere sırala.</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>Mevcut klasörlere sıralama yaparken hiçbir klasör uygun değilse yeni bir klasör öner. Yeni klasörler yalnızca değişiklikleri uyguladığınızda oluşturulur.</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>Başlangıç klasör yapısını ve nerede oluşturulacağını seçin. Ardından dosyaları bu klasörlere sıralayabilirsiniz.</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>Kategori klasörlerine sıralama yaparken yalnızca seçtiğiniz bir listeden kategori ve alt kategori adlarını kullanın.</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>Beyaz liste etkin olduğunda kullanılacak izinli kategori adları listesini seçin.</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>Bireysel dosyaları uygun klasörlere sıralayın. Önerilen taşımaları uygulamadan önce inceleyebilirsiniz.</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>İçeriklerini birlikte tutarak tüm klasörleri sırala.</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>Sıralanacak dosya ve klasörleri bulurken alt klasörlerin içine de bak.</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>Resimlerinizin ne gösterdiğini anlamak için bir AI modeli kullanın. Yerel modeller bilgisayarınızda çalışır; API bağlantıları resim içeriğini seçili sunucuya gönderir.</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>Seçiminizde yalnızca desteklenen resim dosyalarıyla çalışın.</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Bir resmin oluşturulma tarihini, tarih mevcutsa kategori klasörü adında dahil edin. Mevcut klasörler adlarını korur.</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>Mümkün olduğunda yıl, sanatçı, başlık veya albüm gibi ayrıntıları kullanarak müzik ve video dosyaları için daha anlaşılır adlar önerin.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>Desteklenen resim dosyaları için daha anlaşılır adlar önerin. Önerileri uygulamadan önce inceleyebilirsiniz.</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>Resimleri mevcut klasörlerinde tutun ve yalnızca yeni adlar önerin. Resim yeniden adlandırma ayrıca etkin olmalıdır.</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>Desteklenen belgelerin içindeki metni kullanarak uygun klasörler ve daha anlaşılır adlar önerin. API bağlantıları çıkarılan belge metnini seçili sunucuya gönderir.</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>Seçiminizde yalnızca desteklenen belge dosyalarıyla çalışın.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>Desteklenen belge dosyaları için daha anlaşılır adlar önerin. Önerileri uygulamadan önce inceleyebilirsiniz.</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>Belgeleri mevcut klasörlerinde tutun ve yalnızca yeni adlar önerin. Belge yeniden adlandırma ayrıca etkin olmalıdır.</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Tarih mevcutsa bir belgenin oluşturulma tarihini kategori klasörü adına ekleyin. Var olan klasörler adlarını korur.</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>Dosyaları sıralamak ve yeniden adlandırmak için kullanılacak AI modellerini seçin. Yerel modeller bilgisayarınızda çalışır; API bağlantıları analiz verilerini seçili sunucuya gönderir.</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>Kategori klasörlerine sıralama yaparken kullanılacak kategori adı listeleri oluşturun veya düzenleyin.</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>Onayladığınız değişikliklerden öğrenilen sıralama tercihlerini unutun. Dosyalarınız yerinde kalır ve kaydedilmiş analiz sonuçları korunur. Önce onayınız istenecektir.</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>Önceki analizlerden kaydedilmiş sonuçları gözden geçirin veya temizleyin. Bu işlem dosyalarınızı silmez.</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>Uygulamanın pencereleri ve menüleri için dili seçin.</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>Kategori klasör adları ve önerilen dosya adları için dili seçin. Mevcut klasörler adlarını korur.</translation>
         </message>
     </context>
     <context>
@@ -4181,6 +4297,25 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
         <message>
             <source>Document filename word limit</source>
             <translation>Belge dosya adı sözcük sınırı</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Önerilen resim dosya adlarındaki açıklayıcı kelime sayısının maksimumunu ayarlayın (3 ila 6). Eklenen tarihler ve diğer ayrıntılar tam adı daha uzun yapabilir.</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Önerilen belge dosya adlarındaki açıklayıcı kelime sayısının maksimumunu ayarlayın (3 ila 6). Eklenen tarihler ve diğer ayrıntılar tam adı daha uzun yapabilir.</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>Önceki sıralama önerilerini kaydeder, böylece dosya ve klasörler bir dahaki sefer daha hızlı analiz edilir.</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>Fotoğraf konumları için bulunan yer adlarını kaydeder, böylece uygulama bunları tekrar çevrimiçi arama yapmadan kullanabilir.</translation>
         </message>
     </context>
 </TS>

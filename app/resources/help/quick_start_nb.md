@@ -103,9 +103,11 @@ Aktiver **Dry run (preview only, do not move files)** for å forhåndsvise planl
 
 ## 6. Bruk endringene
 
-Velg radene du vil behandle, og klikk **Confirm and Process**. Appen oppretter nødvendige mapper og utfører de valgte flyttingene eller navneendringene.
+Velg radene du vil behandle, og klikk **Bruk endringer**. Appen oppretter nødvendige mapper og utfører de valgte flyttingene eller navneendringene.
 
-**Auto-approve filename changes** og **Auto-approve categorization** forhåndsvelger aktuelle rader. Du må fortsatt bekrefte før endringene utføres.
+**Forhåndsvisning av tørrkjøring**: Aktiver **Dry run (preview only, do not move files)** for å forhåndsvise planlagte flyttinger og navneendringer uten å utføre dem.
+
+**Velg omdøpningsforslag automatisk** og **Velg sorteringsforslag automatisk** forhåndsvelger aktuelle rader. Du må fortsatt bekrefte før endringene utføres.
 
 ## 7. Angre siste kjoring
 

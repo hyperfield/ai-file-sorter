@@ -166,9 +166,8 @@
             <translation>Valitse kaikki</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>Hyväksy tiedostonimien muutokset automaattisesti</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>Valitse nimeämisehdotukset automaattisesti</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>Kuivakäynti (vain esikatselu, älä siirrä tiedostoja)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Älä luokittele kuvatiedostoja (vain nimeä uudelleen)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Nimeä kuvat uudelleen siirtämättä</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Älä luokittele asiakirjatiedostoja (vain nimeä uudelleen)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Nimeä asiakirjat uudelleen siirtämättä</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>Vahvista ja käsittele</translation>
+            <source>Apply changes</source>
+            <translation>Käytä muutoksia</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>Sulje</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>Merkitse korostetut rivit käsittelyä varten (Ctrl+välilyönti).</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>Valitse korostetut kohteet, jotta niiden muutokset voidaan ottaa käyttöön (Ctrl+Space).</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>Esivalitse rivit, joissa on tiedostonimen muutoksia. Rivit, jotka myös luokitellaan, vaativat myös luokittelun automaattisen hyväksynnän.</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>Valitse kelvolliset nimeämisehdotukset automaattisesti. Kohteet, jotka tarvitsevat myös lajittelua, valitaan vain, kun lajitteluehdotusten automaattinen valinta on käytössä. Tarkista valintasi ennen kuin valitset %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>Hyväksy luokittelu automaattisesti</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>Valitse lajitteluehdotukset automaattisesti</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>Esivalitse rivit, joissa on kelvollinen luokittelu. Rivit, jotka myös nimetään uudelleen, vaativat myös tiedostonimen automaattisen hyväksynnän.</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>Valitse kelvolliset lajitteluehdotukset automaattisesti. Kohteet, jotka tarvitsevat myös nimeämistä, valitaan vain, kun nimeämisehdotusten automaattinen valinta on käytössä. Tarkista valintasi ennen kuin valitset %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>Käytä luokka-/alaluokka-arvoja korostetuille riveille.</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>Muuta kaikkien korostettujen kohteiden kategoriaa ja alakategoriaa.</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>Ei valittu</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>Kuivakäynnin esikatselu</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>Asiakirja-analyysi</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>Luokittelu</translation>
+            <source>Finding destinations</source>
+            <translation>Etsitään kohdekansioita</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3558,9 +3552,8 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Käytä analysoitavaa kansiota</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>Käytä analysoitavaa kansiota kohdejuurena.</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>Lajittele tarkastelemassasi kansiossa.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3589,9 +3582,8 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Luo alaluokkakansioita jokaiseen luokkaan.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>Luokittelutyyppi</translation>
+            <source>Sorting style</source>
+            <translation>Lajittelutapa</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3664,9 +3656,8 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Valitse tässä ajossa käytetty sallittujen luettelo.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>Luokittele tiedostot</translation>
+            <source>Sort files</source>
+            <translation>Lajittele tiedostot</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3674,9 +3665,8 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Sisällytä tiedostot luokituspassiin.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>Luokittele kansiot</translation>
+            <source>Sort folders</source>
+            <translation>Lajittele kansiot</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3754,9 +3744,8 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Näytä ehdotetut tiedostonimet kuvatiedostoille.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Älä luokittele kuvatiedostoja (vain nimeä uudelleen)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Nimeä kuvat uudelleen siirtämättä</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3799,9 +3788,8 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <translation>Näytä ehdotetut tiedostonimet asiakirjatiedostoille.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Älä luokittele asiakirjatiedostoja (vain nimeä uudelleen)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Nimeä asiakirjat uudelleen siirtämättä</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3934,6 +3922,134 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
             <location filename="../../lib/UiTranslator.cpp" line="89"></location>
             <source>&amp;Simplified Chinese</source>
             <translation>&amp;yksinkertaistettu kiina</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>Valitse, mitä lajitellaan, miten tiedostot ryhmitellään ja miten kuvat ja asiakirjat nimetään.</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>Valitse kansio, joka sisältää lajiteltavat tiedostot.</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>Valitse, minne lajitellut tiedostot ja kansiot sijoitetaan. Jätä tyhjäksi lajitellaksesi käsillä olevaan kansioon. Pelkkä uudelleennimeäminen ei siirrä tiedostoja.</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>Luo alakansioita kategoria-kansioiden sisään, esimerkiksi Asiakirjat &gt; Laskut. Voimassa vain, kun luodaan kategoria-kansioita.</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>Valitse 'Hienostuneempi' yksityiskohtaisemmille kategorioille tai 'Yhtenäisempi' ryhmitelläksesi samankaltaiset kohteet samoihin kategorianimiin.</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>Käytä yksityiskohtaisempia kategorianimiä kuvaamaan kutakin kohdetta, vaikka samanlaiset kohteet päätyisivät eri kategorioihin.</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>Ryhmää samanlaiset kohteet samoihin kategorianimiin, jotta kansiosi pysyvät yhtenäisempinä.</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>Luo uusia kategoria-kansioita tai lajittele tiedostot valitsemasi kohteen olemassa oleviin kansioihin.</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>Kun lajitellaan olemassa oleviin kansioihin, ehdota uutta kansiota, jos mikään ei sovi. Uudet kansiot luodaan vasta, kun vahvistat muutokset.</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>Valitse aloituskansiorakenne ja missä se luodaan. Voit sen jälkeen lajitella tiedostot näihin kansioihin.</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>Käytä vain valitsemastasi listasta löytyviä kategoria- ja alakategorianimiä. Tämä koskee lajittelua kategoriakansioihin.</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>Valitse sallittujen kategorianimien luettelo käytettäväksi, kun valkoinen lista on käytössä.</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>Lajittele yksittäiset tiedostot sopiviin kansioihin. Voit tarkistaa ehdotetut siirrot ennen niiden soveltamista.</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>Lajittele kokonaisia kansioita pitäen niiden sisältö yhdessä.</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>Etsi lajiteltavia tiedostoja ja kansioita myös alikansioista.</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>Käytä tekoälymallia ymmärtämään, mitä kuvissasi on. Paikalliset mallit toimivat tietokoneellasi; API-yhteydet lähettävät kuvien sisällön valitulle palvelimelle.</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>Käsittele vain valinnassasi olevia tuettuja kuvatiedostoja.</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Sisällytä kuvan luontipäivämäärä sen kategoriakansion nimeen, kun päiväys on saatavilla. Olemassa olevat kansiot säilyttävät nimensä.</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>Käytä tietoja, kuten vuotta, artistia, nimeä tai albumia ehdottamaan selkeämpiä nimiä musiikki- ja videotiedostoille, jos saatavilla.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>Ehdota selkeämpiä nimiä tuetuille kuvatiedostoille. Voit tarkistaa ehdotukset ennen niiden soveltamista.</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>Pidä kuvat nykyisissä kansioissaan ja ehdota vain uusia nimiä. Kuvien uudelleennimeäminen on myös otettava käyttöön.</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>Käytä tuettujen asiakirjojen sisällä olevaa tekstiä ehdottamaan sopivia kansioita ja selkeämpiä nimiä. API-yhteydet lähettävät poimitun asiakirjatekstin valitulle palvelimelle.</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>Käsittele vain valinnassasi olevia tuettuja asiakirjatiedostoja.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>Ehdota selkeämpiä nimiä tuetuille asiakirjatiedostoille. Voit tarkistaa ehdotukset ennen niiden soveltamista.</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>Pidä asiakirjat nykyisissä kansioissaan ja ehdota vain uusia nimiä. Asiakirjojen uudelleennimeäminen on myös otettava käyttöön.</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Lisää asiakirjan luontipäivämäärä sen kategorian kansion nimeen, jos päivämäärä on saatavilla. Olemassa olevat kansiot säilyttävät nimensä.</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>Valitse tekoälymallit, joita käytetään tiedostojen lajitteluun ja uudelleennimeämiseen. Paikalliset mallit toimivat tietokoneellasi; API-yhteydet lähettävät analyysitiedot valitulle palvelimelle.</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>Luo tai muokkaa kategoriannimilistoja, joita käytetään lajiteltaessa kategoriakansioihin.</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>Unohda hyväksymistäsi muutoksista opitut lajitteluasetukset. Tiedostosi pysyvät paikoillaan ja tallennetut analyysitulokset säilytetään. Sinua pyydetään vahvistamaan ensin.</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>Tarkastele tai tyhjennä aiemmista analyyseistä tallennetut tulokset. Tämä ei poista tiedostojasi.</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>Valitse sovelluksen ikkunoiden ja valikoiden kieli.</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>Valitse kieli kategoria-kansioiden nimille ja ehdotetuille tiedostonimille. Olemassa olevat kansiot säilyttävät nimensä.</translation>
         </message>
     </context>
     <context>
@@ -4179,6 +4295,25 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
         <message>
             <source>Document filename word limit</source>
             <translation>Asiakirjatiedostonimien sanaraja</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Aseta enimmäismäärä kuvaavia sanoja ehdotettuihin kuvatiedostonimiin (3–6). Lisätyt päivämäärät ja muut tiedot voivat pidentää koko nimeä.</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Aseta enimmäismäärä kuvaavia sanoja ehdotettuihin asiakirjatiedostonimiin (3–6). Lisätyt päivämäärät ja muut tiedot voivat pidentää koko nimeä.</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>Tallentaa aiemmat lajitteluehdotukset, jotta tiedostot ja kansiot voidaan analysoida nopeammin seuraavalla kerralla.</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>Tallentaa valokuvien sijainneista löytyneet paikanimet, jotta sovellus voi käyttää niitä uudelleen ilman uutta verkkohakua.</translation>
         </message>
     </context>
 </TS>

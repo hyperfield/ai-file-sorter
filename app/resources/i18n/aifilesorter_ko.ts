@@ -166,9 +166,8 @@
             <translation>모두 선택</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>파일 이름 변경 자동 승인</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>이름 바꾸기 제안 자동 선택</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>드라이 런(미리보기만, 파일 이동 안 함)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>이미지 파일 분류 안 함(이름만 변경)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>사진 이동 없이 이름 바꾸기</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>문서 파일 분류 안 함(이름만 변경)</translation>
+            <source>Rename documents without moving</source>
+            <translation>문서 이동 없이 이름 바꾸기</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>확인 및 처리</translation>
+            <source>Apply changes</source>
+            <translation>변경 사항 적용</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>닫기</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>강조된 행을 처리 대상으로 표시합니다(Ctrl+Space).</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>변경을 적용하려면 강조된 항목을 선택하세요 (Ctrl+Space).</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>파일 이름 변경이 있는 행을 미리 선택합니다. 분류도 수행하는 행은 분류 자동 승인도 필요합니다.</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>유효한 이름 바꾸기 제안을 자동으로 선택합니다. 분류가 필요한 항목은 자동 분류 제안 선택이 켜져 있을 때만 선택됩니다. %1을 선택하기 전에 선택 항목을 검토하세요.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>분류 자동 승인</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>분류 제안 자동 선택</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>유효한 분류가 있는 행을 미리 선택합니다. 이름도 변경하는 행은 파일 이름 자동 승인도 필요합니다.</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>유효한 분류 제안을 자동으로 선택합니다. 이름 바꾸기가 필요한 항목은 자동 이름 바꾸기 제안 선택이 켜져 있을 때만 선택됩니다. %1을 선택하기 전에 선택 항목을 검토하세요.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>카테고리/하위 카테고리 값을 강조된 행에 적용합니다.</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>강조된 모든 항목의 카테고리와 하위 카테고리를 변경합니다.</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>선택되지 않음</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>드라이 런 미리보기</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>문서 분석</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>분류</translation>
+            <source>Finding destinations</source>
+            <translation>대상 찾는 중</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3590,9 +3584,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>분석한 폴더 사용</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>분석 중인 폴더를 대상 루트로 사용합니다.</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>분석 중인 폴더 안에서 정리합니다.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3621,9 +3614,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>각 카테고리 안에 하위 카테고리 폴더를 생성합니다.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>분류 유형</translation>
+            <source>Sorting style</source>
+            <translation>정렬 방식</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3696,9 +3688,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>이번 실행에 사용할 화이트리스트를 선택합니다.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>파일 분류</translation>
+            <source>Sort files</source>
+            <translation>파일 정렬</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3706,9 +3697,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>분류 단계에 파일을 포함합니다.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>폴더 분류</translation>
+            <source>Sort folders</source>
+            <translation>폴더 정렬</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3786,9 +3776,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>이미지 파일에 대한 추천 파일명을 표시합니다.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>이미지 파일 분류 안 함(이름만 변경)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>사진 이동 없이 이름 바꾸기</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3831,9 +3820,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>문서 파일에 대한 추천 파일명을 표시합니다.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>문서 파일 분류 안 함(이름만 변경)</translation>
+            <source>Rename documents without moving</source>
+            <translation>문서 이동 없이 이름 바꾸기</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3936,6 +3924,134 @@ Please update to continue. If you choose to quit, the application will close.</s
             <location filename="../../lib/UiTranslator.cpp" line="86"></location>
             <source>&amp;Hindi</source>
             <translation>&amp;힌디어</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>정리할 항목, 파일을 그룹화하는 방법, 사진 및 문서를 이름 짓는 방법을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>정리하려는 파일이 들어 있는 폴더를 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>정리된 파일과 폴더의 저장 위치를 선택하세요. 이 항목을 비워두면 분석 중인 폴더 안에서 정리합니다. 이름만 바꾼다고 파일이 이동되지는 않습니다.</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>카테고리 폴더 내에 하위 폴더를 만듭니다(예: 문서 &gt; 청구서). 카테고리 폴더를 생성할 때만 적용됩니다.</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>자세한 카테고리를 원하면 더 세분화를, 유사한 항목을 같은 카테고리 이름으로 묶으려면 더 일관적를 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>유사한 항목이 다른 카테고리에 들어가더라도 각 항목을 더 잘 설명할 수 있도록 상세한 카테고리 이름을 사용하세요.</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>유사한 항목을 동일한 카테고리 이름으로 그룹화하여 폴더 구조를 더 일관되게 유지하세요.</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>새 카테고리 폴더를 생성하거나, 선택한 대상 위치의 기존 폴더로 분류합니다.</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>기존 폴더로 분류할 때 적합한 폴더가 없으면 새 폴더를 제안합니다. 새 폴더는 변경 사항을 적용할 때만 생성됩니다.</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>초기 폴더 구조와 생성 위치를 선택하세요. 그런 다음 파일을 해당 폴더들로 분류할 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>카테고리 폴더로 정리할 때 선택한 목록에 있는 카테고리 및 하위 카테고리 이름만 사용합니다.</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>화이트리스트가 활성화된 경우 사용할 허용 카테고리 이름 목록을 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>각 파일을 적절한 폴더로 분류합니다. 적용하기 전에 제안된 이동을 검토할 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>폴더 전체를 내용물을 함께 유지한 채로 정리합니다.</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>정리할 파일과 폴더를 찾을 때 하위 폴더도 함께 검사합니다.</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>AI 모델을 사용해 사진에 무엇이 있는지 파악합니다. 로컬 모델은 사용자의 컴퓨터에서 실행되고, API 연결은 사진 내용을 선택한 서버로 전송합니다.</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>선택 항목에서 지원되는 사진 파일만 작업합니다.</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>사진의 생성 날짜가 있을 경우 카테고리 폴더 이름에 포함합니다. 기존 폴더의 이름은 유지됩니다.</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>연도, 아티스트, 제목, 앨범 등의 세부정보를 사용하여 가능할 때 음악 및 동영상 파일의 더 명확한 이름을 제안합니다.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>지원되는 사진 파일에 대해 더 명확한 파일명을 제안합니다. 적용하기 전에 제안을 검토할 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>사진을 현재 폴더에 유지하고 이름만 제안합니다. 사진 이름 바꾸기도 켜져 있어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>지원되는 문서 내부의 텍스트를 사용하여 적합한 폴더와 더 명확한 이름을 제안합니다. API 연결은 추출한 문서 텍스트를 선택한 서버로 전송합니다.</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>선택 항목에서 지원되는 문서 파일만 작업합니다.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>지원되는 문서 파일에 대해 더 명확한 파일명을 제안합니다. 적용하기 전에 제안을 검토할 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>문서를 현재 폴더에 유지하고 이름만 제안합니다. 문서 이름 바꾸기도 켜져 있어야 합니다.</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>날짜가 있을 경우 문서의 생성 날짜를 카테고리 폴더 이름에 포함합니다. 기존 폴더의 이름은 유지됩니다.</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>파일 정리 및 이름 변경에 사용할 AI 모델을 선택하세요. 로컬 모델은 사용자 컴퓨터에서 실행되며, API 연결은 분석 데이터를 선택한 서버로 전송합니다.</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>카테고리 폴더로 정리할 때 사용할 카테고리 이름 목록을 생성하거나 편집하세요.</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>승인한 변경 사항으로부터 학습한 정리 선호도를 초기화합니다. 파일은 제자리에 유지되며 저장된 분석 결과는 보존됩니다. 먼저 확인을 요청합니다.</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>이전 분석에서 저장된 결과를 검토하거나 삭제합니다. 이 작업은 파일을 삭제하지 않습니다.</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>앱의 창과 메뉴에 사용할 언어를 선택하세요.</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>카테고리 폴더 이름과 제안된 파일 이름에 사용할 언어를 선택하세요. 기존 폴더 이름은 유지됩니다.</translation>
         </message>
     </context>
     <context>
@@ -4181,6 +4297,25 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Document filename word limit</source>
             <translation>문서 파일 이름 단어 수 제한</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>제안된 사진 파일 이름에 들어갈 설명 단어의 최대 개수를 설정합니다(3~6). 날짜 등 추가 정보로 인해 전체 이름은 더 길어질 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>제안된 문서 파일 이름에 들어갈 설명 단어의 최대 개수를 설정합니다(3~6). 날짜 등 추가 정보로 인해 전체 이름은 더 길어질 수 있습니다.</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>이전 정렬 제안을 저장하여 다음 번에 파일과 폴더를 더 빠르게 분석할 수 있습니다.</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>사진 위치에서 찾은 장소 이름을 저장해 앱이 온라인 조회 없이 재사용할 수 있게 합니다.</translation>
         </message>
     </context>
 </TS>

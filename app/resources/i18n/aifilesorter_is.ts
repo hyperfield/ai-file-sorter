@@ -166,9 +166,8 @@
             <translation>Veldu allt</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>Samþykkja breytingar á skráarheitum sjálfkrafa</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>Velja tillögur um endurnefningu sjálfkrafa</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>Þurrhlaup (aðeins forskoðun, ekki færa skrár)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Ekki flokka myndaskrár (aðeins endurnefna)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Endurnefna myndir án flutnings</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Ekki flokka skjalaskrár (aðeins endurnefna)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Endurnefna skjöl án flutnings</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>Staðfesta og vinna úr</translation>
+            <source>Apply changes</source>
+            <translation>Beita breytingum</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>Loka</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>Merktu auðkenndar línur til vinnslu (Ctrl+Space).</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>Veldu markuðu atriðin svo hægt sé að beita breytingunum (Ctrl+Space).</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>Forvelja línur með breytingum á skráarheitum. Línur sem einnig flokka þurfa einnig sjálfvirkt samþykki flokkunar.</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>Veldu gildar tillögur um endurnefningu sjálfkrafa. Atriði sem einnig þurfa flokkun eru aðeins valin þegar sjálfvirkt val á flokkun er virkt. Farðu yfir valin atriði áður en þú velur %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>Samþykkja flokkun sjálfkrafa</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>Velja tillögur um flokkun sjálfkrafa</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>Forvelja línur með gildri flokkun. Línur sem einnig endurnefna þurfa einnig sjálfvirkt samþykki skráarheita.</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>Veldu gildar tillögur um flokkun sjálfkrafa. Atriði sem einnig þurfa endurnefningu eru aðeins valin þegar sjálfvirkt val á endurnefningu er virkt. Farðu yfir valin atriði áður en þú velur %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>Notaðu flokka-/undirflokksgildi á auðkenndar línur.</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>Breyttu flokki og undirflokki fyrir öll markuðu atriðin.</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>Ekki valið</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>Forskoðun á þurrhlaupi</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>Skjalagreining</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>Flokkun</translation>
+            <source>Finding destinations</source>
+            <translation>Finna áfangastaði</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3558,9 +3552,8 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Nota greindu möppuna</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>Nota möppuna sem verið er að greina sem rót áfangastaðar.</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>Flokkaðu innan möppunnar sem þú ert að greina.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3589,9 +3582,8 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Búðu til undirflokkamöppur innan hvers flokks.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>Tegund flokkunar</translation>
+            <source>Sorting style</source>
+            <translation>Flokkunarstíll</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3664,9 +3656,8 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Veldu hvíta listann sem notaður er fyrir þessa keyrslu.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>Flokkaðu skrár</translation>
+            <source>Sort files</source>
+            <translation>Flokka skrár</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3674,9 +3665,8 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Hafa skrár í flokkunarpassann.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>Flokkaðu möppur</translation>
+            <source>Sort folders</source>
+            <translation>Flokka möppur</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3754,9 +3744,8 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Sýna tillögur að skráarnöfnum fyrir myndaskrár.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Ekki flokka myndaskrár (aðeins endurnefna)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Endurnefna myndir án flutnings</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3799,9 +3788,8 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <translation>Sýna tillögur að skráarnöfnum fyrir skjalaskrár.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Ekki flokka skjalaskrár (aðeins endurnefna)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Endurnefna skjöl án flutnings</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3934,6 +3922,134 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
             <location filename="../../lib/UiTranslator.cpp" line="89"></location>
             <source>&amp;Simplified Chinese</source>
             <translation>&amp;einfölduð kínverska</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>Veldu hvað á að flokka, hvernig skrár eiga að flokkast í hópa og hvernig á að nefna myndir og skjöl.</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>Veldu möppuna sem inniheldur skrárnar sem þú vilt flokka.</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>Veldu hvar flokkaðar skrár og möppur skulu fara. Láttu þetta autt til að flokka innan möppunnar sem þú ert að greina. Að endurnefna eitt og sér flytur ekki skrár.</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>Búðu til undirmöppur innan flokkamappa, til dæmis Skjöl &gt; Reikningar. Gildir aðeins þegar verið er að búa til flokkamöppur.</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>Veldu Nákvæmari fyrir ítarlegri flokka, eða Samkvæmari til að hópa svipuð atriði undir sömu flokksheitum.</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>Notaðu nákvæmari flokksheiti til að lýsa hverju atriði, jafnvel þótt svipuð atriði endi í mismunandi flokkum.</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>Hópaðu svipuð atriði undir sömu flokksheit til að halda möppunum þínum samræmdari.</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>Búðu til nýjar flokkamöppur, eða flokkaðu í núverandi möppur á valinni staðsetningu.</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>Þegar flokkað er í núverandi möppur, stingið upp á nýrri möppu ef engin hentar. Nýjar möppur eru aðeins búnar til þegar þú samþykkir breytingarnar.</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>Veldu upphaflega möppuskipan og staðsetningu hennar. Þú getur síðan flokkað skrár í þessar möppur.</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>Notaðu aðeins nöfn flokka og undirkafla úr lista sem þú velur. Þetta á við þegar flokkað er í flokkamöppur.</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>Veldu lista yfir leyfð flokkunarheit sem á að nota þegar hvítlisti er virkur.</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>Flokkaðu einstakar skrár í viðeigandi möppur. Þú getur skoðað tillögurnar áður en þú beitir þeim.</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>Flokkaðu heilar möppur og haltu innihaldinu saman.</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>Skoða einnig undirmöppur þegar leitað er að skrám og möppum til flokkunar.</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>Notaðu gervigreindarlíkan til að skilja hvað myndirnar sýna. Staðbundin líkön keyra á tölvunni; API-tengingar senda myndagögn á valda þjóninn.</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>Vinnðu aðeins með studdar myndskrár í valinu þínu.</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Innifela myndatökudaginn í nafni flokksmöppu hennar þegar dagsetning er tiltæk. Núverandi möppur halda nöfnum sínum.</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>Notaðu upplýsingar eins og ár, listamann, titil eða plötu til að stinga upp á skýrari nöfnum fyrir tónlistarskrár og myndbönd þegar þær eru tiltækar.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>Stinga upp á skýrari nöfnum fyrir studdar myndskrár. Þú getur skoðað tillögurnar áður en þú beitir þeim.</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>Haltu myndum í núverandi möppum og stingdu aðeins upp á nýjum nöfnum. Endurnefning mynda verður einnig að vera virk.</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>Notaðu texta innan studdra skjala til að stinga upp á viðeigandi möppum og skýrari nöfnum. API-tengingar senda útdreginn texta skjala til valins þjóns.</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>Vinnðu aðeins með studd skjöl í vali þínu.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>Stinga upp á skýrari nöfnum fyrir studdar skjalskrár. Þú getur skoðað tillögurnar áður en þú beitir þeim.</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>Haltu skjölum í núverandi möppum og stingdu aðeins upp á nýjum nöfnum. Endurnefning skjala verður einnig að vera virk.</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Bætið dagsetningu skapunar skjals við nafn flokksmöppu þegar dagsetning er tiltæk. Núverandi möppur halda nöfnum sínum.</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>Veldu gervigreindarlíkönin sem nota á til að flokka og endurnefna skrár. Staðbundin líkön keyra á tölvunni; API-tengingar senda greiningargögn á valda þjóninn.</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>Búðu til eða breyttu listum yfir flokksheiti sem nota á þegar flokkað er í flokkamöppur.</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>Gleyma lærðum flokkunarvenjum sem byggja á samþykktum breytingum. Skrárnar þínar haldast á sínum stað og vistaðar greiningarniðurstöður varðveitast. Þú verður beðinn um staðfestingu fyrst.</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>Skoðaðu eða hreinsaðu niðurstöður sem vistaðar voru frá fyrri greiningum. Þetta eyðir ekki skrám þínum.</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>Veldu tungumál fyrir glugga og valmyndir forritsins.</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>Veldu tungumál fyrir heiti flokkamappa og fyrir tillögur að skráarnafnum. Núverandi möppur halda nöfnum sínum.</translation>
         </message>
     </context>
     <context>
@@ -4179,6 +4295,25 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         <message>
             <source>Document filename word limit</source>
             <translation>Orðamörk fyrir heiti skjalaskráa</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Stilltu hámarksfjölda lýsandi orða í tillögum að skráarnafnum mynda (3–6). Bættar dagsetningar og aðrar upplýsingar geta gert nafnið lengra.</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Stilltu hámarksfjölda lýsandi orða í tillögum að skráarnafnum skjala (3–6). Bættar dagsetningar og aðrar upplýsingar geta gert nafnið lengra.</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>Vistar fyrri tillögur um flokkun svo skrár og möppur verði greindar hraðar næst.</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>Vistar fundin staðarnöfn fyrir ljósmyndastaði svo forritið geti endurnýtt þau án frekari netleitar.</translation>
         </message>
     </context>
 </TS>

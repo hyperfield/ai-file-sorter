@@ -103,9 +103,11 @@ Aktivér **Dry run (preview only, do not move files)** for at se de planlagte fl
 
 ## 6. Anvend aendringerne
 
-Vælg de rækker, du vil behandle, og klik på **Confirm and Process**. Appen opretter de nødvendige mapper og udfører de valgte flytninger eller omdøbninger.
+Vælg de rækker, du vil behandle, og klik på **Anvend ændringer**. Appen opretter de nødvendige mapper og udfører de valgte flytninger eller omdøbninger.
 
-**Auto-approve filename changes** og **Auto-approve categorization** forhåndsvælger egnede rækker. Du skal stadig bekræfte, før ændringerne udføres.
+**Forhåndsvisning af tørløb**: Aktivér **Dry run (preview only, do not move files)** for at se de planlagte flytninger og omdøbninger uden at udføre dem.
+
+**Vælg omdøbningsforslag automatisk** og **Vælg sorteringsforslag automatisk** forhåndsvælger egnede rækker. Du skal stadig bekræfte, før ændringerne udføres.
 
 ## 7. Fortryd den sidste korsel
 

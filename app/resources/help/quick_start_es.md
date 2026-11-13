@@ -103,9 +103,11 @@ Active **Dry run (preview only, do not move files)** para previsualizar los movi
 
 ## 6. Aplicar los cambios
 
-Seleccione las filas que desea procesar y pulse **Confirm and Process**. La aplicación crea las carpetas necesarias y realiza los movimientos o cambios de nombre seleccionados.
+Seleccione las filas que desea procesar y pulse **Aplicar cambios**. La aplicación crea las carpetas necesarias y realiza los movimientos o cambios de nombre seleccionados.
 
-**Auto-approve filename changes** y **Auto-approve categorization** preseleccionan las filas aptas. Aún debe confirmar antes de que se apliquen esos cambios.
+**Vista previa de la prueba**: Active **Dry run (preview only, do not move files)** para previsualizar los movimientos y cambios de nombre previstos sin aplicarlos.
+
+**Seleccionar automáticamente sugerencias de renombrado** y **Seleccionar automáticamente sugerencias de clasificación** preseleccionan las filas aptas. Aún debe confirmar antes de que se apliquen esos cambios.
 
 ## 7. Deshacer la ultima ejecucion
 

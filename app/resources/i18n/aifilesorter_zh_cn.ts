@@ -166,9 +166,8 @@
             <translation>选择全部</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>自动批准文件名更改</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>自动选择重命名建议</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>试运行（仅预览，不移动文件）</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>不对图片文件进行分类（仅重命名）</translation>
+            <source>Rename pictures without moving</source>
+            <translation>重命名图片（不移动）</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>不对文档文件进行分类（仅重命名）</translation>
+            <source>Rename documents without moving</source>
+            <translation>重命名文档（不移动）</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>确认并处理</translation>
+            <source>Apply changes</source>
+            <translation>应用更改</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>关闭</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>标记突出显示的行以进行处理（Ctrl+空格）。</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>选择高亮项目以应用它们的更改（Ctrl+Space）。</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>预先选择包含文件名更改的行。同时进行分类的行也需要启用分类自动批准。</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>自动选择有效的重命名建议。只有在启用自动选择分类建议时，才会自动选择同时也需要分类的项。在选择%1之前，请核查你的选择。</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>自动批准分类</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>自动选择分类建议</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>预先选择包含有效分类的行。同时重命名的行也需要启用文件名自动批准。</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>自动选择有效的分类建议。只有在启用自动选择重命名建议时，才会自动选择同时也需要重命名的项。在选择%1之前，请核查你的选择。</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>将类别/子类别值应用于突出显示的行。</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>更改所有高亮项目的类别和子类别。</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>未选择</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>试运行预览</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>文档分析</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>分类</translation>
+            <source>Finding destinations</source>
+            <translation>查找目标位置</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3558,9 +3552,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>使用已分析文件夹</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>将正在分析的文件夹用作目标根目录。</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>在正在分析的文件夹内排序。</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3589,9 +3582,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>在每个类别中创建子类别文件夹。</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>分类类型</translation>
+            <source>Sorting style</source>
+            <translation>排序方式</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3664,9 +3656,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>选择用于本次运行的白名单。</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>对文件进行分类</translation>
+            <source>Sort files</source>
+            <translation>排序文件</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3674,9 +3665,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>将文件包含在分类过程中。</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>对文件夹进行分类</translation>
+            <source>Sort folders</source>
+            <translation>排序文件夹</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3754,9 +3744,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>显示图片文件的建议文件名。</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>不对图片文件进行分类（仅重命名）</translation>
+            <source>Rename pictures without moving</source>
+            <translation>重命名图片（不移动）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3799,9 +3788,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>显示文档文件的建议文件名。</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>不对文档文件进行分类（仅重命名）</translation>
+            <source>Rename documents without moving</source>
+            <translation>重命名文档（不移动）</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3934,6 +3922,134 @@ Please update to continue. If you choose to quit, the application will close.</s
             <location filename="../../lib/UiTranslator.cpp" line="89"></location>
             <source>&amp;Simplified Chinese</source>
             <translation>&amp;简体中文</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>选择要整理的内容、如何分组文件，以及如何命名图片和文档。</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>选择包含要排序文件的文件夹。</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>选择已排序的文件和文件夹应放置的位置。留空可在正在分析的文件夹内进行排序。仅重命名不会移动文件。</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>在类别文件夹内创建子文件夹，例如 文档 &gt; 发票。仅在创建类别文件夹时生效。</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>选择 更精致 以获得更细的类别，或选择 更一致 以便将相似项目归入相同的类别名称。</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>使用更详细的类别名称来描述每个项目，即使相似的项目最终属于不同类别。</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>将相似项目归入相同的类别名称，以保持文件夹的一致性。</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>创建新的类别文件夹，或在所选目标处将文件分类到已有文件夹中。</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>在将文件分类到已有文件夹时，如果没有合适的文件夹则建议新建文件夹。只有在应用更改时才会创建新文件夹。</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>选择一个初始文件夹结构以及创建位置，然后可将文件分类到这些文件夹中。</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>仅使用你选择的列表中的类别和子类别名称。此选项在按类别文件夹排序时适用。</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>在启用白名单时，选择允许的类别名称列表。</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>将单个文件整理到合适的文件夹。你可以在应用前审阅建议的移动操作。</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>将整个文件夹分类，同时保持其内容不分散。</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>在查找要排序的文件和文件夹时也检查子文件夹内的内容。</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>使用 AI 模型来识别图片内容。本地模型在您的计算机上运行；通过 API 连接则会将图片内容发送到所选服务器。</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>仅处理所选项中受支持的图片文件。</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>在有可用日期时，在类别文件夹名称中包含图片的创建日期。现有文件夹保持其名称。</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>使用年份、艺术家、标题或专辑等信息（如有）为音乐和视频文件建议更清晰的名称。</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>为受支持的图片文件建议更清晰的名称。你可以在应用前审阅建议。</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>将图片保留在当前文件夹，仅建议新名称。图片重命名功能也必须启用。</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>使用受支持文档中的文本来建议合适的文件夹和更清晰的名称。API 连接会将提取的文档文本发送到所选服务器。</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>仅处理所选项中受支持的文档文件。</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>为受支持的文档文件建议更清晰的名称。你可以在应用前审阅建议。</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>将文档保留在当前文件夹，仅建议新名称。文档重命名功能也必须启用。</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>在可用时，在类别文件夹名称中包含文档的创建日期。现有文件夹保留其名称。</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>选择用于分类和重命名文件的 AI 模型。本地模型在您的计算机上运行；通过 API 连接会将分析数据发送到所选服务器。</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>创建或编辑用于按类别文件夹排序时使用的类别名称列表。</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>忘记从你批准的更改中学习到的排序偏好。你的文件将保持原位，已保存的分析结果会被保留。系统会先要求你确认。</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>查看或清除先前分析保存的结果。此操作不会删除您的文件。</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>选择应用窗口和菜单的语言。</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>选择用于类别文件夹名称和建议文件名的语言。现有文件夹将保留其名称。</translation>
         </message>
     </context>
     <context>
@@ -4179,6 +4295,25 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Document filename word limit</source>
             <translation>文档文件名词数限制</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>设置建议的图片文件名中描述性词语的最大数量（3 至 6）。附加的日期和其他细节可能使完整名称更长。</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>设置建议的文档文件名中描述性词语的最大数量（3 至 6）。附加的日期和其他细节可能使完整名称更长。</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>保存之前的排序建议，以便下次更快分析文件和文件夹。</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>保存找到的照片位置地名，应用下次可重用，无需再次在线查询。</translation>
         </message>
     </context>
 </TS>

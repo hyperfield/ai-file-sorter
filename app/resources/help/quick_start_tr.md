@@ -103,9 +103,11 @@ Planlanan taşıma ve yeniden adlandırmaları uygulamadan önizlemek için **Dr
 
 ## 6. Degisiklikleri uygulayin
 
-İşlenecek satırları seçip **Confirm and Process** düğmesine tıklayın. Uygulama gerekli klasörleri oluşturur ve seçilen taşıma veya yeniden adlandırmaları gerçekleştirir.
+İşlenecek satırları seçip **Değişiklikleri uygula** düğmesine tıklayın. Uygulama gerekli klasörleri oluşturur ve seçilen taşıma veya yeniden adlandırmaları gerçekleştirir.
 
-**Auto-approve filename changes** ve **Auto-approve categorization**, uygun satırları önceden seçer. Bu değişiklikler uygulanmadan önce yine de onay vermeniz gerekir.
+**Deneme çalıştırma önizlemesi**: Planlanan taşıma ve yeniden adlandırmaları uygulamadan önizlemek için **Dry run (preview only, do not move files)** seçeneğini açın.
+
+**Yeniden adlandırma önerilerini otomatik olarak seç** ve **Sıralama önerilerini otomatik olarak seç**, uygun satırları önceden seçer. Bu değişiklikler uygulanmadan önce yine de onay vermeniz gerekir.
 
 ## 7. Son calistirmayi geri al
 

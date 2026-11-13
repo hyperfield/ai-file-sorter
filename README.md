@@ -56,6 +56,10 @@ API connections send analysis data to the configured server; selecting an API vi
 3. Category and rename suggestions are generated  
 4. You review and adjust if needed before anything is changed  
 
+Hover over sorting controls, checkbox labels, or filename-length sliders for
+plain-language explanations. Settings-menu entries also show help when hovered.
+These explanations follow the interface language.
+
 ### Sorting stray files into existing folders
 
 This Windows walkthrough follows 60 files from Downloads into an existing library.
@@ -108,7 +112,7 @@ This keeps the first run low risk: your files stay on your computer when you use
   - [Categorization](#categorization)
     - [Sorting modes and destinations](#sorting-modes-and-destinations)
     - [Folder structures and plugins](#folder-structures-and-plugins)
-    - [Categorization modes](#categorization-modes)
+    - [Sorting styles](#sorting-styles)
     - [Category language selection](#category-language-selection)
     - [Category whitelists](#category-whitelists)
   - [Image analysis (Visual LLM)](#image-analysis-visual-llm)
@@ -287,11 +291,11 @@ archives. Install and manage them from the **Plugins** menu. The app can suggest
 Johnny.Decimal support when it recognizes a matching archive; some plugins require
 a separate license and activation.
 
-### Categorization modes
+### Sorting styles
 
 - **More refined**: The flexible, detail-oriented mode. It is less tied to the default category structure, so it can choose a more specific top-level category when that fits better. For example: `Security / PCI DSS`, `Manuals / Camera Guides`, or `Wildlife / Lions`. This works well for mixed, specialized, or long-tail folders.
 - **More consistent**: The uniform mode. It uses recent similar results to favor stable broad folder categories, so related files are more likely to land under the same top-level folders. For example: `Documents / PCI DSS`, `Documents / Camera Guides`, or `Images / Lions`. This works well when you want a cleaner, more uniform folder layout.
-- Switch between the two via the **Categorization type** radio buttons on the main window; your choice is saved for the next run.
+- Switch between the two via the **Sorting style** radio buttons in **Sorting rules...**; your choice is saved for the next run.
 
 Example without a whitelist:
 
@@ -366,7 +370,7 @@ Image analysis adds six related checkboxes to the main window:
 - **Add image creation date (if available) to category name**: Appends `YYYY-MM-DD` from image metadata to the category label when available. Disabled when rename-only is enabled.
 - **Add photo date and place to filename (if available)**: Adds date/place prefixes when available. Dates are read locally; online place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service. Leave this option off to keep photo locations local, including when adding dates to category names.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
-- **Do not categorize picture files (only rename)**: Skips text categorization for images and keeps them in place while applying (optional) renames.
+- **Rename pictures without moving**: Skips text categorization for images and keeps them in place while applying (optional) renames.
 
 The separate top-level checkbox **Add audio/video metadata to file name (if available)** controls metadata-based rename suggestions for supported audio/video files. See [Audio/video metadata filename suggestions](#audiovideo-metadata-filename-suggestions).
 
@@ -390,7 +394,7 @@ Source builds: embedded extractors are used by default. If the vendored PDFium a
 - **Analyze document files by content**: Extracts document text and feeds it into the LLM for summary + rename suggestion.
 - **Process document files only (ignore any other files)**: Restricts the run to supported document files and disables the categorization controls while active.
 - **Offer to rename document files**: Shows a **Suggested filename** column in the Review dialog with the LLM proposal. You can edit it before confirming.
-- **Do not categorize document files (only rename)**: Skips text categorization for documents and keeps them in place while applying (optional) renames.
+- **Rename documents without moving**: Skips text categorization for documents and keeps them in place while applying (optional) renames.
 - **Add document creation date (if available) to category name**: Appends `YYYY-MM` from metadata when available. Disabled when rename-only is enabled.
 
 ---

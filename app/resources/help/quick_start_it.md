@@ -103,9 +103,11 @@ Attiva **Dry run (preview only, do not move files)** per visualizzare in antepri
 
 ## 6. Applicare le modifiche
 
-Seleziona le righe da elaborare e fai clic su **Confirm and Process**. L'app crea le cartelle necessarie ed esegue gli spostamenti o le rinomine selezionati.
+Seleziona le righe da elaborare e fai clic su **Applica modifiche**. L'app crea le cartelle necessarie ed esegue gli spostamenti o le rinomine selezionati.
 
-**Auto-approve filename changes** e **Auto-approve categorization** preselezionano le righe idonee. Devi comunque confermare prima che le modifiche vengano applicate.
+**Anteprima prova**: Attiva **Dry run (preview only, do not move files)** per visualizzare in anteprima gli spostamenti e le rinomine previsti senza applicarli.
+
+**Seleziona automaticamente i suggerimenti di rinomina** e **Seleziona automaticamente i suggerimenti di ordinamento** preselezionano le righe idonee. Devi comunque confermare prima che le modifiche vengano applicate.
 
 ## 7. Annullare l'ultima esecuzione
 

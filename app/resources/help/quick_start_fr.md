@@ -103,9 +103,11 @@ Activez **Dry run (preview only, do not move files)** pour prévisualiser les d�
 
 ## 6. Appliquer les modifications
 
-Sélectionnez les lignes à traiter et cliquez sur **Confirm and Process**. L'application crée les dossiers nécessaires et effectue les déplacements ou renommages sélectionnés.
+Sélectionnez les lignes à traiter et cliquez sur **Appliquer les modifications**. L'application crée les dossiers nécessaires et effectue les déplacements ou renommages sélectionnés.
 
-**Auto-approve filename changes** et **Auto-approve categorization** présélectionnent les lignes admissibles. Vous devez toujours confirmer avant l'application de ces changements.
+**Aperçu de la simulation**: Activez **Dry run (preview only, do not move files)** pour prévisualiser les déplacements et renommages prévus sans les appliquer.
+
+**Sélectionner automatiquement les suggestions de renommage** et **Sélectionner automatiquement les suggestions de tri** présélectionnent les lignes admissibles. Vous devez toujours confirmer avant l'application de ces changements.
 
 ## 7. Annuler la derniere execution
 

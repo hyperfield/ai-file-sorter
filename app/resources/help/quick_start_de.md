@@ -103,9 +103,11 @@ Aktivieren Sie **Dry run (preview only, do not move files)**, um geplante Versch
 
 ## 6. Aenderungen anwenden
 
-Wählen Sie die zu verarbeitenden Zeilen aus und klicken Sie auf **Confirm and Process**. Die App erstellt erforderliche Ordner und führt die ausgewählten Verschiebungen oder Umbenennungen aus.
+Wählen Sie die zu verarbeitenden Zeilen aus und klicken Sie auf **Änderungen anwenden**. Die App erstellt erforderliche Ordner und führt die ausgewählten Verschiebungen oder Umbenennungen aus.
 
-**Auto-approve filename changes** und **Auto-approve categorization** wählen geeignete Zeilen vorab aus. Sie müssen weiterhin bestätigen, bevor diese Änderungen angewendet werden.
+**Vorschau Probelauf**: Aktivieren Sie **Dry run (preview only, do not move files)**, um geplante Verschiebungen und Umbenennungen anzusehen, ohne sie anzuwenden.
+
+**Umbenennungsvorschläge automatisch auswählen** und **Sortiervorschläge automatisch auswählen** wählen geeignete Zeilen vorab aus. Sie müssen weiterhin bestätigen, bevor diese Änderungen angewendet werden.
 
 ## 7. Letzten Durchlauf rueckgaengig machen
 

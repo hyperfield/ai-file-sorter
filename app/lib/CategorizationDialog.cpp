@@ -361,12 +361,16 @@ void CategorizationDialog::setup_ui()
     bulk_edit_button = new QPushButton(this);
 
     select_layout->addWidget(select_all_checkbox);
-    select_layout->addWidget(auto_approve_filenames_checkbox);
-    select_layout->addWidget(auto_approve_categories_checkbox);
     select_layout->addWidget(select_highlighted_button);
     select_layout->addWidget(bulk_edit_button);
     select_layout->addStretch(1);
     scroll_layout->addLayout(select_layout);
+    scroll_layout->addWidget(auto_approve_filenames_checkbox);
+    scroll_layout->addWidget(auto_approve_categories_checkbox);
+    QWidget::setTabOrder(select_all_checkbox, select_highlighted_button);
+    QWidget::setTabOrder(select_highlighted_button, bulk_edit_button);
+    QWidget::setTabOrder(bulk_edit_button, auto_approve_filenames_checkbox);
+    QWidget::setTabOrder(auto_approve_filenames_checkbox, auto_approve_categories_checkbox);
 
     show_subcategories_checkbox = new QCheckBox(this);
     show_subcategories_checkbox->setChecked(show_subcategory_column);
@@ -482,6 +486,9 @@ void CategorizationDialog::setup_ui()
     connect(undo_button, &QPushButton::clicked, this, &CategorizationDialog::on_undo_button_clicked);
     connect(preview_button, &QPushButton::clicked, this, &CategorizationDialog::on_preview_button_clicked);
     connect(select_all_checkbox, &QCheckBox::toggled, this, &CategorizationDialog::on_select_all_toggled);
+    connect(dry_run_checkbox, &QCheckBox::toggled, this, [this](bool preview_only) {
+        confirm_button->setText(preview_only ? tr("Dry run preview") : tr("Apply changes"));
+    });
     connect(auto_approve_filenames_checkbox, &QCheckBox::toggled,
             this, &CategorizationDialog::on_auto_approve_filename_changes_toggled);
     connect(auto_approve_categories_checkbox, &QCheckBox::toggled,
@@ -3248,33 +3255,34 @@ void CategorizationDialog::retranslate_ui()
     };
 
     set_text_if(select_all_checkbox, tr("Select all"));
-    set_text_if(auto_approve_filenames_checkbox, tr("Auto-approve filename changes"));
-    set_text_if(auto_approve_categories_checkbox, tr("Auto-approve categorization"));
+    set_text_if(auto_approve_filenames_checkbox, tr("Automatically select rename suggestions"));
+    set_text_if(auto_approve_categories_checkbox, tr("Automatically select sorting suggestions"));
     set_text_if(select_highlighted_button, tr("Select highlighted"));
     set_text_if(bulk_edit_button, tr("Edit selected..."));
     set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
     set_text_if(dry_run_checkbox, tr("Dry run (preview only, do not move files)"));
-    set_text_if(rename_images_only_checkbox, tr("Do not categorize picture files (only rename)"));
-    set_text_if(rename_documents_only_checkbox, tr("Do not categorize document files (only rename)"));
+    set_text_if(rename_images_only_checkbox, tr("Rename pictures without moving"));
+    set_text_if(rename_documents_only_checkbox, tr("Rename documents without moving"));
     set_text_if(preview_button, tr("Preview"));
-    set_text_if(confirm_button, tr("Confirm and Process"));
+    set_text_if(confirm_button, dry_run_checkbox && dry_run_checkbox->isChecked()
+                                    ? tr("Dry run preview") : tr("Apply changes"));
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(undo_button, tr("Undo this change"));
     set_text_if(close_button, tr("Close"));
 
     if (select_highlighted_button) {
-        select_highlighted_button->setToolTip(tr("Mark highlighted rows for processing (Ctrl+Space)."));
+        select_highlighted_button->setToolTip(tr("Select the highlighted items so their changes can be applied (Ctrl+Space)."));
     }
     if (auto_approve_filenames_checkbox) {
         auto_approve_filenames_checkbox->setToolTip(
-            tr("Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too."));
+            tr("Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.").arg(tr("Apply changes")));
     }
     if (auto_approve_categories_checkbox) {
         auto_approve_categories_checkbox->setToolTip(
-            tr("Preselect rows with valid categorization. Rows that also rename require filename auto-approval too."));
+            tr("Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.").arg(tr("Apply changes")));
     }
     if (bulk_edit_button) {
-        bulk_edit_button->setToolTip(tr("Apply category/subcategory values to highlighted rows."));
+        bulk_edit_button->setToolTip(tr("Change the category and subcategory for all highlighted items."));
     }
 
     if (model) {

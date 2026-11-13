@@ -166,9 +166,8 @@
             <translation>Alles selecteren</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>Bestandsnaamwijzigingen automatisch goedkeuren</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>Hernoemingssuggesties automatisch selecteren</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>Proefrun (alleen voorbeeld, verplaats geen bestanden)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Afbeeldingsbestanden niet categoriseren (alleen hernoemen)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Afbeeldingen hernoemen zonder te verplaatsen</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Documentbestanden niet categoriseren (alleen hernoemen)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Documenten hernoemen zonder te verplaatsen</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>Bevestigen en verwerken</translation>
+            <source>Apply changes</source>
+            <translation>Wijzigingen toepassen</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>Sluiten</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>Markeer gemarkeerde rijen voor verwerking (Ctrl+Spatie).</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>Selecteer de gemarkeerde items zodat hun wijzigingen toegepast kunnen worden (Ctrl+Space).</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>Selecteer vooraf rijen met bestandsnaamwijzigingen. Rijen die ook categoriseren vereisen ook automatische goedkeuring van categorisering.</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>Selecteer geldige hernoemingssuggesties automatisch. Items die ook gesorteerd moeten worden, worden alleen geselecteerd als automatische selectie voor sorteersuggesties is ingeschakeld. Controleer uw selecties voordat u %1 kiest.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>Categorisering automatisch goedkeuren</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>Sorteersuggesties automatisch selecteren</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>Selecteer vooraf rijen met geldige categorisering. Rijen die ook hernoemen vereisen ook automatische goedkeuring van bestandsnamen.</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>Selecteer geldige sorteersuggesties automatisch. Items die ook hernoemd moeten worden, worden alleen geselecteerd als automatische selectie voor hernoemingssuggesties is ingeschakeld. Controleer uw selecties voordat u %1 kiest.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>Pas categorie-/subcategoriewaarden toe op de gemarkeerde rijen.</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>Wijzig de categorie en subcategorie voor alle gemarkeerde items.</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>Niet geselecteerd</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>Proefrun-voorbeeld</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>Documentanalyse</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>Categorisatie</translation>
+            <source>Finding destinations</source>
+            <translation>Bestemmingen zoeken</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3590,9 +3584,8 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <translation>Geanalyseerde map gebruiken</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>Gebruik de map die wordt geanalyseerd als doelhoofdmap.</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>Sorteren binnen de map die je aan het analyseren bent.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3621,9 +3614,8 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <translation>Subcategorie-mappen binnen elke categorie maken.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>Categorisatietype</translation>
+            <source>Sorting style</source>
+            <translation>Sorteerstijl</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3696,9 +3688,8 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <translation>Selecteer de whitelist die voor deze run wordt gebruikt.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>Bestanden categoriseren</translation>
+            <source>Sort files</source>
+            <translation>Bestanden sorteren</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3706,9 +3697,8 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <translation>Neem bestanden op in de categorisatieronde.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>Mappen categoriseren</translation>
+            <source>Sort folders</source>
+            <translation>Mappen sorteren</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3786,9 +3776,8 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <translation>Toon voorgestelde bestandsnamen voor afbeeldingsbestanden.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Afbeeldingsbestanden niet categoriseren (alleen hernoemen)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Afbeeldingen hernoemen zonder te verplaatsen</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3831,9 +3820,8 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <translation>Toon voorgestelde bestandsnamen voor documentbestanden.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Documentbestanden niet categoriseren (alleen hernoemen)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Documenten hernoemen zonder te verplaatsen</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3936,6 +3924,134 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
             <location filename="../../lib/UiTranslator.cpp" line="86"></location>
             <source>&amp;Hindi</source>
             <translation>&amp;Hindi</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>Kies wat u wilt sorteren, hoe u bestanden groepeert en hoe u afbeeldingen en documenten benoemt.</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>Kies de map met de bestanden die je wilt sorteren.</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>Kies waar gesorteerde bestanden en mappen naartoe moeten. Laat dit leeg om binnen de map die je analyseert te sorteren. Alleen hernoemen verplaatst bestanden niet.</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>Maak submappen binnen categorie-mappen, bijvoorbeeld Documenten &gt; Facturen. Geldt alleen bij het aanmaken van categorie-mappen.</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>Kies Meer verfijnd voor meer gedetailleerde categorieën, of Meer consistent om vergelijkbare items onder dezelfde categorienamen te groeperen.</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>Gebruik meer gedetailleerde categorienamen om elk item te beschrijven, zelfs als vergelijkbare items in verschillende categorieën terechtkomen.</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>Groepeer vergelijkbare items onder dezelfde categorienamen om uw mappen consistenter te houden.</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>Maak nieuwe categorie-mappen, of sorteer in de bestaande mappen op de door jou gekozen bestemming.</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>Bij sorteren in bestaande mappen wordt een nieuwe map voorgesteld als geen bestaande past. Nieuwe mappen worden pas gemaakt wanneer je de wijzigingen toepast.</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>Kies een startmapstructuur en waar deze moet worden aangemaakt. Daarna kun je bestanden in die mappen sorteren.</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>Gebruik alleen categorie- en subcategorienamen uit een door u gekozen lijst. Dit geldt bij sorteren in categorie-mappen.</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>Kies de lijst met toegestane categorienamen die wordt gebruikt wanneer de witte lijst is ingeschakeld.</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>Sorteer individuele bestanden in geschikte mappen. U kunt de voorgestelde verplaatsingen bekijken voordat u ze toepast.</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>Sorteer hele mappen en houd de inhoud bij elkaar.</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>Bekijk ook submappen bij het zoeken naar bestanden en mappen om te sorteren.</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>Gebruik een AI-model om te begrijpen wat je foto's laten zien. Lokale modellen draaien op je computer; API-verbindingen sturen de inhoud van foto's naar de geselecteerde server.</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>Werk alleen met ondersteunde afbeeldingsbestanden in je selectie.</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Neem de aanmaakdatum van een afbeelding op in de naam van de categoriefolder wanneer de datum beschikbaar is. Bestaande mappen behouden hun namen.</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>Gebruik details zoals jaar, artiest, titel of album om, indien beschikbaar, duidelijkere namen voor muziek- en videobestanden voor te stellen.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>Doe voorstellen voor duidelijkere namen voor ondersteunde afbeeldingsbestanden. U kunt de suggesties bekijken voordat u ze toepast.</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>Houd afbeeldingen in hun huidige mappen en stel alleen nieuwe namen voor. Het hernoemen van afbeeldingen moet ook ingeschakeld zijn.</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>Gebruik de tekst in ondersteunde documenten om geschikte mappen en duidelijkere namen voor te stellen. API-verbindingen sturen de geëxtraheerde documenttekst naar de geselecteerde server.</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>Werk alleen met ondersteunde documentbestanden in je selectie.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>Doe voorstellen voor duidelijkere namen voor ondersteunde documentbestanden. U kunt de suggesties bekijken voordat u ze toepast.</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>Houd documenten in hun huidige mappen en stel alleen nieuwe namen voor. Het hernoemen van documenten moet ook ingeschakeld zijn.</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Neem de aanmaakdatum van een document op in de naam van de categorie-map wanneer de datum beschikbaar is. Bestaande mappen behouden hun naam.</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>Kies de AI-modellen die worden gebruikt om bestanden te sorteren en te hernoemen. Lokale modellen draaien op je computer; API-verbindingen sturen analysegegevens naar de geselecteerde server.</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>Maak lijsten met categorienamen of bewerk ze om te gebruiken bij het sorteren in categorie-mappen.</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>Vergeet sorteervoorkeuren die zijn geleerd van uw goedgekeurde wijzigingen. Uw bestanden blijven op hun plaats en opgeslagen analyseresultaten worden bewaard. U wordt eerst om bevestiging gevraagd.</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>Bekijk of wis resultaten die zijn opgeslagen van eerdere analyses. Dit verwijdert uw bestanden niet.</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>Kies de taal voor de vensters en menu's van de app.</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>Kies de taal voor namen van categorie-mappen en voorgestelde bestandsnamen. Bestaande mappen behouden hun namen.</translation>
         </message>
     </context>
     <context>
@@ -4181,6 +4297,25 @@ Werk bij om door te gaan. Als u ervoor kiest af te sluiten, wordt de toepassing 
         <message>
             <source>Document filename word limit</source>
             <translation>Woordlimiet voor documentnamen</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Stel het maximumaantal beschrijvende woorden in voor voorgestelde bestandsnamen van foto's (3 tot 6). Toegevoegde datums en andere details kunnen de volledige naam langer maken.</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Stel het maximumaantal beschrijvende woorden in voor voorgestelde bestandsnamen van documenten (3 tot 6). Toegevoegde datums en andere details kunnen de volledige naam langer maken.</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>Slaat eerdere sorteeruggesties op zodat bestanden en mappen de volgende keer sneller geanalyseerd kunnen worden.</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>Slaat plaatsnamen op die voor fotolocaties zijn gevonden zodat de app ze kan hergebruiken zonder opnieuw online op te zoeken.</translation>
         </message>
     </context>
 </TS>

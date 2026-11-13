@@ -166,9 +166,8 @@
             <translation>Seleziona tutto</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>Approva automaticamente le modifiche ai nomi file</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>Seleziona automaticamente i suggerimenti di rinomina</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>Prova (solo anteprima, non spostare i file)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Non categorizzare i file immagine (solo rinomina)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Rinomina immagini senza spostarle</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Non categorizzare i file di documenti (solo rinominarli)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Rinomina documenti senza spostarli</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>Conferma e elabora</translation>
+            <source>Apply changes</source>
+            <translation>Applica modifiche</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>Chiudi</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>Contrassegna le righe evidenziate per l'elaborazione (Ctrl+Spazio).</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>Seleziona gli elementi evidenziati per applicare le loro modifiche (Ctrl+Space).</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>Preseleziona le righe con modifiche ai nomi file. Le righe che categorizzano anche richiedono anche approvazione automatica della categorizzazione.</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>Seleziona automaticamente i suggerimenti di rinomina validi. Gli elementi che richiedono anche l'ordinamento vengono selezionati solo quando è attiva la selezione automatica dei suggerimenti di ordinamento. Controlla le selezioni prima di scegliere %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>Approva automaticamente la categorizzazione</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>Seleziona automaticamente i suggerimenti di ordinamento</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>Preseleziona le righe con categorizzazione valida. Le righe che rinominano anche richiedono anche approvazione automatica del nome file.</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>Seleziona automaticamente i suggerimenti di ordinamento validi. Gli elementi che richiedono anche la rinomina vengono selezionati solo quando è attiva la selezione automatica dei suggerimenti di rinomina. Controlla le selezioni prima di scegliere %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>Applica i valori di categoria/sottocategoria alle righe evidenziate.</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>Modifica la categoria e la sottocategoria di tutti gli elementi evidenziati.</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>Non selezionato</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>Anteprima prova</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>Analisi dei documenti</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>Categorizzazione</translation>
+            <source>Finding destinations</source>
+            <translation>Ricerca delle destinazioni</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3590,9 +3584,8 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <translation>Usa cartella analizzata</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>Usa la cartella analizzata come radice di destinazione.</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>Ordina all'interno della cartella che stai analizzando.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3621,9 +3614,8 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <translation>Crea sottocartelle all'interno di ogni categoria.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>Tipo di categorizzazione</translation>
+            <source>Sorting style</source>
+            <translation>Stile di ordinamento</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3696,9 +3688,8 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <translation>Seleziona la whitelist usata per questa analisi.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>Categoriza i file</translation>
+            <source>Sort files</source>
+            <translation>Ordina file</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3706,9 +3697,8 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <translation>Includi i file nella categorizzazione.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>Categoriza le cartelle</translation>
+            <source>Sort folders</source>
+            <translation>Ordina cartelle</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3786,9 +3776,8 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <translation>Mostra nomi file suggeriti per i file immagine.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Non categorizzare i file immagine (solo rinomina)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Rinomina immagini senza spostarle</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3831,9 +3820,8 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <translation>Mostra nomi file suggeriti per i file di documenti.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Non categorizzare i file di documenti (solo rinominarli)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Rinomina documenti senza spostarli</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3936,6 +3924,134 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
             <location filename="../../lib/UiTranslator.cpp" line="86"></location>
             <source>&amp;Hindi</source>
             <translation>&amp;Hindi</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>Scegli cosa ordinare, come raggruppare i file e come denominare immagini e documenti.</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>Scegli la cartella che contiene i file che vuoi ordinare.</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>Scegli dove devono andare i file e le cartelle ordinati. Lascia vuoto per ordinare nella cartella che stai analizzando. La sola ridenominazione non sposta i file.</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>Crea sottocartelle all'interno delle cartelle di categoria, ad esempio Documenti &gt; Fatture. Si applica solo quando vengono create cartelle di categoria.</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>Scegli Più dettagliate per categorie più specifiche, o Più coerenti per raggruppare elementi simili sotto gli stessi nomi di categoria.</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>Usa nomi di categoria più dettagliati per descrivere ogni elemento, anche se elementi simili finiscono in categorie diverse.</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>Raggruppa elementi simili sotto gli stessi nomi di categoria per rendere le cartelle più coerenti.</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>Crea nuove cartelle di categoria oppure ordina nelle cartelle esistenti nella destinazione scelta.</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>Quando ordini nelle cartelle esistenti, suggerisci una nuova cartella se nessuna è adatta. Le nuove cartelle vengono create solo quando applichi le modifiche.</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>Scegli una struttura di cartelle iniziale e dove crearla. Poi potrai ordinare i file in quelle cartelle.</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>Usa solo nomi di categoria e sottocategoria da un elenco che scegli. Questo vale quando ordini in cartelle per categoria.</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>Scegli l'elenco dei nomi di categoria consentiti da usare quando la whitelist è attivata.</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>Ordina i singoli file nelle cartelle appropriate. Puoi verificare gli spostamenti suggeriti prima di applicarli.</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>Ordina intere cartelle mantenendo insieme i loro contenuti.</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>Cerca anche all'interno delle sottocartelle quando individui file e cartelle da ordinare.</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>Usa un modello AI per capire cosa mostrano le tue immagini. I modelli locali vengono eseguiti sul tuo computer; le connessioni API inviano il contenuto delle immagini al server selezionato.</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>Lavora solo con i file immagine supportati nella selezione.</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Includi la data di creazione di un'immagine nel nome della cartella di categoria quando la data è disponibile. Le cartelle esistenti mantengono i loro nomi.</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>Usa dettagli come anno, artista, titolo o album per suggerire nomi più chiari per file musicali e video quando disponibili.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>Suggerisci nomi più chiari per i file immagine supportati. Puoi rivedere i suggerimenti prima di applicarli.</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>Mantieni le immagini nelle cartelle correnti e suggerisci solo nuovi nomi. Anche la rinomina delle immagini deve essere abilitata.</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>Usa il testo contenuto nei documenti supportati per suggerire cartelle adatte e nomi più chiari. Le connessioni API inviano il testo estratto dei documenti al server selezionato.</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>Lavora solo con i file documento supportati nella selezione.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>Suggerisci nomi più chiari per i file di documenti supportati. Puoi rivedere i suggerimenti prima di applicarli.</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>Mantieni i documenti nelle cartelle correnti e suggerisci solo nuovi nomi. Anche la rinomina dei documenti deve essere abilitata.</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Includi la data di creazione di un documento nel nome della cartella di categoria quando la data è disponibile. Le cartelle esistenti mantengono i loro nomi.</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>Scegli i modelli AI usati per ordinare e rinominare i file. I modelli locali vengono eseguiti sul tuo computer; le connessioni API inviano i dati di analisi al server selezionato.</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>Crea o modifica elenchi di nomi di categoria da usare quando si ordina in cartelle per categoria.</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>Dimentica le preferenze di ordinamento apprese dalle modifiche approvate. I tuoi file resteranno al loro posto e i risultati di analisi salvati saranno mantenuti. Ti verrà chiesta conferma prima.</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>Visualizza o cancella i risultati salvati dalle analisi precedenti. Questo non elimina i tuoi file.</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>Scegli la lingua per le finestre e i menu dell'app.</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>Scegli la lingua per i nomi delle cartelle di categoria e per i nomi dei file suggeriti. Le cartelle esistenti mantengono i loro nomi.</translation>
         </message>
     </context>
     <context>
@@ -4181,6 +4297,25 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
         <message>
             <source>Document filename word limit</source>
             <translation>Limite di parole per i nomi dei documenti</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Imposta il numero massimo di parole descrittive nei nomi file suggeriti per le immagini (3 a 6). Date aggiunte e altri dettagli possono rendere il nome completo più lungo.</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Imposta il numero massimo di parole descrittive nei nomi file suggeriti per i documenti (3 a 6). Date aggiunte e altri dettagli possono rendere il nome completo più lungo.</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>Salva i suggerimenti di smistamento precedenti in modo che file e cartelle possano essere analizzati più rapidamente la prossima volta.</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>Salva i nomi dei luoghi trovati per le posizioni delle foto, così l'app può riutilizzarli senza effettuare un'altra ricerca online.</translation>
         </message>
     </context>
 </TS>

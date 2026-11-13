@@ -103,9 +103,11 @@ Ota **Dry run (preview only, do not move files)** käyttöön esikatsellaksesi s
 
 ## 6. Ota muutokset kayttoon
 
-Valitse käsiteltävät rivit ja napsauta **Confirm and Process**. Sovellus luo tarvittavat kansiot ja suorittaa valitut siirrot tai uudelleennimeämiset.
+Valitse käsiteltävät rivit ja napsauta **Käytä muutoksia**. Sovellus luo tarvittavat kansiot ja suorittaa valitut siirrot tai uudelleennimeämiset.
 
-**Auto-approve filename changes** ja **Auto-approve categorization** esivalitsevat sopivat rivit. Sinun on silti vahvistettava ennen muutosten tekemistä.
+**Kuivakäynnin esikatselu**: Ota **Dry run (preview only, do not move files)** käyttöön esikatsellaksesi suunnitellut siirrot ja uudelleennimeämiset tekemättä niitä.
+
+**Valitse nimeämisehdotukset automaattisesti** ja **Valitse lajitteluehdotukset automaattisesti** esivalitsevat sopivat rivit. Sinun on silti vahvistettava ennen muutosten tekemistä.
 
 ## 7. Kumoa viimeisin ajo
 

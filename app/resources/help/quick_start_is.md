@@ -103,9 +103,11 @@ Virkjaðu **Dry run (preview only, do not move files)** til að forskoða fyrirh
 
 ## 6. Nota breytingarnar
 
-Veldu línurnar sem þú vilt vinna úr og smelltu á **Confirm and Process**. Forritið býr til nauðsynlegar möppur og framkvæmir valda flutninga eða endurnefningar.
+Veldu línurnar sem þú vilt vinna úr og smelltu á **Beita breytingum**. Forritið býr til nauðsynlegar möppur og framkvæmir valda flutninga eða endurnefningar.
 
-**Auto-approve filename changes** og **Auto-approve categorization** forvelja viðeigandi línur. Þú þarft samt að staðfesta áður en breytingarnar eru framkvæmdar.
+**Forskoðun á þurrhlaupi**: Virkjaðu **Dry run (preview only, do not move files)** til að forskoða fyrirhugaða flutninga og endurnefningar án þess að framkvæma þær.
+
+**Velja tillögur um endurnefningu sjálfkrafa** og **Velja tillögur um flokkun sjálfkrafa** forvelja viðeigandi línur. Þú þarft samt að staðfesta áður en breytingarnar eru framkvæmdar.
 
 ## 7. Afturkalla sidustu keyrslu
 

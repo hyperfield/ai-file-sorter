@@ -308,9 +308,13 @@ QString CacheMaintenanceDialog::target_description(CacheMaintenanceTarget target
 {
     switch (target) {
     case CacheMaintenanceTarget::Categorization:
-        return dialog_tr("Stores past file and folder categorization results so repeated runs can reuse them.");
+        return QCoreApplication::translate(
+            "CacheMaintenanceDialog",
+            "Saves earlier sorting suggestions so files and folders can be analyzed faster next time.");
     case CacheMaintenanceTarget::ImageLocation:
-        return dialog_tr("Stores reverse-geocoded place names for photo GPS coordinates so the app does not look them up again.");
+        return QCoreApplication::translate(
+            "CacheMaintenanceDialog",
+            "Saves place names found for photo locations so the app can reuse them without another online lookup.");
     case CacheMaintenanceTarget::Logs:
         return dialog_tr("Stores application log files used for troubleshooting and error reporting.");
     }

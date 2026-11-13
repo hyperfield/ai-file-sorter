@@ -184,6 +184,7 @@ void UiTranslator::retranslate_all(const State& state) const
     translate_primary_controls(state.analysis_in_progress);
     translate_tree_view_labels();
     translate_menus_and_actions();
+    translate_settings_help();
     translate_status_messages(state);
     update_language_checks();
 }
@@ -197,10 +198,12 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
 {
     if (auto* button = raw_ptr(deps_.primary.sorting_rules_button)) {
         button->setText(tr("Sorting rules..."));
+        button->setToolTip(tr("Choose what to sort, how to group files, and how to name pictures and documents."));
     }
     const QString browse_text = tr("Browse…");
     if (auto* label = raw_ptr(deps_.primary.path_label)) {
         label->setText(tr("Folder:"));
+        label->setToolTip(tr("Choose the folder containing the files you want to sort."));
     }
     if (auto* button = raw_ptr(deps_.primary.browse_button)) {
         button->setText(browse_text);
@@ -209,76 +212,76 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
         label->setText(tr("Destination:"));
     }
     if (auto* edit = raw_ptr(deps_.primary.destination_path_entry)) {
-        edit->setToolTip(tr("Choose where categorized items will be placed."));
+        edit->setToolTip(tr("Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files."));
     }
     if (auto* button = raw_ptr(deps_.primary.destination_browse_button)) {
         button->setText(browse_text);
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_analyzed_folder_as_destination_checkbox)) {
         checkbox->setText(tr("Use analyzed folder"));
-        checkbox->setToolTip(tr("Use the folder being analyzed as the destination root."));
+        checkbox->setToolTip(tr("Sort within the folder you are analyzing."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_subcategories_checkbox)) {
         checkbox->setText(tr("Use subcategories"));
-        checkbox->setToolTip(tr("Create subcategory folders within each category."));
+        checkbox->setToolTip(tr("Create subfolders within category folders, for example Documents > Invoices. Applies only when creating category folders."));
     }
     if (auto* heading = raw_ptr(deps_.primary.categorization_style_heading)) {
-        heading->setText(tr("Categorization type"));
-        heading->setToolTip(tr("Choose how strict the category labels should be."));
+        heading->setText(tr("Sorting style"));
+        heading->setToolTip(tr("Choose More refined for detailed categories, or More consistent to group similar items under the same category names."));
     }
     if (auto* refined_radio = raw_ptr(deps_.primary.categorization_style_refined_radio)) {
         refined_radio->setText(tr("More refined"));
-        refined_radio->setToolTip(tr("Favor detailed labels even if similar items vary."));
+        refined_radio->setToolTip(tr("Use more detailed category names to describe each item, even if similar items end up in different categories."));
     }
     if (auto* consistent_radio = raw_ptr(deps_.primary.categorization_style_consistent_radio)) {
         consistent_radio->setText(tr("More consistent"));
-        consistent_radio->setToolTip(tr("Favor consistent labels across similar items."));
+        consistent_radio->setToolTip(tr("Group similar items under the same category names to keep your folders more consistent."));
     }
     if (auto* selector = raw_ptr(deps_.primary.sorting_mode_selector)) {
         if (selector->count() >= 2) {
             selector->setItemText(0, tr("Create category folders"));
             selector->setItemText(1, tr("Use existing folder structure"));
         }
-        selector->setToolTip(tr("Choose whether AI creates category folders or sorts into the current folder tree."));
+        selector->setToolTip(tr("Create new category folders, or sort into the existing folders at your chosen destination."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.suggest_new_folders_checkbox)) {
         checkbox->setText(tr("Suggest new folders when needed"));
-        checkbox->setToolTip(tr("Allow AI to propose new destination folders when no existing folder fits well."));
+        checkbox->setToolTip(tr("When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes."));
     }
     if (auto* button = raw_ptr(deps_.primary.create_folder_structure_button)) {
         button->setText(tr("Create folder structure..."));
-        button->setToolTip(tr("Create a starter folder structure at a location you choose."));
+        button->setToolTip(tr("Choose a starter folder structure and where to create it. You can then sort files into those folders."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.use_whitelist_checkbox)) {
         checkbox->setText(tr("Use a whitelist"));
-        checkbox->setToolTip(tr("Restrict categories and subcategories to the selected whitelist."));
+        checkbox->setToolTip(tr("Use only category and subcategory names from a list you choose. This applies when sorting into category folders."));
     }
     if (auto* selector = raw_ptr(deps_.primary.whitelist_selector)) {
-        selector->setToolTip(tr("Select the whitelist used for this run."));
+        selector->setToolTip(tr("Choose the list of allowed category names to use when the whitelist is enabled."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_files_checkbox)) {
-        checkbox->setText(tr("Categorize files"));
-        checkbox->setToolTip(tr("Include files in the categorization pass."));
+        checkbox->setText(tr("Sort files"));
+        checkbox->setToolTip(tr("Sort individual files into suitable folders. You can review the suggested moves before applying them."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.categorize_directories_checkbox)) {
-        checkbox->setText(tr("Categorize folders"));
-        checkbox->setToolTip(tr("Include directories in the categorization pass."));
+        checkbox->setText(tr("Sort folders"));
+        checkbox->setToolTip(tr("Sort whole folders while keeping their contents together."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.include_subdirectories_checkbox)) {
         checkbox->setText(tr("Scan subfolders"));
-        checkbox->setToolTip(tr("Scan files inside subfolders and treat them as part of the main folder."));
+        checkbox->setToolTip(tr("Also look inside subfolders when finding files and folders to sort."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.analyze_images_checkbox)) {
         checkbox->setText(tr("Analyze picture files by content"));
-        checkbox->setToolTip(tr("Run the visual LLM on supported picture files."));
+        checkbox->setToolTip(tr("Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.process_images_only_checkbox)) {
         checkbox->setText(tr("Process picture files only (ignore any other files)"));
-        checkbox->setToolTip(tr("Ignore non-picture files in this run."));
+        checkbox->setToolTip(tr("Work only with supported picture files in your selection."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.add_image_date_to_category_checkbox)) {
         checkbox->setText(tr("Add image creation date (if available) to category name"));
-        checkbox->setToolTip(tr("Append the image creation date from metadata to the category label."));
+        checkbox->setToolTip(tr("Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.add_image_date_place_to_filename_checkbox)) {
         checkbox->setText(tr("Add photo date and place to filename (if available)"));
@@ -286,38 +289,38 @@ void UiTranslator::translate_primary_controls(bool analysis_in_progress) const
     }
     if (auto* checkbox = raw_ptr(deps_.primary.add_audio_video_metadata_to_filename_checkbox)) {
         checkbox->setText(tr("Add audio/video metadata to file name (if available)"));
-        checkbox->setToolTip(tr("Use embedded media tags (for example year, artist, album, title) to build suggested audio/video filenames."));
+        checkbox->setToolTip(tr("Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.offer_rename_images_checkbox)) {
         checkbox->setText(tr("Offer to rename picture files"));
-        checkbox->setToolTip(tr("Show suggested filenames for picture files."));
+        checkbox->setToolTip(tr("Suggest clearer names for supported picture files. You can review the suggestions before applying them."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.rename_images_only_checkbox)) {
-        checkbox->setText(tr("Do not categorize picture files (only rename)"));
-        checkbox->setToolTip(tr("Skip categorization for picture files and only rename them."));
+        checkbox->setText(tr("Rename pictures without moving"));
+        checkbox->setToolTip(tr("Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled."));
     }
     if (auto* button = raw_ptr(deps_.primary.image_options_toggle_button)) {
         button->setToolTip(tr("Show or hide picture analysis options"));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.analyze_documents_checkbox)) {
         checkbox->setText(tr("Analyze document files by content"));
-        checkbox->setToolTip(tr("Summarize document contents with the selected LLM."));
+        checkbox->setToolTip(tr("Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.process_documents_only_checkbox)) {
         checkbox->setText(tr("Process document files only (ignore any other files)"));
-        checkbox->setToolTip(tr("Ignore non-document files in this run."));
+        checkbox->setToolTip(tr("Work only with supported document files in your selection."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.offer_rename_documents_checkbox)) {
         checkbox->setText(tr("Offer to rename document files"));
-        checkbox->setToolTip(tr("Show suggested filenames for document files."));
+        checkbox->setToolTip(tr("Suggest clearer names for supported document files. You can review the suggestions before applying them."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.rename_documents_only_checkbox)) {
-        checkbox->setText(tr("Do not categorize document files (only rename)"));
-        checkbox->setToolTip(tr("Skip categorization for document files and only rename them."));
+        checkbox->setText(tr("Rename documents without moving"));
+        checkbox->setToolTip(tr("Keep documents in their current folders and suggest new names only. Document renaming must also be enabled."));
     }
     if (auto* checkbox = raw_ptr(deps_.primary.add_document_date_to_category_checkbox)) {
         checkbox->setText(tr("Add document creation date (if available) to category name"));
-        checkbox->setToolTip(tr("Append the document creation date from metadata to the category label."));
+        checkbox->setToolTip(tr("Include a document's creation date in its category folder name when the date is available. Existing folders keep their names."));
     }
     if (auto* button = raw_ptr(deps_.primary.document_options_toggle_button)) {
         button->setToolTip(tr("Show or hide document analysis options"));
@@ -478,6 +481,52 @@ void UiTranslator::translate_menus_and_actions() const
 
     if (auto* dock = raw_ptr(deps_.file_explorer_dock)) {
         dock->setWindowTitle(tr(kDockTitleFileExplorer));
+    }
+}
+
+void UiTranslator::translate_settings_help() const
+{
+    const auto apply_help = [](QAction* action, const QString& explanation) {
+        if (action) {
+            action->setToolTip(explanation);
+            action->setWhatsThis(explanation);
+            action->setStatusTip(explanation);
+        }
+    };
+    struct HelpEntry {
+        QAction* action;
+        const char* explanation;
+    };
+    const HelpEntry entries[] = {
+        {deps_.actions.sorting_rules_action, QT_TRANSLATE_NOOP("UiTranslator", "Choose what to sort, how to group files, and how to name pictures and documents.")},
+        {deps_.actions.toggle_llm_action, QT_TRANSLATE_NOOP("UiTranslator", "Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.")},
+        {deps_.actions.manage_whitelists_action, QT_TRANSLATE_NOOP("UiTranslator", "Create or edit lists of category names to use when sorting into category folders.")},
+        {deps_.actions.reset_learning_action, QT_TRANSLATE_NOOP("UiTranslator", "Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.")},
+        {deps_.actions.clear_cache_action, QT_TRANSLATE_NOOP("UiTranslator", "Review or clear results saved from earlier analyses. This does not delete your files.")},
+    };
+    for (const auto& entry : entries) {
+        apply_help(entry.action, tr(entry.explanation));
+    }
+    const QString interface_help = tr("Choose the language for the app's windows and menus.");
+    const QString category_help = tr("Choose the language for category folder names and suggested filenames. Existing folders keep their names.");
+    for (QMenu* menu : {deps_.menus.settings_menu, deps_.menus.language_menu, deps_.menus.category_language_menu}) {
+        if (menu) {
+            menu->setToolTipsVisible(true);
+        }
+    }
+    if (deps_.menus.language_menu) {
+        apply_help(deps_.menus.language_menu->menuAction(), interface_help);
+        for (QAction* action : deps_.menus.language_menu->actions()) {
+            apply_help(action, interface_help);
+        }
+    }
+    if (deps_.menus.category_language_menu) {
+        apply_help(deps_.menus.category_language_menu->menuAction(), category_help);
+    }
+    if (deps_.category_language.actions) {
+        for (QAction* action : *deps_.category_language.actions) {
+            apply_help(action, category_help);
+        }
     }
 }
 

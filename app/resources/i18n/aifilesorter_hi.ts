@@ -166,9 +166,8 @@
             <translation>सभी चुनें</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>फ़ाइल नाम बदलाव स्वतः अनुमोदित करें</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>नाम बदलने के सुझाव स्वतः चुनें</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>ड्राई रन (केवल पूर्वावलोकन, फ़ाइलें न हटाएँ)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>चित्र फ़ाइलों को वर्गीकृत न करें (केवल नाम बदलें)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>बिना स्थानांतरित किए चित्रों का नाम बदलें</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>दस्तावेज़ फ़ाइलों को वर्गीकृत न करें (केवल नाम बदलें)</translation>
+            <source>Rename documents without moving</source>
+            <translation>बिना स्थानांतरित किए दस्तावेज़ों का नाम बदलें</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>पुष्टि करें और संसाधित करें</translation>
+            <source>Apply changes</source>
+            <translation>परिवर्तन लागू करें</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>बंद करें</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>प्रसंस्करण के लिए हाइलाइट की गई पंक्तियों को चिह्नित करें (Ctrl+Space)।</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>हाइलाइट किए गए आइटम चुनें ताकि उनके परिवर्तन लागू किए जा सकें (Ctrl+Space)।</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>फ़ाइल नाम बदलाव वाली पंक्तियों को पहले से चुनें। जो पंक्तियाँ वर्गीकृत भी करती हैं, उनके लिए वर्गीकरण स्वतः अनुमोदन भी आवश्यक है।</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>मान्य नाम बदलने के सुझाव स्वतः चुनें। जिन आइटमों को साथ में सॉर्ट भी करना है, वे केवल तभी चुने जाएंगे जब स्वतः सॉर्टिंग चयन चालू हो। %1 चुनने से पहले अपने चयन की समीक्षा करें।</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>वर्गीकरण स्वतः अनुमोदित करें</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>सॉर्टिंग सुझाव स्वतः चुनें</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>मान्य वर्गीकरण वाली पंक्तियों को पहले से चुनें। जो पंक्तियाँ नाम भी बदलती हैं, उनके लिए फ़ाइल नाम स्वतः अनुमोदन भी आवश्यक है।</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>मान्य सॉर्टिंग सुझाव स्वतः चुनें। जिन आइटमों को साथ में नाम बदलने की आवश्यकता है, वे केवल तभी चुने जाएंगे जब स्वतः नाम बदलने का चयन चालू हो। %1 चुनने से पहले अपने चयन की समीक्षा करें।</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>हाइलाइट की गई पंक्तियों पर श्रेणी/उपश्रेणी मान लागू करें।</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>सभी हाइलाइट किए गए आइटमों की श्रेणी और उपश्रेणी बदलें।</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>Not selected</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>Dry run preview</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>Document analysis</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>Categorization</translation>
+            <source>Finding destinations</source>
+            <translation>गंतव्य खोजे जा रहे हैं</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3425,9 +3419,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>विश्लेषित फ़ोल्डर का उपयोग करें</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>विश्लेषण किए जा रहे फ़ोल्डर को गंतव्य रूट के रूप में उपयोग करें।</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>विश्लेषण किए जा रहे फ़ोल्डर के अंदर ही सॉर्ट करें।</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3456,9 +3449,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>प्रत्येक श्रेणी के भीतर उपश्रेणी फ़ोल्डर बनाएँ।</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>वर्गीकरण प्रकार</translation>
+            <source>Sorting style</source>
+            <translation>सॉर्टिंग शैली</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3531,9 +3523,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>इस रन के लिए उपयोग की जाने वाली श्वेतसूची चुनें।</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>फ़ाइलों को वर्गीकृत करें</translation>
+            <source>Sort files</source>
+            <translation>फ़ाइलें सॉर्ट करें</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3541,9 +3532,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>वर्गीकरण प्रक्रिया में फ़ाइलों को शामिल करें।</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>फ़ोल्डरों को वर्गीकृत करें</translation>
+            <source>Sort folders</source>
+            <translation>फ़ोल्डरों को सॉर्ट करें</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3621,9 +3611,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>चित्र फ़ाइलों के लिए सुझाए गए फ़ाइल नाम दिखाएँ।</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>चित्र फ़ाइलों को वर्गीकृत न करें (केवल नाम बदलें)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>बिना स्थानांतरित किए चित्रों का नाम बदलें</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3666,9 +3655,8 @@ Please update to continue. If you choose to quit, the application will close.</s
             <translation>दस्तावेज़ फ़ाइलों के लिए सुझाए गए फ़ाइल नाम दिखाएँ।</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>दस्तावेज़ फ़ाइलों को वर्गीकृत न करें (केवल नाम बदलें)</translation>
+            <source>Rename documents without moving</source>
+            <translation>बिना स्थानांतरित किए दस्तावेज़ों का नाम बदलें</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3937,6 +3925,134 @@ Please update to continue. If you choose to quit, the application will close.</s
             <source>&amp;About AI File Sorter</source>
             <translation>AI File Sorter के &amp;बारे में</translation>
         </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>निर्धारित करें कि क्या सॉर्ट करना है, फ़ाइलों को कैसे समूहित करना है, और तस्वीरों व दस्तावेज़ों के नाम कैसे रखें।</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>उन फ़ाइलों वाली फ़ोल्डर चुनें जिन्हें आप छाँटना चाहते हैं।</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>निर्धारित करें कि सॉर्ट की गई फ़ाइलें और फ़ोल्डर कहाँ जाएँ। विश्लेषण किए जा रहे फ़ोल्डर में ही सॉर्ट करने के लिए यह खाली छोड़ दें। केवल नाम बदलने से फ़ाइलें स्थानांतरित नहीं होतीं।</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>श्रेणी फ़ोल्डरों के भीतर उप-फ़ोल्डर बनाएं, जैसे दस्तावेज़ &gt; चालान। यह केवल तब लागू होता है जब आप श्रेणी फ़ोल्डर बना रहे हों।</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>विस्तृत श्रेणियों के लिए 'और अधिक सूक्ष्म' चुनें, या समान आइटमों को एक ही श्रेणी नाम के तहत समूहित करने के लिए 'और अधिक एकरूप' चुनें।</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>हर आइटम का वर्णन करने के लिए अधिक विशद श्रेणी नामों का उपयोग करें, भले ही समान आइटम अलग- अलग श्रेणियों में समाप्त हों।</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>अपनी फ़ोल्डरों को अधिक सुसंगत रखने के लिए समान आइटमों को एक ही श्रेणी नामों के अंतर्गत समूहित करें।</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>नए श्रेणी फ़ोल्डर बनाएं, या चुने गए गंतव्य पर मौजूद फ़ोल्डरों में सॉर्ट करें।</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>मौजूद फ़ोल्डरों में सॉर्ट करते समय, यदि कोई उपयुक्त फ़ोल्डर न मिले तो नया फ़ोल्डर सुझाएँ। नए फ़ोल्डर केवल तब बनाए जाते हैं जब आप परिवर्तन लागू करते हैं।</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>एक प्रारंभिक फ़ोल्डर संरचना और उसे कहाँ बनाना है चुनें। फिर आप फ़ाइलों को उन फ़ोल्डरों में सॉर्ट कर सकते हैं।</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>केवल आपकी चुनी हुई सूची से श्रेणी और उपश्रेणी नामों का उपयोग करें। यह श्रेणी फ़ोल्डरों में सॉर्ट करते समय लागू होता है।</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>व्हाइटलिस्ट सक्षम होने पर उपयोग करने के लिए अनुमत श्रेणी नामों की सूची चुनें।</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>व्यक्तिगत फ़ाइलों को उपयुक्त फ़ोल्डरों में सॉर्ट करें। आप इन्हें लागू करने से पहले सुझाए गए स्थानांतरणों की समीक्षा कर सकते हैं।</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>फ़ोल्डरों को उनकी सामग्री एक साथ रखते हुए सॉर्ट करें।</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>सॉर्ट करने के लिए फ़ाइलों और फ़ोल्डरों को ढूँढते समय उप-फ़ोल्डरों के अंदर भी देखें।</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>अपनी तस्वीरों में क्या है समझने के लिए AI मॉडल का उपयोग करें। लोकल मॉडल आपके कंप्यूटर पर चलते हैं; API कनेक्शन तस्वीरों की सामग्री को चयनित सर्वर पर भेजते हैं।</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>अपने चयन में केवल समर्थित चित्र फ़ाइलों के साथ काम करें।</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>जब तारीख उपलब्ध हो तो किसी तस्वीर की निर्माण तिथि को उसकी श्रेणी फ़ोल्डर के नाम में शामिल करें। मौजूदा फ़ोल्डर अपना नाम बनाए रखते हैं।</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>उपलब्ध होने पर साल, कलाकार, शीर्षक, या एल्बम जैसे विवरणों का उपयोग संगीत और वीडियो फ़ाइलों के लिए स्पष्ट नाम सुझाने के लिए करें।</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>समर्थित चित्र फ़ाइलों के लिए स्पष्ट नाम सुझाएँ। आप इन्हें लागू करने से पहले सुझावों की समीक्षा कर सकते हैं।</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>तस्वीरों को उनके वर्तमान फ़ोल्डरों में रखें और केवल नए नाम सुझाएँ। तस्वीरों का नाम बदलना भी सक्षम होना चाहिए।</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>उपयुक्त फ़ोल्डरों और स्पष्ट नामों का सुझाव देने के लिए समर्थित दस्तावेज़ों के भीतर के टेक्स्ट का उपयोग करें। API कनेक्शन निकाले गए दस्तावेज़ टेक्स्ट को चयनित सर्वर पर भेजते हैं।</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>अपने चयन में केवल समर्थित दस्तावेज़ फ़ाइलों के साथ काम करें।</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>समर्थित दस्तावेज़ फ़ाइलों के लिए स्पष्ट नाम सुझाएँ। आप इन्हें लागू करने से पहले सुझावों की समीक्षा कर सकते हैं।</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>दस्तावेज़ों को उनके वर्तमान फ़ोल्डरों में रखें और केवल नए नाम सुझाएँ। दस्तावेज़ों का नाम बदलना भी सक्षम होना चाहिए।</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>यदि उपलब्ध हो तो किसी दस्तावेज़ की निर्माण तिथि को उसकी श्रेणी फ़ोल्डर के नाम में शामिल करें। मौजूदा फ़ोल्डरों के नाम वैसे ही बने रहते हैं।</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>फ़ाइलों को सॉर्ट और नाम बदलने के लिए उपयोग किए जाने वाले AI मॉडल चुनें। लोकल मॉडल आपके कंप्यूटर पर चलते हैं; API कनेक्शन विश्लेषण डेटा चयनित सर्वर पर भेजते हैं।</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>श्रेणी फ़ोल्डरों में सॉर्ट करते समय उपयोग करने के लिए श्रेणी नामों की सूचियाँ बनाएँ या संपादित करें।</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>आपके स्वीकृत परिवर्तनों से सीखी गई सॉर्टिंग प्राथमिकताओं को भूल जाएँ। आपकी फ़ाइलें वहीं रहती हैं, और सहेजे गए विश्लेषण परिणाम रखे जाते हैं। पहले आपसे पुष्टि करने के लिए कहा जाएगा।</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>पिछले विश्लेषणों से सहेजे गए परिणामों की समीक्षा करें या उन्हें साफ़ करें। यह आपकी फ़ाइलों को हटा नहीं देता।</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>ऐप की विंडो और मेनूओं के लिए भाषा चुनें।</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>श्रेणी फ़ोल्डर नामों और सुझाए गए फ़ाइल नामों के लिए भाषा चुनें। मौजूद फ़ोल्डर अपने नाम बनाए रखते हैं।</translation>
+        </message>
     </context>
     <context>
         <name>WhitelistManagerDialog</name>
@@ -4181,6 +4297,25 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Document filename word limit</source>
             <translation>दस्तावेज़ फ़ाइल नाम की शब्द सीमा</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>सुझाए गए चित्र फ़ाइलनामों में वर्णनात्मक शब्दों की अधिकतम संख्या सेट करें (3 से 6)। जोड़ी गई तिथियाँ और अन्य विवरण नाम को लंबा कर सकते हैं।</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>सुझाए गए दस्तावेज़ फ़ाइलनामों में वर्णनात्मक शब्दों की अधिकतम संख्या सेट करें (3 से 6)। जोड़ी गई तिथियाँ और अन्य विवरण नाम को लंबा कर सकते हैं।</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>पिछले सॉर्टिंग सुझाव सहेजता है ताकि अगली बार फ़ाइलों और फ़ोल्डरों का विश्लेषण तेज़ी से हो सके।</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>फोटो स्थानों के लिए मिले स्थान नाम सहेजता है ताकि ऐप उन्हें फिर से ऑनलाइन खोजे बिना उपयोग कर सके।</translation>
         </message>
     </context>
 </TS>

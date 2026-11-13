@@ -166,9 +166,8 @@
             <translation>Välj alla</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3245"></location>
-            <source>Auto-approve filename changes</source>
-            <translation>Godkänn filnamnsändringar automatiskt</translation>
+            <source>Automatically select rename suggestions</source>
+            <translation>Markera namnförslag automatiskt</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3247"></location>
@@ -191,19 +190,16 @@
             <translation>Torrkörning (endast förhandsgranskning, flytta inte filer)</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3251"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Kategorisera inte bildfiler (endast byt namn)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Byt namn på bilder utan att flytta dem</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3252"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Kategorisera inte dokumentfiler (endast byt namn)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Byt namn på dokument utan att flytta dem</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3254"></location>
-            <source>Confirm and Process</source>
-            <translation>Bekräfta och bearbeta</translation>
+            <source>Apply changes</source>
+            <translation>Verkställ ändringar</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3255"></location>
@@ -221,29 +217,24 @@
             <translation>Stäng</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3260"></location>
-            <source>Mark highlighted rows for processing (Ctrl+Space).</source>
-            <translation>Markera markerade rader för bearbetning (Ctrl+Mellanslag).</translation>
+            <source>Select the highlighted items so their changes can be applied (Ctrl+Space).</source>
+            <translation>Välj markerade objekt så deras ändringar kan tillämpas (Ctrl+Space).</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3264"></location>
-            <source>Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too.</source>
-            <translation>Förmarkera rader med filnamnsändringar. Rader som också kategoriserar kräver även automatiskt godkännande av kategorisering.</translation>
+            <source>Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.</source>
+            <translation>Välj giltiga namnförslag automatiskt. Objekt som också behöver sorteras väljs endast när automatisk markering av sorteringsförslag är aktiverad. Granska dina val innan du väljer %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3246"></location>
-            <source>Auto-approve categorization</source>
-            <translation>Godkänn kategorisering automatiskt</translation>
+            <source>Automatically select sorting suggestions</source>
+            <translation>Markera sorteringsförslag automatiskt</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3268"></location>
-            <source>Preselect rows with valid categorization. Rows that also rename require filename auto-approval too.</source>
-            <translation>Förmarkera rader med giltig kategorisering. Rader som också byter namn kräver även automatiskt godkännande av filnamn.</translation>
+            <source>Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.</source>
+            <translation>Välj giltiga sorteringsförslag automatiskt. Objekt som också behöver byta namn väljs endast när automatisk markering av namnförslag är aktiverad. Granska dina val innan du väljer %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationDialog.cpp" line="3271"></location>
-            <source>Apply category/subcategory values to highlighted rows.</source>
-            <translation>Tillämpa kategori-/underkategorivärden på markerade rader.</translation>
+            <source>Change the category and subcategory for all highlighted items.</source>
+            <translation>Ändra kategori och underkategori för alla markerade objekt.</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationDialog.cpp" line="3276"></location>
@@ -315,6 +306,10 @@
             <source>Not selected</source>
             <translation>Ej vald</translation>
         </message>
+        <message>
+            <source>Dry run preview</source>
+            <translation>Förhandsvisning av torrkörning</translation>
+        </message>
     </context>
     <context>
         <name>CategorizationProgressDialog</name>
@@ -334,9 +329,8 @@
             <translation>Dokumentanalys</translation>
         </message>
         <message>
-            <location filename="../../lib/CategorizationProgressDialog.cpp" line="375"></location>
-            <source>Categorization</source>
-            <translation>Kategorisering</translation>
+            <source>Finding destinations</source>
+            <translation>Hittar destinationer</translation>
         </message>
         <message>
             <location filename="../../lib/CategorizationProgressDialog.cpp" line="400"></location>
@@ -3558,9 +3552,8 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>Använd analyserad mapp</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
-            <source>Use the folder being analyzed as the destination root.</source>
-            <translation>Använd mappen som analyseras som målrot.</translation>
+            <source>Sort within the folder you are analyzing.</source>
+            <translation>Sortera inom mappen du analyserar.</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="198"></location>
@@ -3589,9 +3582,8 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>Skapa underkategorimappar inom varje kategori.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="223"></location>
-            <source>Categorization type</source>
-            <translation>Kategoriseringstyp</translation>
+            <source>Sorting style</source>
+            <translation>Sorteringsstil</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="224"></location>
@@ -3664,9 +3656,8 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>Välj den vitlista som används för denna körning.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
-            <source>Categorize files</source>
-            <translation>Kategorisera filer</translation>
+            <source>Sort files</source>
+            <translation>Sortera filer</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="258"></location>
@@ -3674,9 +3665,8 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>Inkludera filer i kategoriseringspasset.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
-            <source>Categorize folders</source>
-            <translation>Kategorisera mappar</translation>
+            <source>Sort folders</source>
+            <translation>Sortera mappar</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="262"></location>
@@ -3754,9 +3744,8 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>Visa föreslagna filnamn för bildfiler.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
-            <source>Do not categorize picture files (only rename)</source>
-            <translation>Kategorisera inte bildfiler (endast byt namn)</translation>
+            <source>Rename pictures without moving</source>
+            <translation>Byt namn på bilder utan att flytta dem</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="294"></location>
@@ -3799,9 +3788,8 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <translation>Visa föreslagna filnamn för dokumentfiler.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
-            <source>Do not categorize document files (only rename)</source>
-            <translation>Kategorisera inte dokumentfiler (endast byt namn)</translation>
+            <source>Rename documents without moving</source>
+            <translation>Byt namn på dokument utan att flytta dem</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="313"></location>
@@ -3934,6 +3922,134 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <location filename="../../lib/UiTranslator.cpp" line="89"></location>
             <source>&amp;Simplified Chinese</source>
             <translation>&amp;förenklad kinesiska</translation>
+        </message>
+        <message>
+            <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
+            <translation>Välj vad som ska sorteras, hur filer ska grupperas och hur bilder och dokument ska namnges.</translation>
+        </message>
+        <message>
+            <source>Choose the folder containing the files you want to sort.</source>
+            <translation>Välj mappen som innehåller filerna du vill sortera.</translation>
+        </message>
+        <message>
+            <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
+            <translation>Välj var sorterade filer och mappar ska placeras. Lämna tomt för att sortera i den mapp du analyserar. Enbart namnändring flyttar inte filer.</translation>
+        </message>
+        <message>
+            <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
+            <translation>Skapa undermappar i kategorimappar, till exempel Dokument &gt; Fakturor. Gäller endast när nya kategorimappar skapas.</translation>
+        </message>
+        <message>
+            <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
+            <translation>Välj Mer raffinerad för detaljerade kategorier, eller Mer konsekvent för att gruppera liknande objekt under samma kategorinamn.</translation>
+        </message>
+        <message>
+            <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
+            <translation>Använd mer detaljerade kategorinamn för att beskriva varje objekt, även om liknande objekt hamnar i olika kategorier.</translation>
+        </message>
+        <message>
+            <source>Group similar items under the same category names to keep your folders more consistent.</source>
+            <translation>Gruppera liknande objekt under samma kategorinamn för att hålla dina mappar mer konsekventa.</translation>
+        </message>
+        <message>
+            <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
+            <translation>Skapa nya kategorimappar eller sortera in i befintliga mappar på den valda destinationen.</translation>
+        </message>
+        <message>
+            <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
+            <translation>När du sorterar in i befintliga mappar, föreslå en ny mapp om ingen passar. Nya mappar skapas först när du tillämpar ändringarna.</translation>
+        </message>
+        <message>
+            <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
+            <translation>Välj en startmappstruktur och var den ska skapas. Du kan sedan sortera filer till dessa mappar.</translation>
+        </message>
+        <message>
+            <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
+            <translation>Använd endast kategori- och underkategorinamn från en lista du väljer. Detta gäller vid sortering i kategorimappar.</translation>
+        </message>
+        <message>
+            <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
+            <translation>Välj listan över tillåtna kategorinamn att använda när vitlistan är aktiverad.</translation>
+        </message>
+        <message>
+            <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
+            <translation>Sortera enskilda filer till lämpliga mappar. Du kan granska de föreslagna flyttarna innan du tillämpar dem.</translation>
+        </message>
+        <message>
+            <source>Sort whole folders while keeping their contents together.</source>
+            <translation>Sortera hela mappar samtidigt som innehållet hålls ihop.</translation>
+        </message>
+        <message>
+            <source>Also look inside subfolders when finding files and folders to sort.</source>
+            <translation>Sök även i undermappar när du letar efter filer och mappar att sortera.</translation>
+        </message>
+        <message>
+            <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
+            <translation>Använd en AI-modell för att förstå vad dina bilder föreställer. Lokala modeller körs på din dator; API-anslutningar skickar bildinnehållet till den valda servern.</translation>
+        </message>
+        <message>
+            <source>Work only with supported picture files in your selection.</source>
+            <translation>Arbeta endast med stödda bildfiler i ditt urval.</translation>
+        </message>
+        <message>
+            <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Inkludera en bilds skapelsedatum i dess kategorimappnamn när datumet är tillgängligt. Befintliga mappar behåller sina namn.</translation>
+        </message>
+        <message>
+            <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
+            <translation>Använd detaljer som år, artist, titel eller album för att föreslå tydligare namn för musik- och videofiler när sådan information finns.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
+            <translation>Föreslå tydligare namn för stödda bildfiler. Du kan granska förslagen innan du tillämpar dem.</translation>
+        </message>
+        <message>
+            <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
+            <translation>Behåll bilder i sina nuvarande mappar och föreslå endast nya namn. Omdöpning av bilder måste också vara aktiverat.</translation>
+        </message>
+        <message>
+            <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
+            <translation>Använd texten i stödda dokument för att föreslå lämpliga mappar och tydligare namn. API-anslutningar skickar extraherad dokumenttext till vald server.</translation>
+        </message>
+        <message>
+            <source>Work only with supported document files in your selection.</source>
+            <translation>Arbeta endast med stödda dokumentfiler i ditt urval.</translation>
+        </message>
+        <message>
+            <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
+            <translation>Föreslå tydligare namn för stödda dokumentfiler. Du kan granska förslagen innan du tillämpar dem.</translation>
+        </message>
+        <message>
+            <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
+            <translation>Behåll dokument i sina nuvarande mappar och föreslå endast nya namn. Omdöpning av dokument måste också vara aktiverat.</translation>
+        </message>
+        <message>
+            <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
+            <translation>Inkludera ett dokuments skapelsedatum i namnet på dess kategorimapp när datumet finns tillgängligt. Befintliga mappar behåller sina namn.</translation>
+        </message>
+        <message>
+            <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
+            <translation>Välj de AI-modeller som används för att sortera och byta namn på filer. Lokala modeller körs på din dator; API-anslutningar skickar analysedata till den valda servern.</translation>
+        </message>
+        <message>
+            <source>Create or edit lists of category names to use when sorting into category folders.</source>
+            <translation>Skapa eller redigera listor med kategorinamn att använda när du sorterar i kategorimappar.</translation>
+        </message>
+        <message>
+            <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
+            <translation>Glöm sorteringspreferenser som lärts från dina godkända ändringar. Dina filer förblir på plats och sparade analysresultat behålls. Du kommer att bli ombedd att bekräfta först.</translation>
+        </message>
+        <message>
+            <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
+            <translation>Granska eller rensa resultat som sparats från tidigare analyser. Detta tar inte bort dina filer.</translation>
+        </message>
+        <message>
+            <source>Choose the language for the app's windows and menus.</source>
+            <translation>Välj språk för appens fönster och menyer.</translation>
+        </message>
+        <message>
+            <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
+            <translation>Välj språk för kategorimappnamn och föreslagna filnamn. Befintliga mappar behåller sina namn.</translation>
         </message>
     </context>
     <context>
@@ -4179,6 +4295,25 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
         <message>
             <source>Document filename word limit</source>
             <translation>Ordgräns för dokumentfilnamn</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Ange högsta antal beskrivande ord i föreslagna filnamn för bilder (3 till 6). Tillagda datum och andra uppgifter kan göra det fullständiga namnet längre.</translation>
+        </message>
+        <message>
+            <source>Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer.</source>
+            <translation>Ange högsta antal beskrivande ord i föreslagna filnamn för dokument (3 till 6). Tillagda datum och andra uppgifter kan göra det fullständiga namnet längre.</translation>
+        </message>
+    </context>
+    <context>
+        <name>CacheMaintenanceDialog</name>
+        <message>
+            <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
+            <translation>Sparar tidigare sorteringsförslag så filer och mappar kan analyseras snabbare nästa gång.</translation>
+        </message>
+        <message>
+            <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
+            <translation>Sparar platsnamn som hittats för foton så appen kan återanvända dem utan ny onlineuppslagning.</translation>
         </message>
     </context>
 </TS>

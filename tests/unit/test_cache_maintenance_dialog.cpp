@@ -34,8 +34,8 @@ TEST_CASE("CacheMaintenanceDialog exposes tooltips for each cache target")
     REQUIRE(logs_button != nullptr);
 
     CHECK(categorization_button->isEnabled());
-    CHECK(categorization_button->toolTip().contains("categorization results"));
-    CHECK(image_location_button->toolTip().contains("GPS coordinates"));
+    CHECK(categorization_button->toolTip().contains("sorting suggestions"));
+    CHECK(image_location_button->toolTip().contains("photo locations"));
     CHECK(logs_button->toolTip().contains("troubleshooting"));
 }
 

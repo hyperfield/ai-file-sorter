@@ -380,13 +380,13 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.browse_button->text() == QStringLiteral("Browse…"));
     REQUIRE(h.destination_path_label->text() == QStringLiteral("Destination:"));
     REQUIRE(h.destination_path_entry->toolTip() ==
-            QStringLiteral("Choose where categorized items will be placed."));
+            QStringLiteral("Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files."));
     REQUIRE(h.destination_browse_button->text() == QStringLiteral("Browse…"));
     REQUIRE(h.use_analyzed_folder_as_destination_checkbox->text() ==
             QStringLiteral("Use analyzed folder"));
     REQUIRE(h.analyze_button->text() == QStringLiteral("Analyze folder"));
     REQUIRE(h.subcategories_checkbox->text() == QStringLiteral("Use subcategories"));
-    REQUIRE(h.style_heading->text() == QStringLiteral("Categorization type"));
+    REQUIRE(h.style_heading->text() == QStringLiteral("Sorting style"));
     REQUIRE(h.style_refined->text() == QStringLiteral("More refined"));
     REQUIRE(h.style_consistent->text() == QStringLiteral("More consistent"));
     REQUIRE(h.sorting_mode_selector->itemText(0) == QStringLiteral("Create category folders"));
@@ -394,10 +394,10 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.suggest_new_folders_checkbox->text() == QStringLiteral("Suggest new folders when needed"));
     REQUIRE(h.create_folder_structure_button->text() == QStringLiteral("Create folder structure..."));
     REQUIRE(h.create_folder_structure_button->toolTip() ==
-            QStringLiteral("Create a starter folder structure at a location you choose."));
+            QStringLiteral("Choose a starter folder structure and where to create it. You can then sort files into those folders."));
     REQUIRE(h.use_whitelist->text() == QStringLiteral("Use a whitelist"));
-    REQUIRE(h.files_checkbox->text() == QStringLiteral("Categorize files"));
-    REQUIRE(h.directories_checkbox->text() == QStringLiteral("Categorize folders"));
+    REQUIRE(h.files_checkbox->text() == QStringLiteral("Sort files"));
+    REQUIRE(h.directories_checkbox->text() == QStringLiteral("Sort folders"));
     REQUIRE(h.include_subdirectories_checkbox->text() == QStringLiteral("Scan subfolders"));
     REQUIRE(h.analyze_images_checkbox->text() == QStringLiteral("Analyze picture files by content"));
     REQUIRE(h.process_images_only_checkbox->text() ==
@@ -409,12 +409,12 @@ void verify_primary_controls(const UiTranslatorTestHarness& h)
     REQUIRE(h.add_audio_video_metadata_to_filename_checkbox->text() ==
             QStringLiteral("Add audio/video metadata to file name (if available)"));
     REQUIRE(h.offer_rename_images_checkbox->text() == QStringLiteral("Offer to rename picture files"));
-    REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)"));
+    REQUIRE(h.rename_images_only_checkbox->text() == QStringLiteral("Rename pictures without moving"));
     REQUIRE(h.analyze_documents_checkbox->text() == QStringLiteral("Analyze document files by content"));
     REQUIRE(h.process_documents_only_checkbox->text() ==
             QStringLiteral("Process document files only (ignore any other files)"));
     REQUIRE(h.offer_rename_documents_checkbox->text() == QStringLiteral("Offer to rename document files"));
-    REQUIRE(h.rename_documents_only_checkbox->text() == QStringLiteral("Do not categorize document files (only rename)"));
+    REQUIRE(h.rename_documents_only_checkbox->text() == QStringLiteral("Rename documents without moving"));
     REQUIRE(h.add_document_date_to_category_checkbox->text() ==
             QStringLiteral("Add document creation date (if available) to category name"));
 }

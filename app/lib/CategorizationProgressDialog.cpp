@@ -380,7 +380,7 @@ QString CategorizationProgressDialog::stage_label(StageId stage_id) const
             return tr("Document analysis");
         case StageId::Categorization:
         default:
-            return tr("Categorization");
+            return tr("Finding destinations");
     }
 }
 

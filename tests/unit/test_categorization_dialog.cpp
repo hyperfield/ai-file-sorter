@@ -617,6 +617,13 @@ TEST_CASE("CategorizationDialog dry run logs preview completion without moved su
         return nullptr;
     }();
     REQUIRE(dry_run_checkbox != nullptr);
+    auto* apply_button = dialog.findChild<QPushButton*>(QStringLiteral("aifsReviewPrimaryButton"));
+    REQUIRE(apply_button != nullptr);
+    CHECK(apply_button->text() == QStringLiteral("Apply changes"));
+    dry_run_checkbox->setChecked(true);
+    CHECK(apply_button->text() == QStringLiteral("Dry run preview"));
+    dry_run_checkbox->setChecked(false);
+    CHECK(apply_button->text() == QStringLiteral("Apply changes"));
     dry_run_checkbox->setChecked(true);
 
     schedule_active_modal_accept();
@@ -1057,7 +1064,7 @@ TEST_CASE("CategorizationDialog deduplicates suggested names when rename-only is
     QCheckBox* rename_checkbox = nullptr;
     const auto checkboxes = dialog.findChildren<QCheckBox*>();
     for (auto* checkbox : checkboxes) {
-        if (checkbox && checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)")) {
+        if (checkbox && checkbox->text() == QStringLiteral("Rename pictures without moving")) {
             rename_checkbox = checkbox;
             break;
         }
@@ -1180,7 +1187,7 @@ TEST_CASE("CategorizationDialog hides already renamed rows when rename-only is o
     QCheckBox* rename_checkbox = nullptr;
     const auto checkboxes = dialog.findChildren<QCheckBox*>();
     for (auto* checkbox : checkboxes) {
-        if (checkbox && checkbox->text() == QStringLiteral("Do not categorize picture files (only rename)")) {
+        if (checkbox && checkbox->text() == QStringLiteral("Rename pictures without moving")) {
             rename_checkbox = checkbox;
             break;
         }

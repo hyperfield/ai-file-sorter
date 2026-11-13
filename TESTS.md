@@ -1094,7 +1094,7 @@ Run: `./build-tests/ai_file_sorter_tests "SingleInstanceCoordinator allows diffe
 #### Test case: Image analysis checkboxes enable and enforce rename-only behavior
 Purpose: Ensure the image analysis options enable correctly and enforce the rename-only rule.
 Setup: Create dummy LLaVA model files, configure settings with image analysis and rename options off, construct `MainApp` with offscreen Qt, and stub the visual-LLM availability probe.
-Procedure: Toggle the "Analyze picture files" checkbox on, then toggle the "Do not categorize picture files" checkbox on and attempt to unset "Offer to rename picture files".
+Procedure: Toggle the "Analyze picture files" checkbox on, then toggle the "Rename pictures without moving" checkbox on and attempt to unset "Offer to rename picture files".
 Expected outcome: The option group enables when analysis is checked; enabling rename-only forces offer-rename on; disabling offer-rename clears rename-only.
 Run: `./build-tests/ai_file_sorter_tests "Image analysis checkboxes enable and enforce rename-only behavior"`
 

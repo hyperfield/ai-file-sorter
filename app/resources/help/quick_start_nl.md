@@ -103,9 +103,11 @@ Schakel **Dry run (preview only, do not move files)** in om geplande verplaatsin
 
 ## 6. Pas de wijzigingen toe
 
-Selecteer de rijen die u wilt verwerken en klik op **Confirm and Process**. De app maakt de benodigde mappen en voert de geselecteerde verplaatsingen of hernoemingen uit.
+Selecteer de rijen die u wilt verwerken en klik op **Wijzigingen toepassen**. De app maakt de benodigde mappen en voert de geselecteerde verplaatsingen of hernoemingen uit.
 
-**Auto-approve filename changes** en **Auto-approve categorization** selecteren geschikte rijen vooraf. U moet nog steeds bevestigen voordat die wijzigingen worden toegepast.
+**Proefrun-voorbeeld**: Schakel **Dry run (preview only, do not move files)** in om geplande verplaatsingen en hernoemingen te bekijken zonder ze toe te passen.
+
+**Hernoemingssuggesties automatisch selecteren** en **Sorteersuggesties automatisch selecteren** selecteren geschikte rijen vooraf. U moet nog steeds bevestigen voordat die wijzigingen worden toegepast.
 
 ## 7. Maak de laatste run ongedaan
 

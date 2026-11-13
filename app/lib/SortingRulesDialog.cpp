@@ -126,6 +126,8 @@ void SortingRulesDialog::retranslate()
     document_label_->setText(tr("Documents"));
     image_value_->setText(tr("%1 words").arg(image_slider_->value()));
     document_value_->setText(tr("%1 words").arg(document_slider_->value()));
+    image_slider_->setToolTip(tr("Set the maximum number of descriptive words in suggested picture filenames (3 to 6). Added dates and other details may make the full name longer."));
+    document_slider_->setToolTip(tr("Set the maximum number of descriptive words in suggested document filenames (3 to 6). Added dates and other details may make the full name longer."));
     image_slider_->setAccessibleName(tr("Image filename word limit"));
     document_slider_->setAccessibleName(tr("Document filename word limit"));
 }

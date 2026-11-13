@@ -103,9 +103,11 @@ Aktivera **Dry run (preview only, do not move files)** för att förhandsgranska
 
 ## 6. Tillampa andringarna
 
-Välj raderna du vill behandla och klicka på **Confirm and Process**. Appen skapar nödvändiga mappar och genomför de valda flyttningarna eller namnbytena.
+Välj raderna du vill behandla och klicka på **Verkställ ändringar**. Appen skapar nödvändiga mappar och genomför de valda flyttningarna eller namnbytena.
 
-**Auto-approve filename changes** och **Auto-approve categorization** förväljer lämpliga rader. Du måste fortfarande bekräfta innan ändringarna genomförs.
+**Förhandsvisning av torrkörning**: Aktivera **Dry run (preview only, do not move files)** för att förhandsgranska planerade flyttningar och namnbyten utan att genomföra dem.
+
+**Markera namnförslag automatiskt** och **Markera sorteringsförslag automatiskt** förväljer lämpliga rader. Du måste fortfarande bekräfta innan ändringarna genomförs.
 
 ## 7. Angra senaste korningen
 

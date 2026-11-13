@@ -113,9 +113,11 @@ Enable **Dry run (preview only, do not move files)** to preview the planned move
 
 ## 6. Apply the Changes
 
-Select the rows you want to process and click **Confirm and Process**. The app creates any required folders and performs the selected moves or renames.
+Select the rows you want to process and click **Apply changes**. The app creates any required folders and performs the selected moves or renames.
 
-**Auto-approve filename changes** and **Auto-approve categorization** preselect eligible rows. You still need to confirm before those changes are applied.
+**Dry run preview**: Enable **Dry run (preview only, do not move files)** to preview the planned moves and renames without applying them.
+
+**Automatically select rename suggestions** and **Automatically select sorting suggestions** preselect eligible rows. You still need to confirm before those changes are applied.
 
 ## 7. Undo the Last Run
 

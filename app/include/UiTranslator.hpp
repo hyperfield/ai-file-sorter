@@ -239,6 +239,8 @@ public:
     void update_language_checks() const;
 
 private:
+    /** @brief Refreshes translated Settings-menu explanations and keyboard context help. */
+    void translate_settings_help() const;
     QString tr(const char* source) const;
     void update_language_group_checks(Language configured) const;
     void update_category_language_checks(CategoryLanguage configured) const;
