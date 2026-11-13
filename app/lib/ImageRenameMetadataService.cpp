@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "CurlTls.hpp"
 #include "ImageRenameMetadataService.hpp"
 
@@ -309,7 +310,7 @@ std::optional<std::vector<uint8_t>> read_png_exif_payload(const std::filesystem:
 std::string to_lower_ascii(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -455,7 +456,7 @@ std::optional<size_t> value_data_offset(const std::vector<uint8_t>& tiff,
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -637,13 +638,13 @@ ParsedExifMetadata parse_tiff_metadata(const std::vector<uint8_t>& tiff)
 
             if (const TiffEntry* lat_ref_entry = find_entry(gps_entries, kTagGpsLatitudeRef)) {
                 if (const auto text = read_ascii_value(tiff, *lat_ref_entry); text && !text->empty()) {
-                    lat_ref = static_cast<char>(std::toupper(static_cast<unsigned char>((*text)[0])));
+                    lat_ref = static_cast<char>(TextEncoding::ascii_upper(static_cast<unsigned char>((*text)[0])));
                 }
             }
 
             if (const TiffEntry* lon_ref_entry = find_entry(gps_entries, kTagGpsLongitudeRef)) {
                 if (const auto text = read_ascii_value(tiff, *lon_ref_entry); text && !text->empty()) {
-                    lon_ref = static_cast<char>(std::toupper(static_cast<unsigned char>((*text)[0])));
+                    lon_ref = static_cast<char>(TextEncoding::ascii_upper(static_cast<unsigned char>((*text)[0])));
                 }
             }
 
@@ -704,7 +705,7 @@ std::string shell_quote_argument(const std::string& raw)
 std::optional<std::string> run_command_capture_output(const std::string& command)
 {
 #if defined(_WIN32)
-    FILE* pipe = _popen(command.c_str(), "rb");
+    FILE* pipe = _wpopen(Utils::utf8_to_path(command).c_str(), L"rb");
 #else
     FILE* pipe = popen(command.c_str(), "r");
 #endif
@@ -761,15 +762,7 @@ std::optional<double> json_number_field(const Json::Value& object, const char* k
         if (text.empty()) {
             return std::nullopt;
         }
-        try {
-            size_t consumed = 0;
-            const double numeric = std::stod(text, &consumed);
-            if (consumed == text.size()) {
-                return numeric;
-            }
-        } catch (const std::exception&) {
-            return std::nullopt;
-        }
+        return TextEncoding::parse_number(text);
     }
 
     return std::nullopt;
@@ -914,7 +907,7 @@ bool ImageRenameMetadataService::open_cache_db()
     }
 
     const auto db_path = config_path / "image_place_cache.db";
-    if (sqlite3_open(db_path.string().c_str(), &cache_db_) != SQLITE_OK) {
+    if (sqlite3_open(Utils::path_to_utf8(db_path).c_str(), &cache_db_) != SQLITE_OK) {
         if (cache_db_) {
             sqlite3_close(cache_db_);
             cache_db_ = nullptr;
@@ -1243,28 +1236,7 @@ std::string ImageRenameMetadataService::apply_prefix_to_filename(
 
 std::string ImageRenameMetadataService::slugify(const std::string& value)
 {
-    std::string output;
-    output.reserve(value.size());
-
-    bool last_sep = true;
-    for (unsigned char ch : value) {
-        if (std::isalnum(ch)) {
-            output.push_back(static_cast<char>(std::tolower(ch)));
-            last_sep = false;
-            continue;
-        }
-
-        if (!last_sep && !output.empty()) {
-            output.push_back('_');
-            last_sep = true;
-        }
-    }
-
-    while (!output.empty() && output.back() == '_') {
-        output.pop_back();
-    }
-
-    return output;
+    return TextEncoding::place_slug(value);
 }
 
 std::optional<std::string> ImageRenameMetadataService::normalize_exif_date(const std::string& value)

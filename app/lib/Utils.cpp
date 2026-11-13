@@ -101,12 +101,12 @@ std::vector<std::string> collect_user_prefixes() {
         }
     };
 
-    append(std::getenv("HOME"));
-    append(std::getenv("USERPROFILE"));
+    append(Utils::getenv_utf8("HOME").value_or("").c_str());
+    append(Utils::getenv_utf8("USERPROFILE").value_or("").c_str());
 
     if (prefixes.empty() && Utils::is_os_windows()) {
-        if (const char* username = std::getenv("USERNAME")) {
-            prefixes.emplace_back(std::string("C:/Users/") + username);
+        if (const auto username = Utils::getenv_utf8("USERNAME")) {
+            prefixes.emplace_back(std::string("C:/Users/") + *username);
         }
     }
 
@@ -310,6 +310,20 @@ std::string Utils::get_executable_path()
 }
 
 
+std::optional<std::string> Utils::getenv_utf8(const char* name)
+{
+#ifdef _WIN32
+    const auto wide_name = utf8_to_path(name).native();
+    const wchar_t* value = _wgetenv(wide_name.c_str());
+    if (!value) return std::nullopt;
+    return path_to_utf8(std::filesystem::path(value));
+#else
+    const char* value = std::getenv(name);
+    if (!value) return std::nullopt;
+    return std::string(value);
+#endif
+}
+
 std::string Utils::path_to_utf8(const std::filesystem::path& path) {
 #ifdef _WIN32
     if (path.empty()) {
@@ -448,8 +462,9 @@ const char* Utils::to_cstr(const std::u8string& u8str) {
 void Utils::ensure_directory_exists(const std::string &dir)
 {
     try {
-        if (!std::filesystem::exists(dir)) {
-            std::filesystem::create_directories(dir);
+        const auto native_dir = utf8_to_path(dir);
+        if (!std::filesystem::exists(native_dir)) {
+            std::filesystem::create_directories(native_dir);
         }
     } catch (const std::exception &e) {
         log_core(spdlog::level::err, "Error creating log directory: {}", e.what());
@@ -654,41 +669,41 @@ std::string Utils::get_default_llm_destination()
         return configured;
     }
 
-    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_STORAGE_DIR");
-        env_override && *env_override) {
-        return trim_copy(env_override);
+    if (const auto env_override = getenv_utf8("AI_FILE_SORTER_LLM_STORAGE_DIR");
+        env_override && !env_override->empty()) {
+        return trim_copy(*env_override);
     }
-    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_DIR");
-        env_override && *env_override) {
-        return trim_copy(env_override);
+    if (const auto env_override = getenv_utf8("AI_FILE_SORTER_LLM_DIR");
+        env_override && !env_override->empty()) {
+        return trim_copy(*env_override);
     }
 
-    const char* home = std::getenv("HOME");
+    const auto home = getenv_utf8("HOME");
 
     if (Utils::is_os_windows()) {
-        const char* appdata = std::getenv("APPDATA");
+        const auto appdata = getenv_utf8("APPDATA");
         if (!appdata) throw std::runtime_error("APPDATA not set");
-        std::filesystem::path legacy = std::filesystem::path(appdata) / "aifilesorter" / "llms";
+        std::filesystem::path legacy = utf8_to_path(*appdata) / "aifilesorter" / "llms";
 
 #ifdef _WIN32
         if (auto packaged = packaged_llm_path()) {
             // Prefer the packaged LocalCache path; fall back to legacy if it already exists (backward compatibility).
             if (std::filesystem::exists(legacy)) {
-                return legacy.string();
+                return path_to_utf8(legacy);
             }
-            return packaged->string();
+            return path_to_utf8(*packaged);
         }
 #endif
-        return legacy.string();
+        return path_to_utf8(legacy);
     }
 
     if (!home) throw std::runtime_error("HOME not set");
 
     if (Utils::is_os_macos()) {
-        return (std::filesystem::path(home) / "Library" / "Application Support" / "aifilesorter" / "llms").string();
+        return path_to_utf8(utf8_to_path(*home) / "Library" / "Application Support" / "aifilesorter" / "llms");
     }
 
-    return (std::filesystem::path(home) / ".local" / "share" / "aifilesorter" / "llms").string();
+    return path_to_utf8(utf8_to_path(*home) / ".local" / "share" / "aifilesorter" / "llms");
 }
 
 
@@ -707,7 +722,7 @@ std::string Utils::get_file_name_from_url(std::string url)
 std::string Utils::make_default_path_to_file_from_download_url(std::string url)
 {
     std::string filename = get_file_name_from_url(url);
-    std::string path_to_file = (std::filesystem::path(get_default_llm_destination()) / filename).string();
+    std::string path_to_file = path_to_utf8(utf8_to_path(get_default_llm_destination()) / utf8_to_path(filename));
     return path_to_file;
 }
 
@@ -756,9 +771,9 @@ bool Utils::is_cuda_available() {
 
 #ifdef _WIN32
     std::optional<std::filesystem::path> ggml_directory;
-    if (const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-        ggml_dir && ggml_dir[0] != '\0') {
-        ggml_directory = Utils::utf8_to_path(ggml_dir);
+    if (const auto ggml_dir = getenv_utf8("AI_FILE_SORTER_GGML_DIR");
+        ggml_dir && !ggml_dir->empty()) {
+        ggml_directory = Utils::utf8_to_path(*ggml_dir);
     }
     ggml_directory = WindowsCudaProbe::resolve_backend_directory({}, ggml_directory);
 

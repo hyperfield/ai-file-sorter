@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "FolderStructurePluginProfile.hpp"
 
 #include <openssl/evp.h>
@@ -36,7 +37,7 @@ constexpr char kSignatureManifestName[] = "plugin-signature.json";
 constexpr char kSignatureFileName[] = "plugin-signature.sig";
 
 std::string trim_copy(std::string value) {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -44,7 +45,7 @@ std::string trim_copy(std::string value) {
 
 std::string ascii_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 
@@ -128,7 +129,7 @@ std::vector<std::string> parse_string_list_field(const QJsonObject& object, cons
 
 std::optional<std::filesystem::path> safe_relative_package_path(std::string value) {
     std::replace(value.begin(), value.end(), '\\', '/');
-    const std::filesystem::path normalized = std::filesystem::path(value).lexically_normal();
+    const std::filesystem::path normalized = Utils::utf8_to_path(value).lexically_normal();
     if (normalized.empty() || normalized.has_root_name() || normalized.has_root_directory()) {
         return std::nullopt;
     }
@@ -165,7 +166,7 @@ std::string relative_path_text(const std::filesystem::path& root, const std::fil
 
 bool is_executable_like_package_path(const std::string& relative_path) {
     const std::filesystem::path path(relative_path);
-    const std::string ext = ascii_lower_copy(path.extension().string());
+    const std::string ext = ascii_lower_copy(Utils::path_to_utf8(path.extension()));
     static const std::unordered_set<std::string> blocked = {".bat", ".cmd", ".com", ".dll", ".dylib", ".exe", ".js",
                                                             ".msi", ".ps1", ".py",  ".sh",  ".so",    ".vbs"};
     return blocked.contains(ext);
@@ -202,10 +203,10 @@ std::optional<QJsonObject> read_json_object(const std::filesystem::path& path, s
 }
 
 std::string normalize_sha256(std::string value) {
-    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }),
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return TextEncoding::ascii_space(ch) != 0; }),
                 value.end());
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 

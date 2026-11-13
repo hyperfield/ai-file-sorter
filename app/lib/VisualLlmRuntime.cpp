@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "LlmCatalog.hpp"
 #include "VisualLlmRuntime.hpp"
 
@@ -13,7 +14,7 @@ namespace {
 std::string to_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 

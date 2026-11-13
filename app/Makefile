@@ -416,6 +416,8 @@ TS_FILES := \
 	$(TS_DIR)/aifilesorter_ko.ts
 QM_DIR := $(OBJ_DIR)/i18n
 QM_FILES := $(patsubst $(TS_DIR)/%.ts,$(QM_DIR)/%.qm,$(TS_FILES))
+QT_TS_FILES := $(wildcard $(TS_DIR)/qt/qtbase_*.ts)
+QM_FILES += $(patsubst $(TS_DIR)/qt/%.ts,$(QM_DIR)/%.qm,$(QT_TS_FILES))
 TRANSLATIONS_QRC := $(OBJ_DIR)/translations.qrc
 TRANSLATIONS_QRC_CPP := $(OBJ_DIR)/qrc_translations.cpp
 TRANSLATIONS_QRC_OBJ := $(OBJ_DIR)/qrc_translations.o
@@ -738,16 +740,26 @@ $(QRC_CPP): $(QRC_FILE) $(QRC_RESOURCES) $(MAKEFILE_SELF)
 $(QRC_OBJ): $(QRC_CPP) $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
+$(QM_DIR)/qtbase_%.qm: $(TS_DIR)/qt/qtbase_%.ts
+	mkdir -p $(dir $@)
+	$(LRELEASE) $< -qm $@
+
 $(QM_DIR)/%.qm: $(TS_DIR)/%.ts
 	mkdir -p $(dir $@)
 	$(LRELEASE) $< -qm $@
 
-$(TRANSLATIONS_QRC): $(QM_FILES)
+QT_TRANSLATION_LICENSES := $(TS_DIR)/qt/GPL-3.0-only.txt $(TS_DIR)/qt/Qt-GPL-exception-1.0.txt $(TS_DIR)/qt/licenseRule.json $(TS_DIR)/qt/README.md
+
+$(TRANSLATIONS_QRC): $(QM_FILES) $(QT_TRANSLATION_LICENSES) $(MAKEFILE_SELF)
 	mkdir -p $(OBJ_DIR)
 	@tmp="$@.tmp"; \
 	printf '%s\n' '<!DOCTYPE RCC><RCC version="1.0">' '  <qresource prefix="/i18n">' > "$$tmp"; \
 	for qm in $(QM_FILES); do \
 		printf '    <file alias="%s">i18n/%s</file>\n' "$$(basename "$$qm")" "$$(basename "$$qm")" >> "$$tmp"; \
+	done; \
+	printf '%s\n' '  </qresource>' '  <qresource prefix="/licenses/qttranslations">' >> "$$tmp"; \
+	for license in $(QT_TRANSLATION_LICENSES); do \
+		printf '    <file alias="%s">%s</file>\n' "$$(basename "$$license")" "$(CURDIR)/$$license" >> "$$tmp"; \
 	done; \
 	printf '%s\n' '  </qresource>' '</RCC>' >> "$$tmp"; \
 	mv "$$tmp" "$@"

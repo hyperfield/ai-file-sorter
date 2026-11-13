@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "ExplorerExtensionManager.hpp"
 
 #include <algorithm>
@@ -31,7 +32,7 @@ std::optional<ExplorerExtensionManager::State> test_state_override()
 
     std::string normalized(value);
     std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
 
     if (normalized == "unsupported") {

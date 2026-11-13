@@ -1732,7 +1732,7 @@ void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntr
     std::string destination_path;
     if (entry.backend_descriptor && entry.artifact_descriptor) {
         destination_path =
-            visual_artifact_storage_path(*entry.backend_descriptor, *entry.artifact_descriptor).string();
+            Utils::path_to_utf8(visual_artifact_storage_path(*entry.backend_descriptor, *entry.artifact_descriptor));
         entry.resolved_artifact_path =
             resolve_visual_artifact_path(*entry.backend_descriptor, *entry.artifact_descriptor, env_url);
     }
@@ -2025,14 +2025,14 @@ void LLMSelectionDialog::handle_delete_visual_download(VisualLlmDownloadEntry& e
         }
     };
 
-    enqueue_path(std::filesystem::path(path));
-    enqueue_path(std::filesystem::path(entry.downloader->get_partial_download_destination()));
-    enqueue_path(std::filesystem::path(path + ".aifs.meta"));
+    enqueue_path(Utils::utf8_to_path(path));
+    enqueue_path(Utils::utf8_to_path(entry.downloader->get_partial_download_destination()));
+    enqueue_path(Utils::utf8_to_path(path + ".aifs.meta"));
 
     if (entry.resolved_artifact_path.has_value()) {
         enqueue_path(*entry.resolved_artifact_path);
-        enqueue_path(std::filesystem::path(entry.resolved_artifact_path->string() + ".part"));
-        enqueue_path(std::filesystem::path(entry.resolved_artifact_path->string() + ".aifs.meta"));
+        enqueue_path(Utils::utf8_to_path(Utils::path_to_utf8(*entry.resolved_artifact_path) + ".part"));
+        enqueue_path(Utils::utf8_to_path(Utils::path_to_utf8(*entry.resolved_artifact_path) + ".aifs.meta"));
     }
 
     for (const auto& candidate : removal_paths) {

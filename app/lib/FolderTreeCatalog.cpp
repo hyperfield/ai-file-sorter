@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "FolderTreeCatalog.hpp"
 
 #include "FolderStructurePattern.hpp"
@@ -126,7 +127,7 @@ std::string normalize_separators(std::string value)
 std::string lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -201,10 +202,10 @@ std::unordered_set<std::string> tokenize(std::string value)
     std::replace(value.begin(), value.end(), '/', ' ');
     std::replace(value.begin(), value.end(), '\\', ' ');
     for (char& ch : value) {
-        if (!std::isalnum(static_cast<unsigned char>(ch))) {
+        if (!TextEncoding::ascii_alnum(static_cast<unsigned char>(ch))) {
             ch = ' ';
         } else {
-            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            ch = static_cast<char>(TextEncoding::ascii_lower(static_cast<unsigned char>(ch)));
         }
     }
 
@@ -344,7 +345,7 @@ bool is_key_separator_gap(std::string_view gap)
 bool is_identifier_char(char ch)
 {
     const auto value = static_cast<unsigned char>(ch);
-    return std::isalnum(value) || ch == '_';
+    return TextEncoding::ascii_alnum(value) || ch == '_';
 }
 
 bool has_unquoted_key_boundaries(const std::string& value,

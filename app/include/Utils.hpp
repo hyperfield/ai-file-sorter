@@ -65,6 +65,12 @@ public:
     static std::string abbreviate_user_path(const std::string& path);
     static std::string path_to_utf8(const std::filesystem::path& path);
     static std::filesystem::path utf8_to_path(const std::string& utf8_path);
+    /**
+     * @brief Read an environment value as UTF-8 using the wide Windows CRT.
+     * @param name ASCII environment variable name.
+     * @return Value, or nullopt when unset. Does not require a Qt application.
+     */
+    static std::optional<std::string> getenv_utf8(const char* name);
     /** @brief Build a native filesystem lookup key while preserving stored path spellings. */
     static std::string filesystem_comparison_key(const std::string& path);
     static std::string sanitize_path_label(const std::string& value);

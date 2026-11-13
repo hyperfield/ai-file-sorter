@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "FolderStructurePluginManager.hpp"
 
 #include <QDir>
@@ -100,7 +101,7 @@ std::vector<int> parse_version_digits(const std::string& version) {
             current.clear();
             continue;
         }
-        if (!std::isdigit(static_cast<unsigned char>(ch))) {
+        if (!TextEncoding::ascii_digit(static_cast<unsigned char>(ch))) {
             return {};
         }
         current.push_back(ch);
@@ -223,21 +224,21 @@ FolderStructurePluginManager::FolderStructurePluginManager(
       catalog_fetcher_(download_directory_for_config_dir(config_dir_), std::move(download_fn)),
       remote_catalog_url_(default_folder_structure_plugin_catalog_url()) {
     if (!entitlement_service_) {
-        entitlement_service_ = std::make_shared<PluginEntitlementService>(std::filesystem::path(config_dir_));
+        entitlement_service_ = std::make_shared<PluginEntitlementService>(Utils::utf8_to_path(config_dir_));
     }
     load_cached_remote_catalog();
 }
 
 std::filesystem::path FolderStructurePluginManager::package_directory_for_config_dir(const std::string& config_dir) {
-    return std::filesystem::path(config_dir) / "plugins" / "folder-structures" / "packages";
+    return Utils::utf8_to_path(config_dir) / "plugins" / "folder-structures" / "packages";
 }
 
 std::filesystem::path FolderStructurePluginManager::staging_directory_for_config_dir(const std::string& config_dir) {
-    return std::filesystem::path(config_dir) / "plugins" / "folder-structures" / "staging";
+    return Utils::utf8_to_path(config_dir) / "plugins" / "folder-structures" / "staging";
 }
 
 std::filesystem::path FolderStructurePluginManager::download_directory_for_config_dir(const std::string& config_dir) {
-    return std::filesystem::path(config_dir) / "plugins" / "folder-structures" / "downloads";
+    return Utils::utf8_to_path(config_dir) / "plugins" / "folder-structures" / "downloads";
 }
 
 std::vector<FolderStructurePluginCatalogEntry> FolderStructurePluginManager::available_plugins() const {
@@ -384,7 +385,7 @@ bool FolderStructurePluginManager::activate_license(const std::string& product_i
     request.platform = PluginLicenseActivator::default_platform();
 
     const PluginLicenseActivationResult result =
-        PluginLicenseActivator::activate(std::filesystem::path(config_dir_), request);
+        PluginLicenseActivator::activate(Utils::utf8_to_path(config_dir_), request);
     if (result.activated) {
         return true;
     }
@@ -568,7 +569,7 @@ std::filesystem::path FolderStructurePluginManager::staging_root() const {
 }
 
 std::filesystem::path FolderStructurePluginManager::state_file() const {
-    return std::filesystem::path(config_dir_) / "plugins" / "folder-structures" / "state.json";
+    return Utils::utf8_to_path(config_dir_) / "plugins" / "folder-structures" / "state.json";
 }
 
 std::vector<FolderStructurePluginPublicKey> FolderStructurePluginManager::trusted_keys() const {

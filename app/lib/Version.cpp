@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "Version.hpp"
 
 #include <algorithm>
@@ -10,7 +11,7 @@ namespace {
 
 std::string trim_copy(std::string value)
 {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -20,7 +21,7 @@ std::string normalized_tag(std::string value)
 {
     value = trim_copy(std::move(value));
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -29,7 +30,7 @@ bool is_digit_segment(const std::string& segment)
 {
     return !segment.empty()
         && std::all_of(segment.begin(), segment.end(), [](unsigned char ch) {
-               return std::isdigit(ch) != 0;
+               return TextEncoding::ascii_digit(ch) != 0;
            });
 }
 
@@ -55,7 +56,7 @@ Version Version::parse(const std::string& version_str)
     size_t numeric_end = 0;
     while (numeric_end < trimmed.size()) {
         const unsigned char ch = static_cast<unsigned char>(trimmed[numeric_end]);
-        if (std::isdigit(ch) || ch == '.') {
+        if (TextEncoding::ascii_digit(ch) || ch == '.') {
             ++numeric_end;
             continue;
         }

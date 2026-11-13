@@ -4,6 +4,7 @@
 #include "ImageMetadataTestFixtures.hpp"
 #include "ChatCompletionTestServer.hpp"
 #include "TestHelpers.hpp"
+#include "Utils.hpp"
 
 #include <catch2/generators/catch_generators.hpp>
 #include <QUrl>
@@ -63,6 +64,34 @@ TEST_CASE("Image capture-date extraction never performs a place lookup", "[geolo
         .network_available = [&] { ++network_checks; return true; }});
     CHECK(service.extract_capture_date(image) == "2020-01-02");
     CHECK(network_checks == 0);
+}
+
+TEST_CASE("Unicode geocoded places survive filename prefixes and cache reopen", "[geolocation][unicode-boundaries]")
+{
+    QtAppContext qt;
+    TempDir temp;
+    const auto config = temp.path() / Utils::utf8_to_path("profil été Иван");
+    const auto image = temp.path() / Utils::utf8_to_path("東京.tiff");
+    ImageMetadataTestFixtures::write_gps_tiff(image, 10.1234567, 20.7654321);
+    const auto place = GENERATE(std::pair<std::string, std::string>{"München", "münchen"},
+        std::pair<std::string, std::string>{"東京", "東京"},
+        std::pair<std::string, std::string>{"Москва", "москва"},
+        std::pair<std::string, std::string>{"New York", "new_york"});
+    ChatCompletionTestServer server;
+    EnvVarGuard endpoint("AI_FILE_SORTER_NOMINATIM_URL", server.url());
+    server.respond = [&](const auto&) -> ChatCompletionTestServer::Reply {
+        return {200, QByteArray::fromStdString("{\"address\":{\"city\":\"" + place.first + "\"}}")};
+    };
+    const auto expected = "2020-01-02_" + place.second + "_photo.tiff";
+    {
+        ImageRenameMetadataService service(Utils::path_to_utf8(config), {true, [] { return true; }});
+        CHECK(server.run([&] { return service.enrich_suggested_name(image, "photo.tiff"); }) == expected);
+        CHECK(service.enrich_suggested_name(image, expected) == expected);
+    }
+    CHECK(std::filesystem::is_regular_file(config / "image_place_cache.db"));
+    ImageRenameMetadataService reopened(Utils::path_to_utf8(config), {true, [] { return true; }});
+    CHECK(reopened.enrich_suggested_name(image, "photo.tiff") == expected);
+    CHECK(server.requests.size() == 1);
 }
 
 TEST_CASE("Geocoding transmits the same rounded coordinates used by its cache", "[geolocation]")

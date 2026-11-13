@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "MediaRenameMetadataService.hpp"
 
 #include "Utils.hpp"
@@ -60,7 +61,7 @@ std::string to_lower_copy(std::string value)
     std::transform(value.begin(),
                    value.end(),
                    value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 
@@ -1380,18 +1381,18 @@ std::optional<std::string> MediaRenameMetadataService::normalize_year(const std:
         const char c2 = value[index + 2];
         const char c3 = value[index + 3];
 
-        if (!std::isdigit(static_cast<unsigned char>(c0)) ||
-            !std::isdigit(static_cast<unsigned char>(c1)) ||
-            !std::isdigit(static_cast<unsigned char>(c2)) ||
-            !std::isdigit(static_cast<unsigned char>(c3))) {
+        if (!TextEncoding::ascii_digit(static_cast<unsigned char>(c0)) ||
+            !TextEncoding::ascii_digit(static_cast<unsigned char>(c1)) ||
+            !TextEncoding::ascii_digit(static_cast<unsigned char>(c2)) ||
+            !TextEncoding::ascii_digit(static_cast<unsigned char>(c3))) {
             continue;
         }
 
         const bool prefixed_by_digit =
-            index > 0 && std::isdigit(static_cast<unsigned char>(value[index - 1]));
+            index > 0 && TextEncoding::ascii_digit(static_cast<unsigned char>(value[index - 1]));
         const bool suffixed_by_digit =
             (index + 4) < value.size() &&
-            std::isdigit(static_cast<unsigned char>(value[index + 4]));
+            TextEncoding::ascii_digit(static_cast<unsigned char>(value[index + 4]));
         if (prefixed_by_digit || suffixed_by_digit) {
             continue;
         }

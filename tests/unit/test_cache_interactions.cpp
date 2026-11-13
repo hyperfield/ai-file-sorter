@@ -84,7 +84,7 @@ std::string sha256_hex(std::string_view payload) {
 void create_zip_archive(const std::filesystem::path& archive_path,
                         const std::vector<std::pair<std::string, std::string>>& entries) {
     int error_code = 0;
-    zip_t* archive = zip_open(archive_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
+    zip_t* archive = zip_open(Utils::path_to_utf8(archive_path).c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
     REQUIRE(archive != nullptr);
 
     for (const auto& [name, payload] : entries) {
@@ -1844,4 +1844,34 @@ TEST_CASE("StoragePluginManager uninstalls packaged external-process plugins") {
     CHECK_FALSE(plugin_manager.is_installed("mockcloud_compat"));
     CHECK_FALSE(std::filesystem::exists(manifest_dir / "mockcloud_compat.json"));
     CHECK_FALSE(std::filesystem::exists(package_root));
+}
+
+TEST_CASE("Storage plugin installation and process execution preserve Unicode native paths", "[unicode-boundaries]")
+{
+    QtAppContext qt;
+    TempDir temp;
+    const auto root = temp.path() / Utils::utf8_to_path("profil été Иван 東京");
+    const auto config = root / "configuration";
+    const auto archives = root / "archives";
+    const auto cloud = root / "MockCloud Documents";
+    std::filesystem::create_directories(archives);
+    const auto archive = create_signed_stub_storage_plugin_archive(
+        archives, "mockcloud_compat", "MockCloud Compatibility", "mockcloud", "0.1.0");
+    StoragePluginManager manager(Utils::path_to_utf8(config), {}, storage_package_test_keys());
+    std::string error;
+    REQUIRE(manager.install_from_archive(archive, nullptr, &error));
+    const auto installed = manager.find_plugin("mockcloud_compat");
+    REQUIRE(installed);
+    CHECK(std::filesystem::is_regular_file(Utils::utf8_to_path(installed->entry_point)));
+    CHECK(std::filesystem::is_regular_file(
+        StoragePluginManager::manifest_directory_for_config_dir(Utils::path_to_utf8(config)) / "mockcloud_compat.json"));
+    const auto source = cloud / Utils::utf8_to_path("contrat_Счета.txt");
+    const auto destination = cloud / Utils::utf8_to_path("trié") / source.filename();
+    write_file(source);
+    ExternalProcessStorageProvider provider(*installed, "mockcloud", "unicode-test", false);
+    const auto moved = provider.move_entry(Utils::path_to_utf8(source), Utils::path_to_utf8(destination));
+    INFO(moved.message);
+    CHECK(moved.success);
+    CHECK(std::filesystem::is_regular_file(destination));
+    CHECK_FALSE(std::filesystem::exists(source));
 }

@@ -974,9 +974,16 @@ qt_add_lupdate(
 set_source_files_properties(${AIFS_TRANSLATION_TS_FILES}
     PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
 
+# Keep Qt catalogs in the executable, independent of the host's Qt installation.
+# These vendor/fallback contexts must not be processed by application lupdate.
+file(GLOB AIFS_QT_TRANSLATION_TS_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/qt/qtbase_*.ts")
+set_source_files_properties(${AIFS_QT_TRANSLATION_TS_FILES}
+    PROPERTIES OUTPUT_LOCATION "${AIFS_TRANSLATION_QM_DIR}")
+
 qt_add_lrelease(
     aifilesorter
-    TS_FILES ${AIFS_TRANSLATION_TS_FILES}
+    TS_FILES ${AIFS_TRANSLATION_TS_FILES} ${AIFS_QT_TRANSLATION_TS_FILES}
     QM_FILES_OUTPUT_VARIABLE AIFS_TRANSLATION_QM_FILES
 )
 
@@ -990,6 +997,12 @@ function(aifs_add_translation_resources target_name)
         PREFIX "/i18n"
         BASE "${AIFS_TRANSLATION_QM_DIR}"
         FILES ${AIFS_TRANSLATION_QM_FILES}
+    )
+    qt_add_resources(${target_name} "${target_name}_qt_translation_licenses"
+        PREFIX "/licenses/qttranslations"
+        BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/i18n/qt"
+        FILES resources/i18n/qt/GPL-3.0-only.txt resources/i18n/qt/Qt-GPL-exception-1.0.txt
+              resources/i18n/qt/licenseRule.json resources/i18n/qt/README.md
     )
 endfunction()
 
@@ -1928,6 +1941,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         ${APP_LIB_SOURCES}
         ${AIFS_TEST_ONLY_APP_SOURCES}
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_utils.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_unicode_boundaries.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_curl_tls.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_file_scanner.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_folder_tree_catalog.cpp"
@@ -2112,6 +2126,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
 
     if(WIN32)
         set(AIFS_UPDATER_MODE_TEST_APP_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/lib/NativeRotatingFileSink.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/CurlTls.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/IniConfig.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/lib/Logger.cpp"

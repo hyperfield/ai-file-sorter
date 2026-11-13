@@ -18,6 +18,95 @@ loader against bundled CPU libraries, and installed-launcher `--self-test` and
 launcher, executable, desktop entry and icon are removed. These checks do not
 exercise GPU hardware or model inference.
 
+## Unicode, locale and translation boundaries
+
+After rebuilding all native targets, run the full CTest suite. For focused checks:
+
+```text
+./app/build-windows/tests/Release/ai_file_sorter_tests.exe "[unicode-boundaries],[geolocation],[inference-audit]"
+ctest --test-dir app/build-windows -C Release --output-on-failure
+```
+
+Use the equivalent executable/build directory on POSIX. The maintained cases in
+`tests/unit/test_unicode_boundaries.cpp` cover:
+
+- `Translated taxonomy accepts wrapped JSON and collapsed pairs`: plain, fenced
+  and prose-wrapped French JSON, plus collapsed category/subcategory fields.
+- `Loose taxonomy pairs preserve Unicode letters`: Chinese/Cyrillic pairs and
+  sanitizer extraction after chatter.
+- `Category length accepts fifty Unicode letters`: ASCII, accented Latin,
+  Cyrillic and Japanese labels pass both public validators.
+- `Retry After numbers use the protocol decimal separator in French`: actual
+  Retry-After and benchmark threshold parsing under the French C runtime locale.
+- `Wide Unicode configuration and learning database use exact native paths`:
+  Windows wide environment setup, config save/reload and learning database creation.
+- `Taxonomy JSON extraction validates types and bounded escaped objects`: typed
+  fields, quoted braces/escapes, malformed/oversized JSON, abstention, symbols
+  and invalid UTF-8.
+- `Label limits count graphemes and retain native component limits`: 80/81
+  grapheme boundaries, combining marks, supplementary letters and malformed UTF-8.
+- `Legacy Russian byte locale cannot corrupt UTF-8 taxonomy text`: legacy
+  Windows CRT CP1251 character classification without changing interface languages.
+- `Unicode environment overrides survive config persistence and model discovery`:
+  model-directory precedence, persisted storage, real artifact discovery and
+  profile-prefix abbreviation.
+- `Native Unicode log sink writes rotates and flushes exact filenames`: active
+  and numbered log names and byte-exact Unicode contents.
+- `Logger initialization write and cleanup preserve a wide Unicode profile`:
+  production logger setup, writes, cleanup and continued logging with native paths.
+- `Model downloader writes and reloads Unicode artifacts through loopback HTTP`:
+  real HEAD/GET, native artifact/sidecar writes, completion and metadata reload.
+- `Unicode databases locks and headless review apply undo share exact paths`:
+  database filename override, cache inspection, runtime lock, review dry run,
+  move, long Unicode category and persistent undo.
+- `String EXIF coordinates use invariant parsing with a Unicode helper path`:
+  synthetic HEIF/exiftool output under French, helper lookup and input paths,
+  and captured three-decimal loopback requests.
+- `Bundled startup progress and standard button translations change and reset`:
+  actual first-run French LLM dialog, coordinator context, repeated initialization,
+  French/German/English switching, translator removal and explicit Qt fallbacks.
+
+Additional maintained cases:
+
+- `Unicode geocoded places survive filename prefixes and cache reopen` in
+  `test_image_rename_metadata_service.cpp`: München, 東京, Москва and New York,
+  duplicate-prefix handling and native SQLite reopen, with synthetic GPS/loopback HTTP.
+- `Storage plugin installation and process execution preserve Unicode native paths`
+  in `test_cache_interactions.cpp`: signed archive extraction, staging, manifest
+  reload, executable/working directory and actual provider file mutation. The
+  protocol stub also uses explicit native path conversions.
+- `CategorizationService strips inline subcategory artifacts from translated category labels`
+  now exercises wrapped JSON and collapsed pairs through production translation
+  persistence, preserving canonical English labels.
+- Existing Metal and visual GPU-headroom estimator fixtures use Unicode model
+  and projector filenames; their expected memory estimates remain unchanged.
+- `InferenceAudit fails clearly on invalid output locations` covers wide Unicode
+  environment paths on Windows, alongside relative/file output rejection.
+- `headless_stdout_contract` and `headless_launcher_stdout_contract` run all
+  process fixtures beneath accented/Cyrillic/Japanese directories, including
+  Unicode saved-plan renames and actual early log creation. Structured JSON and
+  redirected stdout/stderr assertions remain in force. Their
+  `test_french_progress_uses_catalogs_in_a_core_application` case checks French
+  coordinator messages from the production QCoreApplication entry point.
+
+Category limits use **80 extended grapheme clusters**, including combining marks
+within their cluster, plus the native component limit: 255 UTF-16 code units on
+Windows, 255 UTF-8 bytes on POSIX. Invalid UTF-8 is rejected. The parser, review
+validator, mover and headless apply gate share this policy. Character, reserved-name
+and destination safety checks still apply independently.
+
+Qt catalogs are built into application/test resources by CMake and Make. The
+application never loads Qt translations from a developer installation. Upstream
+Qt catalogs cover eleven supported languages; application-owned Hindi, Icelandic
+and Norwegian Bokmål catalogs explicitly cover all standard buttons, with other
+Qt strings falling back to English. See `app/resources/i18n/qt/README.md`.
+
+Windows environment fixtures use wide setters/readers and restore their previous
+values. Locale fixtures restore the C locale; the French/Russian cases record the
+ACP/CRT condition with Catch2 `--success`. Console code page changes are not used
+as evidence of the process ANSI code page. Native platform runs remain necessary
+for claims about platform-specific behavior.
+
 ## Photo location privacy
 
 Rebuild `ai_file_sorter_tests` and run:

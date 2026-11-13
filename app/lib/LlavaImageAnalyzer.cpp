@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "LlavaImageAnalyzer.hpp"
 #include "ImageFilenamePolicy.hpp"
 #include "ContentAnalysisUnavailable.hpp"
@@ -228,7 +229,7 @@ bool is_mtmd_prompt_log_line(std::string_view line) {
 
 std::string to_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -348,7 +349,7 @@ std::string resolve_backend_name() {
 
 std::string trim_copy(const std::string& value) {
     auto result = value;
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     result.erase(result.begin(), std::find_if(result.begin(), result.end(), not_space));
     result.erase(std::find_if(result.rbegin(), result.rend(), not_space).base(), result.end());
     return result;
@@ -367,10 +368,10 @@ bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     std::string text_lower(text);
     std::string needle_lower(needle);
     std::transform(text_lower.begin(), text_lower.end(), text_lower.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     std::transform(needle_lower.begin(), needle_lower.end(), needle_lower.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return text_lower.find(needle_lower) != std::string::npos;
 }
@@ -741,12 +742,12 @@ std::optional<int32_t> infer_visual_block_count_from_tensors(gguf_context* ctx) 
 
         int32_t current = -1;
         for (const char* p = tensor_name; *p; ++p) {
-            if (!std::isdigit(static_cast<unsigned char>(*p))) {
+            if (!TextEncoding::ascii_digit(static_cast<unsigned char>(*p))) {
                 continue;
             }
 
             int value = 0;
-            while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
+            while (*p && TextEncoding::ascii_digit(static_cast<unsigned char>(*p))) {
                 value = value * 10 + (*p - '0');
                 ++p;
             }
@@ -765,7 +766,7 @@ std::optional<int32_t> infer_visual_block_count_from_tensors(gguf_context* ctx) 
 }
 
 bool has_gguf_magic(const std::string& model_path) {
-    std::ifstream file(model_path, std::ios::binary);
+    std::ifstream file(Utils::utf8_to_path(model_path), std::ios::binary);
     if (!file) {
         return false;
     }
@@ -797,7 +798,7 @@ std::optional<int32_t> extract_visual_block_count_gguf(const std::string& model_
 #endif
 
 std::optional<int32_t> extract_visual_block_count_from_scan(const std::string& model_path) {
-    std::ifstream file(model_path, std::ios::binary);
+    std::ifstream file(Utils::utf8_to_path(model_path), std::ios::binary);
     if (!file) {
         return std::nullopt;
     }
@@ -805,7 +806,7 @@ std::optional<int32_t> extract_visual_block_count_from_scan(const std::string& m
     std::vector<char> buffer(kVisualMetadataScanBytes);
     std::streamsize to_read = static_cast<std::streamsize>(buffer.size());
     std::error_code size_ec;
-    const auto file_size = std::filesystem::file_size(model_path, size_ec);
+    const auto file_size = std::filesystem::file_size(Utils::utf8_to_path(model_path), size_ec);
     if (!size_ec) {
         to_read = static_cast<std::streamsize>(std::min<std::uintmax_t>(file_size, buffer.size()));
     }
@@ -850,7 +851,7 @@ struct VisualLayerMetrics {
 
 bool populate_visual_layer_metrics(const std::string& model_path, VisualLayerMetrics& metrics) {
     std::error_code ec;
-    const auto file_size = std::filesystem::file_size(model_path, ec);
+    const auto file_size = std::filesystem::file_size(Utils::utf8_to_path(model_path), ec);
     if (ec) {
         return false;
     }
@@ -978,7 +979,7 @@ int32_t estimate_visual_n_gpu_layers_with_headroom(const std::string& model_path
     }
 
     std::error_code mmproj_ec;
-    const auto mmproj_size = std::filesystem::file_size(mmproj_path, mmproj_ec);
+    const auto mmproj_size = std::filesystem::file_size(Utils::utf8_to_path(mmproj_path), mmproj_ec);
     if (mmproj_ec) {
         return -1;
     }

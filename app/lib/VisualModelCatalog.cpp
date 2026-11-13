@@ -14,7 +14,9 @@ constexpr std::string_view kHttpVisualPrefix = "http-vision:";
 
 std::optional<std::string> read_cached_download_url(const std::filesystem::path& candidate)
 {
-    std::ifstream in(candidate.string() + ".aifs.meta");
+    auto metadata_path = candidate;
+    metadata_path += ".aifs.meta";
+    std::ifstream in(metadata_path);
     if (!in.is_open()) {
         return std::nullopt;
     }
@@ -32,7 +34,7 @@ std::optional<std::string> read_cached_download_url(const std::filesystem::path&
 
 bool is_shared_legacy_filename(const std::filesystem::path& candidate)
 {
-    const auto filename = candidate.filename().string();
+    const auto filename = Utils::path_to_utf8(candidate.filename());
     return filename == "mmproj-model.gguf" || filename == "mmproj-model-f16.gguf"
         || filename == "mmproj-F16.gguf";
 }
@@ -74,7 +76,7 @@ std::optional<std::filesystem::path> legacy_path_from_url(std::string_view downl
     }
 
     try {
-        return std::filesystem::path(
+        return Utils::utf8_to_path(
             Utils::make_default_path_to_file_from_download_url(std::string(download_url)));
     } catch (...) {
         return std::nullopt;
@@ -224,7 +226,7 @@ bool is_custom_visual_model_id(std::string_view visual_model_id)
 std::filesystem::path visual_artifact_storage_path(const VisualModelDescriptor& backend,
                                                    const VisualModelArtifactDescriptor& artifact)
 {
-    return std::filesystem::path(Utils::get_default_llm_destination())
+    return Utils::utf8_to_path(Utils::get_default_llm_destination())
            / std::filesystem::path(backend.id)
            / std::filesystem::path(artifact.local_storage_name);
 }
@@ -245,7 +247,7 @@ std::optional<std::filesystem::path> resolve_visual_artifact_path(
         return legacy_path;
     }
 
-    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
+    const auto llm_dir = Utils::utf8_to_path(Utils::get_default_llm_destination());
     for (const auto fallback_name : artifact.fallback_filenames) {
         const auto candidate = llm_dir / std::filesystem::path(std::string(fallback_name));
         if (!std::filesystem::exists(candidate)) {

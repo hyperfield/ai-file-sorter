@@ -1,3 +1,4 @@
+#include "Utils.hpp"
 #include "CacheMaintenanceDialog.hpp"
 
 #include "CacheMaintenanceService.hpp"
@@ -25,7 +26,7 @@ QString path_display_text(const CacheMaintenanceTargetInfo& info)
     if (info.path.empty()) {
         return dialog_tr("None");
     }
-    return QString::fromStdString(info.path.string());
+    return QString::fromStdString(Utils::path_to_utf8(info.path));
 }
 
 QString size_display_text(const CacheMaintenanceTargetInfo& info)

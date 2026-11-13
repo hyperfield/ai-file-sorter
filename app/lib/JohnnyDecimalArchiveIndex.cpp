@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "JohnnyDecimalArchiveIndex.hpp"
 
 #include <QUrl>
@@ -39,7 +40,7 @@ struct DisplayName {
 };
 
 std::string trim_copy(std::string value) {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -70,14 +71,14 @@ std::string basename(std::string_view relative_path) {
 }
 
 std::size_t consume_digits(const std::string& value, std::size_t pos) {
-    while (pos < value.size() && std::isdigit(static_cast<unsigned char>(value[pos]))) {
+    while (pos < value.size() && TextEncoding::ascii_digit(static_cast<unsigned char>(value[pos]))) {
         ++pos;
     }
     return pos;
 }
 
 std::size_t skip_spaces(const std::string& value, std::size_t pos) {
-    while (pos < value.size() && std::isspace(static_cast<unsigned char>(value[pos]))) {
+    while (pos < value.size() && TextEncoding::ascii_space(static_cast<unsigned char>(value[pos]))) {
         ++pos;
     }
     return pos;
@@ -89,7 +90,7 @@ std::optional<int> parse_int(std::string_view value) {
     }
     int result = 0;
     for (char ch : value) {
-        if (!std::isdigit(static_cast<unsigned char>(ch))) {
+        if (!TextEncoding::ascii_digit(static_cast<unsigned char>(ch))) {
             return std::nullopt;
         }
         result = result * 10 + (ch - '0');
@@ -159,7 +160,7 @@ ParsedCategory parse_category(std::string segment, const ParsedArea& area) {
 
     if (first_end + 1 < segment.size() &&
         (segment[first_end] == '.' || segment[first_end] == '_' || segment[first_end] == '-') &&
-        std::isdigit(static_cast<unsigned char>(segment[first_end + 1]))) {
+        TextEncoding::ascii_digit(static_cast<unsigned char>(segment[first_end + 1]))) {
         return parsed;
     }
 
@@ -199,7 +200,7 @@ DisplayName parse_display_name(std::string segment) {
     std::size_t prefix_end = first_end;
     if (prefix_end + 1 < segment.size() &&
         segment[prefix_end] == '.' &&
-        std::isdigit(static_cast<unsigned char>(segment[prefix_end + 1]))) {
+        TextEncoding::ascii_digit(static_cast<unsigned char>(segment[prefix_end + 1]))) {
         prefix_end = consume_digits(segment, prefix_end + 1);
     }
 

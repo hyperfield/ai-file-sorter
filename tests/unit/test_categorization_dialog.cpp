@@ -468,7 +468,8 @@ TEST_CASE("CategorizationDialog moves Unicode files into French nested subcatego
     QtAppContext qt_context;
 
     TempDir temp_dir;
-    const std::filesystem::path base = temp_dir.path();
+    const auto base = temp_dir.path() / Utils::utf8_to_path("profil été Иван");
+    std::filesystem::create_directories(base);
     const std::string file_name = "東京_보고서.txt";
     const std::filesystem::path source = base / Utils::utf8_to_path(file_name);
     std::ofstream(source).put('x');

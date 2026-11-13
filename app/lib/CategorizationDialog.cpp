@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "CategorizationDialog.hpp"
 
 #include "AppTheme.hpp"
@@ -124,7 +125,7 @@ std::string normalized_path_compare_key(const std::string& path)
     std::string key = Utils::path_to_utf8(Utils::utf8_to_path(path).lexically_normal());
 #ifdef _WIN32
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
 #endif
     return key;

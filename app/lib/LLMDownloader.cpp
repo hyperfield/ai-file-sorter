@@ -51,7 +51,7 @@ std::string describe_size_mismatch(const std::filesystem::path& path,
                                    long long actual_size)
 {
     std::ostringstream oss;
-    oss << "Downloaded file size mismatch for '" << path.string()
+    oss << "Downloaded file size mismatch for '" << Utils::path_to_utf8(path)
         << "': expected " << expected_size
         << " bytes, got " << actual_size << " bytes.";
     return oss.str();
@@ -80,12 +80,12 @@ LLMDownloader::LLMDownloader(const std::string& download_url,
 
 void LLMDownloader::set_download_destination() {
     if (!explicit_download_destination.empty()) {
-        const auto explicit_path = std::filesystem::path(explicit_download_destination);
-        destination_dir = explicit_path.parent_path().string();
+        const auto explicit_path = Utils::utf8_to_path(explicit_download_destination);
+        destination_dir = Utils::path_to_utf8(explicit_path.parent_path());
         std::filesystem::create_directories(explicit_path.parent_path());
-        download_destination = explicit_path.string();
+        download_destination = Utils::path_to_utf8(explicit_path);
     } else {
-        std::filesystem::create_directories(destination_dir);
+        std::filesystem::create_directories(Utils::utf8_to_path(destination_dir));
         download_destination = Utils::make_default_path_to_file_from_download_url(url);
     }
     load_cached_metadata();
@@ -108,7 +108,7 @@ void LLMDownloader::load_cached_metadata()
         return;
     }
 
-    std::ifstream in(metadata_path());
+    std::ifstream in(Utils::utf8_to_path(metadata_path()));
     if (!in.is_open()) {
         return;
     }
@@ -146,7 +146,7 @@ void LLMDownloader::persist_cached_metadata() const
         return;
     }
 
-    std::ofstream out(metadata_path(), std::ios::trunc);
+    std::ofstream out(Utils::utf8_to_path(metadata_path()), std::ios::trunc);
     if (!out.is_open()) {
         return;
     }
@@ -161,13 +161,13 @@ void LLMDownloader::migrate_legacy_partial_download_if_needed()
         return;
     }
 
-    const auto partial_path = std::filesystem::path(partial_download_path());
+    const auto partial_path = Utils::utf8_to_path(partial_download_path());
     std::error_code ec;
     if (std::filesystem::exists(partial_path, ec) || ec) {
         return;
     }
 
-    const auto final_path = std::filesystem::path(download_destination);
+    const auto final_path = Utils::utf8_to_path(download_destination);
     const auto size = std::filesystem::file_size(final_path, ec);
     if (ec || size == 0 || static_cast<long long>(size) >= real_content_length) {
         return;
@@ -177,13 +177,13 @@ void LLMDownloader::migrate_legacy_partial_download_if_needed()
     if (auto logger = Logger::get_logger("core_logger")) {
         if (ec) {
             logger->warn("Failed to migrate legacy partial download '{}' to '{}': {}",
-                         final_path.string(),
-                         partial_path.string(),
+                         Utils::path_to_utf8(final_path),
+                         Utils::path_to_utf8(partial_path),
                          ec.message());
         } else {
             logger->info("Migrated legacy partial download '{}' to '{}'",
-                         final_path.string(),
-                         partial_path.string());
+                         Utils::path_to_utf8(final_path),
+                         Utils::path_to_utf8(partial_path));
         }
     }
 }
@@ -443,7 +443,7 @@ void LLMDownloader::perform_download()
             resume_offset = 0;
 
             std::error_code ec;
-            std::filesystem::remove(partial_download_path(), ec);
+            std::filesystem::remove(Utils::utf8_to_path(partial_download_path()), ec);
 
             cleanup_curl();
             curl = init_curl();
@@ -466,8 +466,8 @@ void LLMDownloader::mark_download_resumable()
 
 void LLMDownloader::notify_download_complete()
 {
-    const auto partial_path = std::filesystem::path(partial_download_path());
-    const auto final_path = std::filesystem::path(download_destination);
+    const auto partial_path = Utils::utf8_to_path(partial_download_path());
+    const auto final_path = Utils::utf8_to_path(download_destination);
 
     if (real_content_length <= 0) {
         std::error_code ec;
@@ -543,7 +543,11 @@ long LLMDownloader::determine_resume_offset() const
 {
     if (!is_download_resumable()) return 0;
 
+#ifdef _WIN32
+    FILE* fp = _wfopen(Utils::utf8_to_path(partial_download_path()).c_str(), L"rb");
+#else
     FILE* fp = fopen(partial_download_path().c_str(), "rb");
+#endif
     if (!fp) return 0;
 
     fseek(fp, 0, SEEK_END);
@@ -555,25 +559,29 @@ long LLMDownloader::determine_resume_offset() const
 
 FILE* LLMDownloader::open_output_file(long resume_offset) const
 {
+#ifdef _WIN32
+    return _wfopen(Utils::utf8_to_path(partial_download_path()).c_str(), resume_offset > 0 ? L"ab" : L"wb");
+#else
     return fopen(partial_download_path().c_str(), resume_offset > 0 ? "ab" : "wb");
+#endif
 }
 
 
 bool LLMDownloader::has_existing_partial_download() const
 {
     try {
-        const auto partial_path = partial_download_path();
+        const auto partial_path = Utils::utf8_to_path(partial_download_path());
         if (std::filesystem::exists(partial_path)) {
             return std::filesystem::file_size(partial_path) > 0;
         }
 
-        if (!std::filesystem::exists(download_destination)) {
+        if (!std::filesystem::exists(Utils::utf8_to_path(download_destination))) {
             return false;
         }
         if (real_content_length <= 0) {
             return false;
         }
-        const auto final_size = std::filesystem::file_size(download_destination);
+        const auto final_size = std::filesystem::file_size(Utils::utf8_to_path(download_destination));
         return final_size > 0 && static_cast<long long>(final_size) < real_content_length;
     } catch (const std::filesystem::filesystem_error& e) {
         if (auto logger = Logger::get_logger("core_logger")) {
@@ -651,14 +659,14 @@ long long LLMDownloader::get_real_content_length() const
 LLMDownloader::DownloadStatus LLMDownloader::get_local_download_status() const
 {
     std::error_code ec;
-    const auto partial_path = partial_download_path();
+    const auto partial_path = Utils::utf8_to_path(partial_download_path());
     const auto partial_size = std::filesystem::file_size(partial_path, ec);
     if (!ec && partial_size > 0) {
         return DownloadStatus::InProgress;
     }
 
     ec.clear();
-    const auto size = std::filesystem::file_size(download_destination, ec);
+    const auto size = std::filesystem::file_size(Utils::utf8_to_path(download_destination), ec);
     if (ec || size == 0) {
         return DownloadStatus::NotStarted;
     }
@@ -670,7 +678,7 @@ LLMDownloader::DownloadStatus LLMDownloader::get_local_download_status() const
     if (real_content_length > 0 && local_size > real_content_length) {
         return DownloadStatus::Corrupt;
     }
-    if (validate_completed_artifact(std::filesystem::path(download_destination)).has_value()) {
+    if (validate_completed_artifact(Utils::utf8_to_path(download_destination)).has_value()) {
         return DownloadStatus::Corrupt;
     }
 
@@ -757,7 +765,7 @@ std::optional<std::string> LLMDownloader::validate_completed_artifact(
     std::error_code ec;
     const auto size = std::filesystem::file_size(candidate, ec);
     if (ec || size == 0) {
-        return std::string("Downloaded file is missing or empty: ") + candidate.string();
+        return std::string("Downloaded file is missing or empty: ") + Utils::path_to_utf8(candidate);
     }
 
     const auto actual_size = static_cast<long long>(size);
@@ -765,11 +773,11 @@ std::optional<std::string> LLMDownloader::validate_completed_artifact(
         return describe_size_mismatch(candidate, real_content_length, actual_size);
     }
 
-    const bool expects_gguf = is_gguf_file_path(std::filesystem::path(download_destination))
+    const bool expects_gguf = is_gguf_file_path(Utils::utf8_to_path(download_destination))
         || is_gguf_file_path(candidate);
     if (expects_gguf && !has_gguf_header(candidate)) {
         return std::string("Downloaded file is invalid or incomplete (expected GGUF header): ")
-            + candidate.string();
+            + Utils::path_to_utf8(candidate);
     }
 
     return std::nullopt;
@@ -795,7 +803,7 @@ void LLMDownloader::LLMDownloaderTestAccess::set_real_content_length(LLMDownload
 
 void LLMDownloader::LLMDownloaderTestAccess::set_download_destination(LLMDownloader& downloader,
                                                                       const std::string& path) {
-    downloader.destination_dir = std::filesystem::path(path).parent_path().string();
+    downloader.destination_dir = Utils::path_to_utf8(Utils::utf8_to_path(path).parent_path());
     downloader.explicit_download_destination = path;
     downloader.download_destination = path;
 }

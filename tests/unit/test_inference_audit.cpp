@@ -196,10 +196,13 @@ TEST_CASE("InferenceAudit fails clearly on invalid output locations", "[inferenc
         CHECK_THROWS_AS(create_audit(id), InferenceAudit::Error);
     }
 #ifdef _WIN32
-    SECTION("invalid UTF-8 paths are audit errors, not backend errors") {
+    SECTION("wide Unicode environment paths are decoded before audit validation") {
         TempDir root;
-        EnvVarGuard guard(kAuditEnv, root.path().string() + "/bad-\xff");
-        CHECK_THROWS_AS(create_audit(id), InferenceAudit::Error);
+        const auto target = root.path() / Utils::utf8_to_path("audit_été_Иван");
+        EnvVarGuard guard(kAuditEnv, Utils::path_to_utf8(target));
+        auto audit = create_audit(id);
+        REQUIRE(audit);
+        CHECK(std::filesystem::is_directory(target));
     }
 #endif
     SECTION("a regular file is not an output directory") {

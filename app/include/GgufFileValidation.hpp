@@ -11,6 +11,8 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+#include "TextEncoding.hpp"
+#include "Utils.hpp"
 
 /**
  * @brief Return true when the path points to a `.gguf` artifact.
@@ -19,9 +21,9 @@
  */
 inline bool is_gguf_file_path(const std::filesystem::path& path)
 {
-    std::string extension = path.extension().string();
+    std::string extension = Utils::path_to_utf8(path.extension());
     std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return extension == ".gguf";
 }

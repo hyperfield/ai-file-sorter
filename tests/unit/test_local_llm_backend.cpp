@@ -249,13 +249,16 @@ TEST_CASE("LocalLLMClient deduplicates matching retry estimates before reducing 
 
 TEST_CASE("Metal layer estimator honors constrained device memory metrics") {
     TempModelFile model(48, 80ULL * 1024ULL * 1024ULL);
+    TempDir root;
+    const auto model_path = root.path() / Utils::utf8_to_path("modèle_Иван.gguf");
+    std::filesystem::rename(model.path(), model_path);
 
     const auto constrained = LocalLLMTestAccess::estimate_metal_layers_for_testing(
-        model.path().string(),
+        Utils::path_to_utf8(model_path),
         40ULL * 1024ULL * 1024ULL,
         30ULL * 1024ULL * 1024ULL);
     const auto abundant = LocalLLMTestAccess::estimate_metal_layers_for_testing(
-        model.path().string(),
+        Utils::path_to_utf8(model_path),
         320ULL * 1024ULL * 1024ULL,
         240ULL * 1024ULL * 1024ULL);
 

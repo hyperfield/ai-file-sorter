@@ -1,3 +1,6 @@
+#include "AnalysisProgressTranslation.hpp"
+#include "TranslationManager.hpp"
+#include "TextEncoding.hpp"
 #include "HeadlessAnalysisWorkflowHost.hpp"
 
 #include "AnalysisCoordinator.hpp"
@@ -39,7 +42,7 @@ std::string to_utf8(const QString& value)
 
 QString translate_main_app(const char* text)
 {
-    return QCoreApplication::translate("MainApp", text);
+    return AnalysisProgressTranslation::translate(text);
 }
 
 std::shared_ptr<spdlog::logger> resolve_core_logger()
@@ -52,11 +55,11 @@ std::shared_ptr<spdlog::logger> resolve_core_logger()
 
 std::string env_value_or_unset(const char* name)
 {
-    const char* value = std::getenv(name);
-    if (!value || value[0] == '\0') {
+    const auto value = Utils::getenv_utf8(name);
+    if (!value || value->empty()) {
         return "<unset>";
     }
-    return value;
+    return *value;
 }
 
 std::string text_llm_backend_request_summary()
@@ -83,6 +86,7 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
         settings_.set_include_subdirectories(*options_.include_subdirectories);
     }
     apply_settings_overrides();
+    TranslationManager::instance().initialize_for_app(QCoreApplication::instance(), settings_.get_language());
     apply_operation_settings_overlay();
     runtime_data_dir_ = settings_.get_config_dir();
     core_logger_ = resolve_core_logger();
@@ -778,7 +782,7 @@ std::string HeadlessAnalysisWorkflowHost::selected_path_key(const std::filesyste
     std::string key = normalize_folder_path(path);
 #ifdef _WIN32
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
 #endif
     return key;

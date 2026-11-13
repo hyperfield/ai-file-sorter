@@ -1,3 +1,4 @@
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "CategorizationService.hpp"
@@ -2607,15 +2608,17 @@ TEST_CASE("CategorizationService strips inline subcategory artifacts from transl
     std::atomic<bool> stop_flag{false};
     auto categorize_calls = std::make_shared<int>(0);
     auto translation_calls = std::make_shared<int>(0);
-    auto factory = [categorize_calls, translation_calls]() {
+    const auto translation_reply = GENERATE(
+        std::string(R"({"category":"Documents , subcategory Notes en Francais","subcategory":"Notes en Francais"})"),
+        std::string("```json\n{\"category\":\"Documents\",\"subcategory\":\"Notes en Francais\"}\n```"),
+        std::string("Voici la traduction : {\"category\":\"Documents\",\"subcategory\":\"Notes en Francais\"}"),
+        std::string("Documents , subcategory Notes en Francais"));
+    auto factory = [categorize_calls, translation_calls, translation_reply]() {
         return std::make_unique<TranslationAwareLLM>(
             categorize_calls,
             translation_calls,
             "Documents : French Language Notes",
-            std::deque<std::string>{
-                "{\"category\":\"Documents , subcategory Notes en Francais\","
-                "\"subcategory\":\"Notes en Francais\"}"
-            });
+            std::deque<std::string>{translation_reply});
     };
 
     const auto categorized = service.categorize_entries(files,

@@ -18,6 +18,7 @@
 #include <QApplication>
 #include "TranslationManager.hpp"
 #include "Language.hpp"
+#include "Utils.hpp"
 
 /**
  * @brief Build a unique token string with the given prefix.
@@ -43,9 +44,7 @@ public:
      */
     EnvVarGuard(std::string key, std::optional<std::string> value)
         : key_(std::move(key)) {
-        if (const char* existing = std::getenv(key_.c_str())) {
-            original_ = existing;
-        }
+        original_ = Utils::getenv_utf8(key_.c_str());
         apply(value);
     }
 
@@ -62,7 +61,7 @@ public:
 private:
     static void set_env(const std::string& key, const std::string& value) {
 #ifdef _WIN32
-        _putenv_s(key.c_str(), value.c_str());
+        _wputenv_s(Utils::utf8_to_path(key).c_str(), Utils::utf8_to_path(value).c_str());
 #else
         setenv(key.c_str(), value.c_str(), 1);
 #endif
@@ -70,7 +69,7 @@ private:
 
     static void unset_env(const std::string& key) {
 #ifdef _WIN32
-        _putenv_s(key.c_str(), "");
+        _wputenv_s(Utils::utf8_to_path(key).c_str(), L"");
 #else
         unsetenv(key.c_str());
 #endif

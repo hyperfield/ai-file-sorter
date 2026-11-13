@@ -22,9 +22,9 @@ struct SharedVisualArtifact {
 
 QString resolved_llm_name(const DefaultLlmEntry& entry)
 {
-    const char* env_value = std::getenv(entry.name_env);
-    if (env_value && *env_value) {
-        return QString::fromUtf8(env_value);
+    const auto env_value = Utils::getenv_utf8(entry.name_env);
+    if (env_value && !env_value->empty()) {
+        return QString::fromStdString(*env_value);
     }
     return QString::fromUtf8(entry.fallback_name);
 }
@@ -35,7 +35,7 @@ std::optional<std::filesystem::path> path_from_url(const std::string& url)
         return std::nullopt;
     }
     try {
-        return std::filesystem::path(Utils::make_default_path_to_file_from_download_url(url));
+        return Utils::utf8_to_path(Utils::make_default_path_to_file_from_download_url(url));
     } catch (...) {
         return std::nullopt;
     }
@@ -46,11 +46,11 @@ std::optional<std::filesystem::path> path_from_env_var(const std::string& env_va
     if (env_var.empty()) {
         return std::nullopt;
     }
-    const char* env_value = std::getenv(env_var.c_str());
-    if (!env_value || *env_value == '\0') {
+    const auto env_value = Utils::getenv_utf8(env_var.c_str());
+    if (!env_value || env_value->empty()) {
         return std::nullopt;
     }
-    return path_from_url(env_value);
+    return path_from_url(*env_value);
 }
 
 std::optional<std::string> string_from_env_var(const std::string& env_var)
@@ -58,11 +58,11 @@ std::optional<std::string> string_from_env_var(const std::string& env_var)
     if (env_var.empty()) {
         return std::nullopt;
     }
-    const char* env_value = std::getenv(env_var.c_str());
-    if (!env_value || *env_value == '\0') {
+    const auto env_value = Utils::getenv_utf8(env_var.c_str());
+    if (!env_value || env_value->empty()) {
         return std::nullopt;
     }
-    return std::string(env_value);
+    return *env_value;
 }
 
 void append_unique_path(std::vector<std::filesystem::path>& paths,

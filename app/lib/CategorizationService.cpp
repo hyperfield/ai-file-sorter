@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "CategorizationService.hpp"
 
 #include "ArtifactCategoryPolicy.hpp"
@@ -75,7 +76,7 @@ void sleep_for_categorization(std::chrono::milliseconds duration)
     std::this_thread::sleep_for(duration);
 }
 std::string trim_copy(std::string value) {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -110,8 +111,8 @@ std::vector<std::string> tokenize_prompt_text(const std::string& text)
     std::vector<std::string> tokens;
     std::string current;
     for (unsigned char ch : text) {
-        if (std::isalnum(ch) || ch >= 128) {
-            current.push_back(ch < 128 ? static_cast<char>(std::tolower(ch)) : static_cast<char>(ch));
+        if (TextEncoding::ascii_alnum(ch) || ch >= 128) {
+            current.push_back(ch < 128 ? static_cast<char>(TextEncoding::ascii_lower(ch)) : static_cast<char>(ch));
             continue;
         }
         if (!current.empty()) {
@@ -594,7 +595,7 @@ std::vector<std::string> unique_categories_from_pairs(const std::vector<std::pai
 // Returns a lowercase copy of the input string.
 std::string to_lower_copy_str(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return value;
 }
@@ -2274,7 +2275,7 @@ std::string CategorizationService::extract_extension(const std::string& file_nam
     }
     std::string ext = file_name.substr(pos);
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return ext;
 }

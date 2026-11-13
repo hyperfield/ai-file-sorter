@@ -1,3 +1,5 @@
+#include "Utils.hpp"
+#include "TextEncoding.hpp"
 #include "StoragePluginManifest.hpp"
 
 #include <QDir>
@@ -25,16 +27,16 @@ namespace {
 #endif
 
 std::string env_or_default(const char* env_name, const char* fallback) {
-    const QByteArray env_value = qgetenv(env_name);
-    if (!env_value.isEmpty()) {
-        return env_value.toStdString();
+    const auto env_value = Utils::getenv_utf8(env_name);
+    if (env_value && !env_value->empty()) {
+        return *env_value;
     }
     return fallback ? std::string(fallback) : std::string();
 }
 
 std::string ascii_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 
@@ -506,7 +508,7 @@ bool storage_plugin_manifest_matches_current_runtime(const StoragePluginManifest
 
 std::optional<StoragePluginManifest> load_storage_plugin_manifest_from_file(const std::filesystem::path& manifest_path,
                                                                             std::string* error) {
-    QFile file(QString::fromStdString(manifest_path.string()));
+    QFile file(QString::fromStdString(Utils::path_to_utf8(manifest_path)));
     if (!file.open(QIODevice::ReadOnly)) {
         if (error) {
             *error = file.errorString().toStdString();
@@ -548,7 +550,7 @@ std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_directory(
         return manifests;
     }
 
-    QDir dir(QString::fromStdString(manifest_directory.string()));
+    QDir dir(QString::fromStdString(Utils::path_to_utf8(manifest_directory)));
     if (!dir.exists()) {
         return manifests;
     }
@@ -559,7 +561,7 @@ std::vector<StoragePluginManifest> load_storage_plugin_manifests_from_directory(
     for (const QFileInfo& entry : entries) {
         std::string manifest_error;
         auto manifest = load_storage_plugin_manifest_from_file(
-            std::filesystem::path(entry.absoluteFilePath().toStdString()), &manifest_error);
+            Utils::utf8_to_path(entry.absoluteFilePath().toStdString()), &manifest_error);
         if (!manifest.has_value()) {
             if (error && error->empty()) {
                 *error = manifest_error;
@@ -582,7 +584,7 @@ bool save_storage_plugin_manifest_to_file(const StoragePluginManifest& manifest,
                                           const std::filesystem::path& manifest_path, std::string* error) {
     const auto parent_directory = manifest_path.parent_path();
     if (!parent_directory.empty()) {
-        QDir dir(QString::fromStdString(parent_directory.string()));
+        QDir dir(QString::fromStdString(Utils::path_to_utf8(parent_directory)));
         if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) {
             if (error) {
                 *error = "Failed to create plugin manifest directory.";
@@ -591,7 +593,7 @@ bool save_storage_plugin_manifest_to_file(const StoragePluginManifest& manifest,
         }
     }
 
-    QFile file(QString::fromStdString(manifest_path.string()));
+    QFile file(QString::fromStdString(Utils::path_to_utf8(manifest_path)));
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         if (error) {
             *error = file.errorString().toStdString();

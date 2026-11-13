@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "CurlTls.hpp"
 #include "GeminiClient.hpp"
 
@@ -106,7 +107,7 @@ struct HttpResponseInfo {
 
 std::string trim_ws(std::string value)
 {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -119,7 +120,7 @@ size_t HeaderCallback(char* buffer, size_t size, size_t nitems, std::string* ret
     const std::string prefix = "retry-after:";
     std::string lower = line;
     std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     if (lower.rfind(prefix, 0) == 0) {
         *retry_after = trim_ws(line.substr(prefix.size()));
     }

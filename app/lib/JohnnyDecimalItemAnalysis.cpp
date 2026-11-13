@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "JohnnyDecimalItemAnalysis.hpp"
 
 #include <algorithm>
@@ -14,10 +15,10 @@ bool ascii_digit(char value) {
 }
 
 std::string_view trim(std::string_view value) {
-    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+    while (!value.empty() && TextEncoding::ascii_space(static_cast<unsigned char>(value.front()))) {
         value.remove_prefix(1);
     }
-    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+    while (!value.empty() && TextEncoding::ascii_space(static_cast<unsigned char>(value.back()))) {
         value.remove_suffix(1);
     }
     return value;

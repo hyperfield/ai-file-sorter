@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "StoragePluginPackageSignature.hpp"
 
 #include <openssl/evp.h>
@@ -31,7 +32,7 @@ constexpr char kSignatureManifestName[] = "plugin-signature.json";
 constexpr char kSignatureFileName[] = "plugin-signature.sig";
 
 std::string trim_copy(std::string value) {
-    const auto not_space = [](unsigned char ch) { return std::isspace(ch) == 0; };
+    const auto not_space = [](unsigned char ch) { return TextEncoding::ascii_space(ch) == 0; };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -39,7 +40,7 @@ std::string trim_copy(std::string value) {
 
 std::string ascii_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 
@@ -92,10 +93,10 @@ QByteArray read_file_bytes(const std::filesystem::path& path, std::string* error
 }
 
 std::string normalize_sha256(std::string value) {
-    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }),
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return TextEncoding::ascii_space(ch) != 0; }),
                 value.end());
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 

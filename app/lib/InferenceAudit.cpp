@@ -65,7 +65,7 @@ void prepare_audit_root(const std::filesystem::path& root)
 #endif
 }
 
-std::filesystem::path configured_audit_path(const char* configured)
+std::filesystem::path configured_audit_path(const std::string& configured)
 {
     try {
         return Utils::utf8_to_path(configured);
@@ -88,9 +88,9 @@ std::unique_ptr<InferenceAudit> InferenceAudit::from_environment(
     const std::string& model_path, std::string_view system_prompt, std::string_view user_prompt,
     std::string_view chat_template, std::string& request_id, int attempt)
 {
-    const char* configured = std::getenv(kAuditDirectoryEnv);
-    if (!configured || !*configured) return {};
-    const auto root = configured_audit_path(configured);
+    const auto configured = Utils::getenv_utf8(kAuditDirectoryEnv);
+    if (!configured || configured->empty()) return {};
+    const auto root = configured_audit_path(*configured);
     prepare_audit_root(root);
     if (request_id.empty()) {
         request_id = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();

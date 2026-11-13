@@ -346,6 +346,10 @@ files. A routing explanation or `targetFolderSuggestedNew: true` cannot bypass t
   and terminal JSON status.
 - Stable status values include `running`, `review_required`, `completed`, and
   `failed`.
+- Display messages may be translated using the saved or overridden interface
+  language, through a UI-neutral translation manager. JSON field names, status
+  identifiers and schemas remain stable; consumers must not parse display text
+  as a machine identifier.
 - Review/apply payloads include review details plus `entryCount`,
   `movedCount`, `renamedCount`, and `skippedCount`.
 - Running status updates may include partial review preview entries so a caller

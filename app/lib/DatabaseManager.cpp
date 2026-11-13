@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "DatabaseManager.hpp"
 #include "DatabaseTaxonomyNormalizer.hpp"
 #include "Types.hpp"
@@ -74,14 +75,14 @@ bool is_duplicate_column_error(const char *error_msg) {
     }
     std::string message(error_msg);
     std::transform(message.begin(), message.end(), message.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return message.find("duplicate column name") != std::string::npos;
 }
 
 std::string to_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return value;
 }
@@ -182,7 +183,7 @@ std::string strip_inline_translation_label_artifacts(std::string value, bool cat
 
         std::size_t label_start = idx + 1;
         while (label_start < lower.size() &&
-               std::isspace(static_cast<unsigned char>(lower[label_start]))) {
+               TextEncoding::ascii_space(static_cast<unsigned char>(lower[label_start]))) {
             ++label_start;
         }
 
@@ -196,7 +197,7 @@ std::string strip_inline_translation_label_artifacts(std::string value, bool cat
 
             const std::size_t after_label = label_start + label.size();
             if (after_label == lower.size() ||
-                std::isspace(static_cast<unsigned char>(lower[after_label])) ||
+                TextEncoding::ascii_space(static_cast<unsigned char>(lower[after_label])) ||
                 lower[after_label] == ':' ||
                 lower[after_label] == '=') {
                 value.resize(idx);
@@ -266,9 +267,7 @@ DatabaseManager::DatabaseManager(std::string config_dir)
     : db(nullptr),
       config_dir(std::move(config_dir)),
       db_file(this->config_dir + "/" +
-              (std::getenv("CATEGORIZATION_CACHE_FILE")
-                   ? std::getenv("CATEGORIZATION_CACHE_FILE")
-                   : "categorization_results.db")) {
+              Utils::getenv_utf8("CATEGORIZATION_CACHE_FILE").value_or("categorization_results.db")) {
     if (db_file.empty()) {
         db_log(spdlog::level::err, "Error: Database path is empty");
         return;

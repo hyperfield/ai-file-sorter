@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "HeadlessReviewApplyService.hpp"
 
 #include "DatabaseManager.hpp"
@@ -24,7 +25,7 @@ namespace {
 std::string to_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -73,6 +74,7 @@ std::string strip_history_description_label(std::string value)
 
 bool contains_only_allowed_chars(const std::string& value)
 {
+    if (value == "." || value == "..") return false;
     static const std::string forbidden = R"(<>:"/\|?*)";
     for (unsigned char ch : value) {
         if (Utils::is_ascii_control(ch)) {
@@ -91,7 +93,8 @@ bool is_reserved_windows_name(const std::string& value)
         "con", "prn", "aux", "nul",
         "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
         "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"};
-    return std::find(reserved.begin(), reserved.end(), to_lower_copy(value)) != reserved.end();
+    const auto stem = to_lower_copy(value.substr(0, value.find('.')));
+    return std::find(reserved.begin(), reserved.end(), stem) != reserved.end();
 }
 
 bool looks_like_extension_label(const std::string& value)
@@ -102,7 +105,7 @@ bool looks_like_extension_label(const std::string& value)
     }
     const std::string ext = value.substr(dot_pos + 1);
     return !ext.empty() && ext.size() <= 5 &&
-           std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return std::isalpha(ch); });
+           std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return TextEncoding::ascii_alpha(ch); });
 }
 
 bool has_leading_or_trailing_space_or_dot(const std::string& value)
@@ -121,14 +124,14 @@ bool validate_label_pair(const std::string& category,
                          bool allow_identical,
                          std::string* error)
 {
-    constexpr std::size_t kMaxLabelLength = 80;
+
     if (category.empty() || subcategory.empty()) {
         if (error) {
             *error = "Category or subcategory is empty.";
         }
         return false;
     }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+    if (!TextEncoding::label_within_limits(category) || !TextEncoding::label_within_limits(subcategory)) {
         if (error) {
             *error = "Category or subcategory exceeds max length.";
         }

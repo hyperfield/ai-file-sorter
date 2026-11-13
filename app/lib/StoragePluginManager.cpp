@@ -1,3 +1,5 @@
+#include "Utils.hpp"
+#include "TextEncoding.hpp"
 #include "StoragePluginManager.hpp"
 
 #include <QCoreApplication>
@@ -24,9 +26,9 @@ namespace {
 #endif
 
 std::string env_or_default(const char* env_name, const char* fallback) {
-    const QByteArray env_value = qgetenv(env_name);
-    if (!env_value.isEmpty()) {
-        return env_value.toStdString();
+    const auto env_value = Utils::getenv_utf8(env_name);
+    if (env_value && !env_value->empty()) {
+        return *env_value;
     }
     return fallback ? std::string(fallback) : std::string();
 }
@@ -39,7 +41,7 @@ std::string remote_catalog_url() {
 }
 
 std::filesystem::path resolve_plugin_source_path(const StoragePluginManifest& manifest, const std::string& path_spec) {
-    const std::filesystem::path path(path_spec);
+    const auto path = Utils::utf8_to_path(path_spec);
     if (path.is_absolute()) {
         return path;
     }
@@ -49,7 +51,7 @@ std::filesystem::path resolve_plugin_source_path(const StoragePluginManifest& ma
 
     const QString app_dir = QCoreApplication::applicationDirPath();
     if (!app_dir.isEmpty()) {
-        const auto app_relative = std::filesystem::path(app_dir.toStdString()) / path;
+        const auto app_relative = Utils::utf8_to_path(app_dir.toStdString()) / path;
         std::error_code ec;
         if (std::filesystem::exists(app_relative, ec) && !ec) {
             return app_relative;
@@ -59,7 +61,7 @@ std::filesystem::path resolve_plugin_source_path(const StoragePluginManifest& ma
 }
 
 std::filesystem::path relative_install_target(const StoragePluginManifest& manifest, const std::string& path_spec) {
-    const std::filesystem::path path(path_spec);
+    const auto path = Utils::utf8_to_path(path_spec);
     if (path.is_absolute()) {
         return std::filesystem::path(path.filename());
     }
@@ -71,7 +73,7 @@ bool copy_plugin_asset(const std::filesystem::path& source, const std::filesyste
     std::error_code ec;
     if (!std::filesystem::exists(source, ec) || ec) {
         if (error) {
-            *error = "Plugin asset is missing: " + source.string();
+            *error = "Plugin asset is missing: " + Utils::path_to_utf8(source);
         }
         return false;
     }
@@ -180,7 +182,7 @@ std::optional<std::filesystem::path> safe_relative_package_path(std::string path
         return std::nullopt;
     }
 
-    const std::filesystem::path normalized = std::filesystem::path(path_spec).lexically_normal();
+    const std::filesystem::path normalized = Utils::utf8_to_path(path_spec).lexically_normal();
     if (normalized.empty() || normalized.has_root_name() || normalized.has_root_directory()) {
         return std::nullopt;
     }
@@ -214,7 +216,7 @@ std::vector<int> parse_version_digits(const std::string& version) {
             current.clear();
             continue;
         }
-        if (!std::isdigit(static_cast<unsigned char>(ch))) {
+        if (!TextEncoding::ascii_digit(static_cast<unsigned char>(ch))) {
             return {};
         }
         current.push_back(ch);
@@ -285,19 +287,19 @@ StoragePluginManager::StoragePluginManager(std::string config_dir,
 }
 
 std::filesystem::path StoragePluginManager::manifest_directory_for_config_dir(const std::string& config_dir) {
-    return std::filesystem::path(config_dir) / "plugins" / "storage" / "manifests";
+    return Utils::utf8_to_path(config_dir) / "plugins" / "storage" / "manifests";
 }
 
 std::filesystem::path StoragePluginManager::catalog_directory_for_config_dir(const std::string& config_dir) {
-    return std::filesystem::path(config_dir) / "plugins" / "storage" / "catalog";
+    return Utils::utf8_to_path(config_dir) / "plugins" / "storage" / "catalog";
 }
 
 std::filesystem::path StoragePluginManager::package_directory_for_config_dir(const std::string& config_dir) {
-    return std::filesystem::path(config_dir) / "plugins" / "storage" / "packages";
+    return Utils::utf8_to_path(config_dir) / "plugins" / "storage" / "packages";
 }
 
 std::filesystem::path StoragePluginManager::download_directory_for_config_dir(const std::string& config_dir) {
-    return std::filesystem::path(config_dir) / "plugins" / "storage" / "downloads";
+    return Utils::utf8_to_path(config_dir) / "plugins" / "storage" / "downloads";
 }
 
 std::vector<StoragePluginManifest> StoragePluginManager::available_plugins() const {
@@ -555,8 +557,8 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
         return false;
     }
 
-    const auto staging_root = std::filesystem::path(config_dir_) / "plugins" / "storage" / "staging";
-    QDir staging_dir(QString::fromStdString(staging_root.string()));
+    const auto staging_root = Utils::utf8_to_path(config_dir_) / "plugins" / "storage" / "staging";
+    QDir staging_dir(QString::fromStdString(Utils::path_to_utf8(staging_root)));
     if (!staging_dir.exists() && !staging_dir.mkpath(QStringLiteral("."))) {
         if (error) {
             *error = "Failed to create plugin staging directory.";
@@ -564,7 +566,7 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
         return false;
     }
 
-    QTemporaryDir temp_dir(QString::fromStdString((staging_root / "archive-XXXXXX").string()));
+    QTemporaryDir temp_dir(QString::fromStdString(Utils::path_to_utf8(staging_root / "archive-XXXXXX")));
     if (!temp_dir.isValid()) {
         if (error) {
             *error = "Failed to create a temporary plugin extraction directory.";
@@ -573,7 +575,7 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
     }
 
     auto extraction = StoragePluginArchiveExtractor::extract_archive(
-        archive_path, std::filesystem::path(temp_dir.path().toStdString()));
+        archive_path, Utils::utf8_to_path(temp_dir.path().toStdString()));
     if (!extraction.ok()) {
         if (error) {
             *error = extraction.message;
@@ -662,7 +664,7 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
         std::error_code ec;
         if (!std::filesystem::is_regular_file(extracted_entry_point, ec) || ec) {
             if (error) {
-                *error = "The plugin archive entry point is missing: " + extracted_entry_point.string();
+                *error = "The plugin archive entry point is missing: " + Utils::path_to_utf8(extracted_entry_point);
             }
             return false;
         }
@@ -766,11 +768,11 @@ std::string StoragePluginManager::install_state_path() const {
 }
 
 std::filesystem::path StoragePluginManager::manifest_path_for_plugin(const std::string& plugin_id) const {
-    return manifest_directory_for_config_dir(config_dir_) / (plugin_id + ".json");
+    return manifest_directory_for_config_dir(config_dir_) / Utils::utf8_to_path(plugin_id + ".json");
 }
 
 std::filesystem::path StoragePluginManager::package_directory_for_plugin(const StoragePluginManifest& manifest) const {
-    return package_directory_for_config_dir(config_dir_) / manifest.id / manifest.version;
+    return package_directory_for_config_dir(config_dir_) / Utils::utf8_to_path(manifest.id) / Utils::utf8_to_path(manifest.version);
 }
 
 std::vector<StoragePluginManifest> StoragePluginManager::merged_available_plugins() const {
@@ -815,7 +817,7 @@ bool StoragePluginManager::persist_remote_catalog(std::vector<StoragePluginManif
         if (it->path().extension() != ".json") {
             continue;
         }
-        const auto plugin_id = it->path().stem().string();
+        const auto plugin_id = Utils::path_to_utf8(it->path().stem());
         if (retained_ids.contains(plugin_id)) {
             continue;
         }
@@ -960,7 +962,8 @@ bool StoragePluginManager::materialize_manifest_for_install(const StoragePluginM
     }
 
     const auto installed_entry_point = install_dir / relative_install_target(manifest, manifest.entry_point);
-    materialized_manifest->entry_point = installed_entry_point.generic_string();
+    materialized_manifest->entry_point = Utils::path_to_utf8(installed_entry_point);
+    std::replace(materialized_manifest->entry_point.begin(), materialized_manifest->entry_point.end(), '\\', '/');
     materialized_manifest->source_path.clear();
 
 #ifndef _WIN32

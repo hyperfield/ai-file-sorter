@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "Settings.hpp"
 #include "Types.hpp"
 #include "Logger.hpp"
@@ -48,7 +49,7 @@ std::vector<std::string> parse_list(const std::string& value) {
     std::stringstream ss(value);
     std::string item;
     while (std::getline(ss, item, ',')) {
-        auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+        auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
         item.erase(item.begin(), std::find_if(item.begin(), item.end(), not_space));
         item.erase(std::find_if(item.rbegin(), item.rend(), not_space).base(), item.end());
         if (!item.empty()) {
@@ -60,7 +61,7 @@ std::vector<std::string> parse_list(const std::string& value) {
 
 std::string trim_copy(const std::string& value) {
     auto trimmed = value;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     return trimmed;
@@ -81,7 +82,7 @@ SortingMode sorting_mode_from_string(std::string value)
 {
     value = trim_copy(std::move(value));
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     if (value == "existingfoldertree" || value == "existing-folder-tree" ||
         value == "existing_folder_tree" || value == "foldertree" || value == "folder-tree") {
@@ -457,7 +458,7 @@ Settings::Settings()
     std::string AppName = "AIFileSorter";
     config_path = define_config_path();
 
-    config_dir = std::filesystem::path(config_path).parent_path();
+    config_dir = Utils::utf8_to_path(config_path).parent_path();
 
     try {
         if (!std::filesystem::exists(config_dir)) {
@@ -827,19 +828,24 @@ void Settings::save_custom_api_endpoints()
 std::string Settings::define_config_path()
 {
     std::string AppName = "AIFileSorter";
-    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR")) {
-        std::filesystem::path base = override_root;
-        return (base / AppName / "config.ini").string();
+    if (const auto root = Utils::getenv_utf8("AI_FILE_SORTER_CONFIG_DIR")) {
+        return Utils::path_to_utf8(Utils::utf8_to_path(*root) / AppName / "config.ini");
     }
 #ifdef _WIN32
-    char appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
-        return std::string(appDataPath) + "\\" + AppName + "\\config.ini";
+    wchar_t* app_data = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &app_data))) {
+        const std::filesystem::path base(app_data);
+        CoTaskMemFree(app_data);
+        return Utils::path_to_utf8(base / AppName / "config.ini");
     }
-#elif defined(__APPLE__)
-    return std::string(getenv("HOME")) + "/Library/Application Support/" + AppName + "/config.ini";
 #else
-    return std::string(getenv("HOME")) + "/.config/" + AppName + "/config.ini";
+    if (const auto home = Utils::getenv_utf8("HOME")) {
+#ifdef __APPLE__
+        return Utils::path_to_utf8(Utils::utf8_to_path(*home) / "Library/Application Support" / AppName / "config.ini");
+#else
+        return Utils::path_to_utf8(Utils::utf8_to_path(*home) / ".config" / AppName / "config.ini");
+#endif
+    }
 #endif
     return "config.ini";
 }
@@ -847,7 +853,7 @@ std::string Settings::define_config_path()
 
 std::string Settings::get_config_dir()
 {
-    return config_dir.string();
+    return Utils::path_to_utf8(config_dir);
 }
 
 
@@ -928,7 +934,7 @@ std::string Settings::get_openai_api_key() const
 void Settings::set_openai_api_key(const std::string& key)
 {
     auto trimmed = key;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     openai_api_key = trimmed;
@@ -942,7 +948,7 @@ std::string Settings::get_openai_model() const
 void Settings::set_openai_model(const std::string& model)
 {
     auto trimmed = model;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     if (trimmed.empty()) {
@@ -959,7 +965,7 @@ std::string Settings::get_gemini_api_key() const
 void Settings::set_gemini_api_key(const std::string& key)
 {
     auto trimmed = key;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     gemini_api_key = trimmed;
@@ -973,7 +979,7 @@ std::string Settings::get_gemini_model() const
 void Settings::set_gemini_model(const std::string& model)
 {
     auto trimmed = model;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     if (trimmed.empty()) {

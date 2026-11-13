@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "DocumentSummaryService.hpp"
 #include "ILLMClient.hpp"
 #include "LLMErrors.hpp"
@@ -33,7 +34,7 @@ struct ParsedAnalysis {
 
 std::string trim(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;

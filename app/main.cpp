@@ -1,3 +1,5 @@
+#include "Utf8ProcessArguments.hpp"
+#include "TranslationManager.hpp"
 #include <curl/curl.h>
 #include "CurlTls.hpp"
 #include <libintl.h>
@@ -1072,6 +1074,7 @@ int run_application(const ParsedArguments& parsed_args) {
 
     Settings settings;
     settings.load();
+    TranslationManager::instance().initialize_for_app(&app, settings.get_language());
     std::string app_data_dir;
     if (parsed_args.test_mode) {
         const auto profile_dir = Utils::utf8_to_path(settings.get_config_dir()) / "test_mode_profile";
@@ -1123,6 +1126,9 @@ int run_application(const ParsedArguments& parsed_args) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    Utf8ProcessArguments native_arguments(argc, argv);
+    argc = native_arguments.count();
+    argv = native_arguments.data();
     ParsedArguments parsed = parse_command_line(argc, argv);
 
 #ifdef _WIN32

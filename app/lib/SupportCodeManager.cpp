@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "SupportCodeManager.hpp"
 
 #include <QByteArray>
@@ -53,13 +54,13 @@ constexpr char kTestPayload[] = "aifs-support:v1:test-build";
 std::string trim_ascii(std::string_view value) {
     std::size_t first = 0;
     while (first < value.size() &&
-           std::isspace(static_cast<unsigned char>(value[first])) != 0) {
+           TextEncoding::ascii_space(static_cast<unsigned char>(value[first])) != 0) {
         ++first;
     }
 
     std::size_t last = value.size();
     while (last > first &&
-           std::isspace(static_cast<unsigned char>(value[last - 1])) != 0) {
+           TextEncoding::ascii_space(static_cast<unsigned char>(value[last - 1])) != 0) {
         --last;
     }
 

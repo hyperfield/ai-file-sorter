@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "SuitabilityBenchmarkDialog.hpp"
 
 #include "DocumentTextAnalyzer.hpp"
@@ -81,7 +82,7 @@ struct PerfThresholds {
 std::string trim_copy(const std::string& value)
 {
     std::string trimmed = value;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     return trimmed;
@@ -115,17 +116,8 @@ double read_env_double(const char* key, double fallback)
     if (!value || !*value) {
         return fallback;
     }
-    try {
-        size_t idx = 0;
-        const std::string value_string = trim_copy(value);
-        const double parsed = std::stod(value_string, &idx);
-        if (idx != value_string.size() || !std::isfinite(parsed) || parsed <= 0.0) {
-            return fallback;
-        }
-        return parsed;
-    } catch (const std::exception&) {
-        return fallback;
-    }
+    const auto parsed = TextEncoding::parse_number(value);
+    return parsed && *parsed > 0.0 ? *parsed : fallback;
 }
 
 
@@ -330,7 +322,7 @@ std::string format_mib(size_t bytes)
 std::string to_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -554,7 +546,7 @@ std::vector<LocalModel> collect_local_models(const std::vector<CustomLLM>& custo
         if (ec) {
             continue;
         }
-        const std::string path_key = canonical_path.string();
+        const std::string path_key = Utils::path_to_utf8(canonical_path);
         if (!seen.insert(path_key).second) {
             continue;
         }
@@ -575,7 +567,7 @@ std::vector<LocalModel> collect_local_models(const std::vector<CustomLLM>& custo
         }
         std::error_code ec;
         const auto canonical_path = std::filesystem::weakly_canonical(path, ec);
-        if (ec || !seen.insert(canonical_path.string()).second) {
+        if (ec || !seen.insert(Utils::path_to_utf8(canonical_path)).second) {
             continue;
         }
         models.push_back(LocalModel{QObject::tr("Custom: %1")
@@ -860,11 +852,11 @@ std::filesystem::path create_temp_dir()
     if (!ec && !temp_root.empty()) {
         roots.push_back(temp_root);
     }
-    if (const char* tmpdir = std::getenv("TMPDIR"); tmpdir && *tmpdir) {
-        roots.emplace_back(tmpdir);
+    if (const auto tmpdir = Utils::getenv_utf8("TMPDIR"); tmpdir && !tmpdir->empty()) {
+        roots.emplace_back(Utils::utf8_to_path(*tmpdir));
     }
-    if (const char* home = std::getenv("HOME"); home && *home) {
-        roots.emplace_back(std::filesystem::path(home) / ".cache");
+    if (const auto home = Utils::getenv_utf8("HOME"); home && !home->empty()) {
+        roots.emplace_back(Utils::utf8_to_path(*home) / ".cache");
     }
     ec.clear();
     std::filesystem::path cwd = std::filesystem::current_path(ec);
@@ -1044,7 +1036,7 @@ StepResult run_categorization_test(ILLMClient& llm, const std::filesystem::path&
         const std::string file_name = "Quarterly_Report_Q1_2025.pdf";
         const std::filesystem::path file_path = temp_dir / file_name;
         const std::string response = llm.categorize_file(file_name,
-                                                         file_path.string(),
+                                                         Utils::path_to_utf8(file_path),
                                                          FileType::File,
                                                          std::string());
         const auto parsed = parse_category_pair(response);

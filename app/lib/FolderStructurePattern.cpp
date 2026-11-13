@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "FolderStructurePattern.hpp"
 
 #include "FolderStructurePluginProfile.hpp"
@@ -60,7 +61,7 @@ std::string trim_copy(std::string value)
 std::string lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -99,7 +100,7 @@ std::string join_path(const std::vector<std::string>& segments)
 
 std::size_t consume_digits(const std::string& value, std::size_t pos)
 {
-    while (pos < value.size() && std::isdigit(static_cast<unsigned char>(value[pos]))) {
+    while (pos < value.size() && TextEncoding::ascii_digit(static_cast<unsigned char>(value[pos]))) {
         ++pos;
     }
     return pos;
@@ -120,7 +121,7 @@ std::optional<int> parse_int(std::string_view value)
     }
     int result = 0;
     for (char ch : value) {
-        if (!std::isdigit(static_cast<unsigned char>(ch))) {
+        if (!TextEncoding::ascii_digit(static_cast<unsigned char>(ch))) {
             return std::nullopt;
         }
         result = result * 10 + (ch - '0');
@@ -165,7 +166,7 @@ SegmentPattern parse_segment(std::string segment)
         std::size_t prefix_end = first_number_end;
         if (prefix_end + 1 < segment.size() &&
             (segment[prefix_end] == '.' || segment[prefix_end] == '_' || segment[prefix_end] == '-') &&
-            std::isdigit(static_cast<unsigned char>(segment[prefix_end + 1]))) {
+            TextEncoding::ascii_digit(static_cast<unsigned char>(segment[prefix_end + 1]))) {
             prefix_end = consume_digits(segment, prefix_end + 1);
         }
         const std::size_t label_start = skip_spaces(segment, prefix_end);
@@ -232,10 +233,10 @@ std::unordered_set<std::string> tokenize(std::string value)
     std::replace(value.begin(), value.end(), '/', ' ');
     std::replace(value.begin(), value.end(), '\\', ' ');
     for (char& ch : value) {
-        if (!std::isalnum(static_cast<unsigned char>(ch))) {
+        if (!TextEncoding::ascii_alnum(static_cast<unsigned char>(ch))) {
             ch = ' ';
         } else {
-            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            ch = static_cast<char>(TextEncoding::ascii_lower(static_cast<unsigned char>(ch)));
         }
     }
 

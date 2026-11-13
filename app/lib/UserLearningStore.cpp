@@ -1,3 +1,5 @@
+#include "Utils.hpp"
+#include "TextEncoding.hpp"
 #include "UserLearningStore.hpp"
 
 #include "Logger.hpp"
@@ -86,7 +88,7 @@ std::string file_extension(const std::string& file_name)
     }
     std::string ext = file_name.substr(dot);
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return ext;
 }
@@ -94,7 +96,7 @@ std::string file_extension(const std::string& file_name)
 std::string normalize_retrieval_token(std::string token)
 {
     std::transform(token.begin(), token.end(), token.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
 
     if (token.size() > 4 && token.ends_with("ies")) {
@@ -113,7 +115,7 @@ std::vector<std::string> tokenize_for_retrieval(const std::string& text)
     std::vector<std::string> tokens;
     std::string current;
     for (unsigned char ch : text) {
-        if (std::isalnum(ch) || ch >= 128) {
+        if (TextEncoding::ascii_alnum(ch) || ch >= 128) {
             current.push_back(static_cast<char>(ch));
             continue;
         }
@@ -195,7 +197,7 @@ int embedding_score(double similarity)
 
 std::filesystem::path UserLearningStore::database_path_for_config_dir(const std::string& config_dir)
 {
-    return std::filesystem::path(config_dir) / "user_learning.db";
+    return Utils::utf8_to_path(config_dir) / "user_learning.db";
 }
 
 UserLearningStore::UserLearningStore(std::string config_dir)
@@ -206,16 +208,16 @@ UserLearningStore::UserLearningStore(std::string config_dir)
     if (ec) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->error("Failed to create user learning database directory '{}': {}",
-                          db_file_.parent_path().string(),
+                          Utils::path_to_utf8(db_file_.parent_path()),
                           ec.message());
         }
         return;
     }
 
-    if (sqlite3_open(db_file_.string().c_str(), &db_) != SQLITE_OK) {
+    if (sqlite3_open(Utils::path_to_utf8(db_file_).c_str(), &db_) != SQLITE_OK) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->error("Can't open user learning database '{}': {}",
-                          db_file_.string(),
+                          Utils::path_to_utf8(db_file_),
                           db_ ? sqlite3_errmsg(db_) : "unknown error");
         }
         if (db_) {
@@ -230,13 +232,13 @@ UserLearningStore::UserLearningStore(std::string config_dir)
     if (!initialize_schema(&error)) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->error("Failed to initialize user learning database '{}': {}",
-                          db_file_.string(),
+                          Utils::path_to_utf8(db_file_),
                           error);
         }
     } else if (!rebuild_taxonomy_embeddings(&error)) {
         if (auto logger = Logger::get_logger("db_logger")) {
             logger->warn("Failed to refresh user learning embeddings '{}': {}",
-                         db_file_.string(),
+                         Utils::path_to_utf8(db_file_),
                          error);
         }
     }
@@ -1208,14 +1210,14 @@ std::string UserLearningStore::normalize_label(const std::string& value) const
     collapsed.reserve(value.size());
     bool previous_space = true;
     for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
+        if (TextEncoding::ascii_space(ch)) {
             if (!previous_space) {
                 collapsed.push_back(' ');
             }
             previous_space = true;
             continue;
         }
-        collapsed.push_back(static_cast<char>(std::tolower(ch)));
+        collapsed.push_back(static_cast<char>(TextEncoding::ascii_lower(ch)));
         previous_space = false;
     }
     while (!collapsed.empty() && collapsed.back() == ' ') {

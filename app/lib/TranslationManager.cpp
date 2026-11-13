@@ -1,6 +1,5 @@
 #include "TranslationManager.hpp"
 
-#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -72,9 +71,15 @@ TranslationManager& TranslationManager::instance()
     return manager;
 }
 
-void TranslationManager::initialize(QApplication* app)
+void TranslationManager::initialize(QCoreApplication* app)
 {
+    if (app_ == app) return;
+    if (app_) {
+        app_->removeTranslator(translator_.get());
+        app_->removeTranslator(qt_translator_.get());
+    }
     app_ = app;
+    language_installed_ = false;
     if (!translator_) {
         translator_ = std::make_unique<QTranslator>();
     }
@@ -83,7 +88,7 @@ void TranslationManager::initialize(QApplication* app)
     }
 }
 
-void TranslationManager::initialize_for_app(QApplication* app, Language language)
+void TranslationManager::initialize_for_app(QCoreApplication* app, Language language)
 {
     initialize(app);
     set_language(language);
@@ -105,6 +110,10 @@ void TranslationManager::set_language(Language language)
         current_language_ = language;
         return;
     }
+    if (language_installed_ && current_language_ == language) return;
+
+    if (qt_translator_) app_->removeTranslator(qt_translator_.get());
+    qt_translator_ = std::make_unique<QTranslator>();
 
     if (translator_) {
         app_->removeTranslator(translator_.get());
@@ -113,6 +122,15 @@ void TranslationManager::set_language(Language language)
 
     if (info && language != Language::English) {
         if (load_translation(*info)) {
+            // Resources are shipped by both build paths; never depend on a developer Qt tree.
+            QString code = info->code;
+            code.replace(QLatin1Char('-'), QLatin1Char('_'));
+            const QString qt_catalog = QStringLiteral(":/i18n/qtbase_%1.qm").arg(code);
+            if (qt_translator_->load(qt_catalog)) {
+                app_->installTranslator(qt_translator_.get());
+            } else {
+                qWarning("Bundled Qt translation is missing: %s", qPrintable(qt_catalog));
+            }
             app_->installTranslator(translator_.get());
         } else {
             language = Language::English;
@@ -120,6 +138,7 @@ void TranslationManager::set_language(Language language)
     }
 
     current_language_ = language;
+    language_installed_ = true;
 }
 
 Language TranslationManager::current_language() const

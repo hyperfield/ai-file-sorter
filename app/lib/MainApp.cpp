@@ -1,3 +1,5 @@
+#include "AnalysisProgressTranslation.hpp"
+#include "TextEncoding.hpp"
 #include "MainApp.hpp"
 #include "AnalysisCoordinator.hpp"
 #include "AppTheme.hpp"
@@ -403,7 +405,7 @@ QString display_name_for_provider_id(const std::string& provider_id)
 std::string to_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -435,8 +437,8 @@ bool case_insensitive_contains(std::string_view haystack, std::string_view needl
         needle.begin(),
         needle.end(),
         [](char lhs, char rhs) {
-            return std::tolower(static_cast<unsigned char>(lhs)) ==
-                   std::tolower(static_cast<unsigned char>(rhs));
+            return TextEncoding::ascii_lower(static_cast<unsigned char>(lhs)) ==
+                   TextEncoding::ascii_lower(static_cast<unsigned char>(rhs));
         });
     return it != haystack.end();
 }
@@ -3409,7 +3411,7 @@ AnalysisWorkflowContext MainApp::make_analysis_workflow_context()
         stop_analysis,
         text_cpu_fallback_choice_,
         [this]() { return get_folder_path(); },
-        [this](const char* text) { return tr(text); },
+        [](const char* text) { return AnalysisProgressTranslation::translate(text); },
         [this]() { return should_abort_analysis(); },
         [this](const std::string& message) { append_progress(message); },
         [this](const std::string& directory_path) { prune_empty_cached_entries_for(directory_path); },

@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "ImageAnalyzerFactory.hpp"
 #include "HttpImageAnalyzer.hpp"
 
@@ -48,7 +49,7 @@ void validate_visual_artifact_file(const std::filesystem::path& path, const char
 #if defined(_WIN32) || defined(__APPLE__)
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -63,7 +64,7 @@ std::optional<bool> read_env_bool(const char* key)
 
     std::string lowered = value;
     std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     if (lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on") {
         return true;

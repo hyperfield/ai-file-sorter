@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "LocalLLMResponseSanitizer.hpp"
 
 #include <algorithm>
@@ -14,13 +15,13 @@ namespace {
 
 std::string to_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
 
 std::string trim_copy(std::string value) {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -31,7 +32,7 @@ std::string collapse_spaces_copy(std::string value) {
     collapsed.reserve(value.size());
     bool previous_space = false;
     for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
+        if (TextEncoding::ascii_space(ch)) {
             if (!previous_space) {
                 collapsed.push_back(' ');
             }
@@ -64,11 +65,11 @@ std::string strip_wrapping_punctuation(std::string value) {
         }
     };
 
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.front())) ||
+    while (!value.empty() && (TextEncoding::ascii_space(static_cast<unsigned char>(value.front())) ||
                               is_wrapping(static_cast<unsigned char>(value.front())))) {
         value.erase(value.begin());
     }
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.back())) ||
+    while (!value.empty() && (TextEncoding::ascii_space(static_cast<unsigned char>(value.back())) ||
                               is_wrapping(static_cast<unsigned char>(value.back())) ||
                               value.back() == '.' || value.back() == ',' ||
                               value.back() == ':' || value.back() == ';')) {
@@ -91,9 +92,7 @@ std::string strip_trailing_parenthetical_gloss(std::string value) {
             gloss = trim_copy(std::move(gloss));
         }
 
-        const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
-            return std::isalpha(ch);
-        });
+        const bool has_alpha_chars = TextEncoding::contains_letter(gloss);
         if (!has_alpha_chars) {
             break;
         }
@@ -107,7 +106,7 @@ std::size_t find_case_insensitive(const std::string& value, std::string_view nee
     const std::string lower_value = to_lower_copy(value);
     std::string lower_needle(needle);
     std::transform(lower_needle.begin(), lower_needle.end(), lower_needle.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return lower_value.find(lower_needle);
 }
@@ -192,7 +191,7 @@ std::string strip_inline_label_artifacts(std::string value, bool category_label)
 
             std::size_t label_start = idx + 1;
             while (label_start < lower.size() &&
-                   std::isspace(static_cast<unsigned char>(lower[label_start]))) {
+                   TextEncoding::ascii_space(static_cast<unsigned char>(lower[label_start]))) {
                 ++label_start;
             }
 
@@ -206,7 +205,7 @@ std::string strip_inline_label_artifacts(std::string value, bool category_label)
 
                 const std::size_t after_label = label_start + label.size();
                 if (after_label == lower.size() ||
-                    std::isspace(static_cast<unsigned char>(lower[after_label])) ||
+                    TextEncoding::ascii_space(static_cast<unsigned char>(lower[after_label])) ||
                     lower[after_label] == ':' ||
                     lower[after_label] == '=') {
                     return idx;
@@ -276,9 +275,7 @@ std::string normalize_candidate_label(std::string value, bool category_label) {
 }
 
 bool has_alpha(std::string_view value) {
-    return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
-    });
+    return TextEncoding::contains_letter(value);
 }
 
 bool case_insensitive_contains(std::string_view text, std::string_view needle) {
@@ -289,10 +286,10 @@ bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     std::string text_lower(text);
     std::string needle_lower(needle);
     std::transform(text_lower.begin(), text_lower.end(), text_lower.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     std::transform(needle_lower.begin(), needle_lower.end(), needle_lower.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return text_lower.find(needle_lower) != std::string::npos;
 }

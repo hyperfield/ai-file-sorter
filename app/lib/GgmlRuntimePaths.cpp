@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "GgmlRuntimePaths.hpp"
 
 #ifndef AI_FILE_SORTER_GGML_RUNTIME_PATHS_NO_BACKEND_LOADING
@@ -28,7 +29,7 @@ ggml_backend_device* find_gpu_device(std::string_view backend)
         if (ggml_backend_dev_type(device) != GGML_BACKEND_DEVICE_TYPE_GPU) continue;
         const auto reg = ggml_backend_dev_backend_reg(device);
         std::string name = reg ? ggml_backend_reg_name(reg) : "";
-        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return TextEncoding::ascii_lower(c); });
         if (name == "mtl") name = "metal";
         if (name == backend) return device;
     }
@@ -73,7 +74,7 @@ std::string lower_copy(std::string_view value)
 {
     std::string lowered(value);
     std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return lowered;
 }

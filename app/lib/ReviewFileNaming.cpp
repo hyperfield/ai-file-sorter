@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "ReviewFileNaming.hpp"
 
 #include "DocumentTextAnalyzer.hpp"
@@ -30,7 +31,7 @@ NumericSuffix split_numeric_suffix(const std::string& stem)
         return result;
     }
     for (unsigned char ch : suffix) {
-        if (!std::isdigit(ch)) {
+        if (!TextEncoding::ascii_digit(ch)) {
             return result;
         }
     }
@@ -80,7 +81,7 @@ ParentheticalSuffix split_parenthetical_suffix(const std::string& stem)
         return result;
     }
     for (unsigned char ch : number) {
-        if (!std::isdigit(ch)) {
+        if (!TextEncoding::ascii_digit(ch)) {
             return result;
         }
     }
@@ -134,7 +135,7 @@ bool should_deduplicate_suggested_name(const CategorizedFile& file)
 std::string to_lower_copy_str(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return value;
 }

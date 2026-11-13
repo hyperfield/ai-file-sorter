@@ -1,0 +1,47 @@
+[
+    {
+        "comment" : ["file_pattern_ending: strings matched against the end of a file name.",
+                     "location keys: regular expression matched against the beginning of",
+                     "the file path (relative to the git submodule root).",
+                     "spdx: list of SPDX-License-Expression's allowed in the matching files.",
+                     "-------------------------------------------------------",
+                     "Files with the following endings are Build System licensed,",
+                     "unless they are examples",
+                     "Files with other endings can also be build system files"
+                     ],
+        "file_pattern_ending" : ["CMakeLists.txt", ".cmake"],
+        "location" : {
+            "" : {
+                "comment" : "Default",
+                "file type" : "build system",
+                "spdx"      : ["BSD-3-Clause"]
+            }
+        }
+    },
+    {
+        "comments" : ["Files with the following endings are Tool licensed,",
+                      "unless they are examples.",
+                      "Files with other endings can also be tool files."],
+        "file_pattern_ending" : [".pl"],
+        "location" :{
+            "" : {
+                "comment" : "Default",
+                "file type" : "tools and utils",
+                "spdx"      : ["LicenseRef-Qt-Commercial OR GPL-3.0-only WITH Qt-GPL-exception-1.0"]
+            }
+        }
+    },
+    {
+        "comment" : ["All other files",
+                     "The licensing is defined only by the file location in the Qt module repository.",
+                     "NO <file_pattern_ending> key for this case!",
+                     "This needs to be the last entry of the file."],
+        "location" : {
+            "" : {
+                "comment" : "Default",
+                "file type" : "module and plugin",
+                "spdx"      : ["LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only"]
+            }
+        }
+    }
+]

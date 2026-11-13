@@ -64,6 +64,17 @@ UI-neutral headless flow used by integrations.
 
 - GUI code should remain optional. Headless callers should not need to
   instantiate dialogs or other UI classes.
+- Filesystem-facing APIs use native paths; string interfaces carry UTF-8.
+  Windows environment and command-line arguments are decoded from their wide
+  representations before parsing, including before Qt startup. Log file streams
+  use native filenames without changing the linked spdlog filename ABI.
+- ASCII protocol operations and numeric parsing are locale-independent.
+  `TextEncoding` owns Unicode letter, grapheme-length and place-prefix policies.
+  Category labels allow 80 grapheme clusters subject to native component limits.
+- `TranslationManager` accepts `QCoreApplication`, allowing headless display
+  messages to use saved/overridden language preferences. GUI startup installs
+  translations before its first dialog. Qt standard catalogs are embedded;
+  `AnalysisProgressTranslation` resolves coordinator and shared-label contexts.
 - Workflow orchestration, settings/persistence, LLM prompting, and file-mutation
   logic should stay in separate modules with clear responsibilities.
 - Explorer extension code belongs in the sibling repository

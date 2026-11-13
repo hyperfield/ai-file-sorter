@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "JohnnyDecimalValidator.hpp"
 
 #include <QCoreApplication>
@@ -45,7 +46,7 @@ struct AreaRecord {
 };
 
 std::string trim_copy(std::string value) {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -53,7 +54,7 @@ std::string trim_copy(std::string value) {
 
 std::string lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 
@@ -82,14 +83,14 @@ std::string basename(std::string_view relative_path) {
 }
 
 std::size_t consume_digits(const std::string& value, std::size_t pos) {
-    while (pos < value.size() && std::isdigit(static_cast<unsigned char>(value[pos]))) {
+    while (pos < value.size() && TextEncoding::ascii_digit(static_cast<unsigned char>(value[pos]))) {
         ++pos;
     }
     return pos;
 }
 
 std::size_t skip_spaces(const std::string& value, std::size_t pos) {
-    while (pos < value.size() && std::isspace(static_cast<unsigned char>(value[pos]))) {
+    while (pos < value.size() && TextEncoding::ascii_space(static_cast<unsigned char>(value[pos]))) {
         ++pos;
     }
     return pos;
@@ -101,7 +102,7 @@ std::optional<int> parse_int(std::string_view value) {
     }
     int result = 0;
     for (char ch : value) {
-        if (!std::isdigit(static_cast<unsigned char>(ch))) {
+        if (!TextEncoding::ascii_digit(static_cast<unsigned char>(ch))) {
             return std::nullopt;
         }
         result = result * 10 + (ch - '0');
@@ -200,7 +201,7 @@ CategoryId parse_category_id(std::string segment, int expected_width) {
     std::size_t prefix_end = first_end;
     if (prefix_end + 1 < segment.size() &&
         (segment[prefix_end] == '.' || segment[prefix_end] == '_' || segment[prefix_end] == '-') &&
-        std::isdigit(static_cast<unsigned char>(segment[prefix_end + 1]))) {
+        TextEncoding::ascii_digit(static_cast<unsigned char>(segment[prefix_end + 1]))) {
         nested_id_at_category_level = true;
         prefix_end = consume_digits(segment, prefix_end + 1);
     }

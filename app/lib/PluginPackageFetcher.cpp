@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "CurlTls.hpp"
 #include "PluginPackageFetcher.hpp"
 
@@ -96,7 +97,8 @@ bool PluginPackageFetcher::fetch_to_cache(const std::string& url, const std::fil
         return false;
     }
 
-    const auto partial_path = std::filesystem::path(cache_path.string() + ".part");
+    auto partial_path = cache_path;
+    partial_path += ".part";
 
     std::error_code ec;
     std::filesystem::create_directories(cache_path.parent_path(), ec);
@@ -172,7 +174,8 @@ bool PluginPackageFetcher::fetch_package_archive(const PluginPackageSource& sour
     }
 
     const auto package_path = package_cache_path(cache_directory_, source);
-    const auto partial_path = std::filesystem::path(package_path.string() + ".part");
+    auto partial_path = package_path;
+    partial_path += ".part";
 
     std::error_code ec;
     std::filesystem::create_directories(package_path.parent_path(), ec);
@@ -230,10 +233,10 @@ std::filesystem::path PluginPackageFetcher::package_cache_path(const std::filesy
 }
 
 std::string PluginPackageFetcher::normalize_sha256(std::string value) {
-    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }),
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return TextEncoding::ascii_space(ch) != 0; }),
                 value.end());
     std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     return value;
 }
 

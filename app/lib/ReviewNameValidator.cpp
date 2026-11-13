@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "ReviewNameValidator.hpp"
 
 #include "Utils.hpp"
@@ -12,13 +13,14 @@ namespace {
 std::string to_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return value;
 }
 
 bool contains_only_allowed_chars(const std::string& value)
 {
+    if (value == "." || value == "..") return false;
     for (unsigned char ch : value) {
         if (Utils::is_ascii_control(ch)) {
             return false;
@@ -51,7 +53,7 @@ bool is_reserved_windows_name(const std::string& value)
         "lpt9",
     };
     const std::string lower = to_lower_copy(value);
-    return std::find(reserved.begin(), reserved.end(), lower) != reserved.end();
+    return std::find(reserved.begin(), reserved.end(), lower.substr(0, lower.find('.'))) != reserved.end();
 }
 
 bool looks_like_extension_label(const std::string& value)
@@ -65,7 +67,7 @@ bool looks_like_extension_label(const std::string& value)
         return false;
     }
     return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
+        return TextEncoding::ascii_alpha(ch);
     });
 }
 
@@ -108,12 +110,12 @@ bool ReviewNameValidator::validate_labels(const std::string& category,
                                           std::string& error,
                                           bool allow_identical)
 {
-    constexpr size_t kMaxLabelLength = 80;
+
     if (category.empty() || subcategory.empty()) {
         error = "Category or subcategory is empty";
         return false;
     }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+    if (!TextEncoding::label_within_limits(category) || !TextEncoding::label_within_limits(subcategory)) {
         error = "Category or subcategory exceeds max length";
         return false;
     }

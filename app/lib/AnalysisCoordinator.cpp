@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "AnalysisCoordinator.hpp"
 #include "ChatCompletionTransport.hpp"
 #include "ContentAnalysisUnavailable.hpp"
@@ -62,7 +63,7 @@ std::string to_utf8(const QString& value)
 std::string trim_copy(const std::string& value)
 {
     auto trimmed = value;
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     return trimmed;
@@ -311,7 +312,7 @@ std::optional<bool> read_env_bool(const char* key)
     }
     std::string lowered = value;
     std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     if (lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on") {
         return true;
@@ -528,7 +529,7 @@ AnalysisRunResult AnalysisCoordinator::execute()
 
         auto to_lower = [](std::string value) {
             std::transform(value.begin(), value.end(), value.begin(),
-                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                           [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
             return value;
         };
         auto has_category = [](const CategorizedFile& entry) {
@@ -552,14 +553,14 @@ AnalysisRunResult AnalysisCoordinator::execute()
         };
         auto is_missing_category_label = [](const std::string& value) {
             std::string trimmed = value;
-            const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+            const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
             trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
             trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
             if (trimmed.empty()) {
                 return true;
             }
             std::transform(trimmed.begin(), trimmed.end(), trimmed.begin(),
-                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                           [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
             return trimmed == "uncategorized";
         };
         auto entry_key = [this, use_full_path_keys](const FileEntry& entry) {

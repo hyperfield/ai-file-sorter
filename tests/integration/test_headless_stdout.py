@@ -24,7 +24,8 @@ class HeadlessOutputTests(unittest.TestCase):
         self.assertTrue(self.app_path.is_file(), self.app_path)
         temporary = tempfile.TemporaryDirectory(prefix="aifs-headless-output-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name) / "profil été Иван 東京"
+        self.root.mkdir()
         self.source = self.root / "source"
         self.source.mkdir()
         self.status = self.root / "status.json"
@@ -121,8 +122,20 @@ class HeadlessOutputTests(unittest.TestCase):
         self.assertEqual(result.returncode, 4, result.stderr)
         self.assert_status_stream(result, "failed")
 
+    def test_french_progress_uses_catalogs_in_a_core_application(self):
+        config = self.root / "config" / "AIFileSorter" / "config.ini"
+        config.write_text("[Settings]\nLanguage=French\n", encoding="utf-8")
+        result = self.launch(
+            "--headless", "--operation", "categorize", "--path", str(self.source),
+            "--review-only", "--status-file", str(self.status),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_status_stream(result, "completed")
+        records = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+        self.assertTrue(any(record.get("message", "").startswith("[SCAN] Exploration de ") for record in records))
+
     def test_saved_plan_apply_stdout_is_json(self):
-        source = self.source / "original.txt"
+        source = self.source / "contrat_Счета.txt"
         source.write_text("Fixture contents", encoding="utf-8")
         plan = self.root / "review.json"
         plan.write_text(json.dumps({
@@ -140,7 +153,7 @@ class HeadlessOutputTests(unittest.TestCase):
                 "filePath": str(self.source),
                 "fileName": source.name,
                 "type": "file",
-                "suggestedName": "renamed.txt",
+                "suggestedName": "renommé_文档.txt",
                 "renameOnly": True,
             }],
         }), encoding="utf-8")
@@ -150,7 +163,7 @@ class HeadlessOutputTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_status_stream(result, "completed")
         self.assertFalse(source.exists())
-        self.assertEqual((self.source / "renamed.txt").read_text(encoding="utf-8"), "Fixture contents")
+        self.assertEqual((self.source / "renommé_文档.txt").read_text(encoding="utf-8"), "Fixture contents")
 
     def test_help_is_usage_text_without_log_lines(self):
         result = self.launch("--headless-help")
@@ -158,6 +171,11 @@ class HeadlessOutputTests(unittest.TestCase):
         self.assertTrue(result.stdout.startswith("Usage: aifilesorter "), result.stdout)
         self.assertNotIn("Loggers initialized.", result.stdout)
         self.assertIn("Loggers initialized.", result.stderr)
+        if sys.platform == "win32":
+            logs = Path(self.environment["APPDATA"]) / "AIFileSorter" / "logs"
+            for name in ("core.log", "db.log", "ui.log"):
+                self.assertTrue((logs / name).is_file(), logs / name)
+            self.assertIn("Loggers initialized.", (logs / "core.log").read_text(encoding="utf-8"))
 
     def test_macos_embedded_pdfium_loads_beside_relocated_app(self):
         if not self.check_macos_pdfium:

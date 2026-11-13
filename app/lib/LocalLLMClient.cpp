@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "LocalLLMClient.hpp"
 #include "FolderTreeCatalog.hpp"
 #include "GgmlRuntimePaths.hpp"
@@ -224,7 +225,7 @@ bool is_cpu_backend_requested() {
         }
         std::string lowered(value);
         std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
-            return static_cast<char>(std::tolower(c));
+            return static_cast<char>(TextEncoding::ascii_lower(c));
         });
         return lowered == "cpu";
     };
@@ -397,10 +398,10 @@ bool case_insensitive_contains(std::string_view text, std::string_view needle) {
     std::string text_lower(text);
     std::string needle_lower(needle);
     std::transform(text_lower.begin(), text_lower.end(), text_lower.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     std::transform(needle_lower.begin(), needle_lower.end(), needle_lower.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return text_lower.find(needle_lower) != std::string::npos;
 }
@@ -690,9 +691,9 @@ std::optional<int32_t> infer_block_count_from_tensors(gguf_context* ctx)
         }
         int32_t current = -1;
         for (const char* p = tname; *p; ++p) {
-            if (std::isdigit(static_cast<unsigned char>(*p))) {
+            if (TextEncoding::ascii_digit(static_cast<unsigned char>(*p))) {
                 int value = 0;
-                while (*p && std::isdigit(static_cast<unsigned char>(*p))) {
+                while (*p && TextEncoding::ascii_digit(static_cast<unsigned char>(*p))) {
                     value = value * 10 + (*p - '0');
                     ++p;
                 }
@@ -816,7 +817,7 @@ std::string finish_generation_response(GenerationResult generated, InferenceAudi
 {
     if (audit) audit->record_generation(generated.raw_output, generated.stop_reason, generated.generated_tokens);
     std::string output = generated.stop_reason.starts_with("cancelled") ? std::string() : std::move(generated.raw_output);
-    while (!output.empty() && std::isspace(static_cast<unsigned char>(output.front()))) output.erase(output.begin());
+    while (!output.empty() && TextEncoding::ascii_space(static_cast<unsigned char>(output.front()))) output.erase(output.begin());
     output = transform(output);
     if (audit) audit->finish(output);
     return output;
@@ -939,7 +940,7 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
     if (const auto via_ctx = extract_block_count_gguf(model_path)) {
         return via_ctx;
     }
-    std::ifstream file(model_path, std::ios::binary);
+    std::ifstream file(Utils::utf8_to_path(model_path), std::ios::binary);
     if (!file) {
         return std::nullopt;
     }
@@ -948,7 +949,7 @@ std::optional<int32_t> extract_block_count(const std::string & model_path) {
 
     std::streamsize to_read = static_cast<std::streamsize>(buffer.size());
     std::error_code size_ec;
-    const auto file_size = std::filesystem::file_size(model_path, size_ec);
+    const auto file_size = std::filesystem::file_size(Utils::utf8_to_path(model_path), size_ec);
     if (!size_ec) {
         to_read = static_cast<std::streamsize>(std::min<std::uintmax_t>(file_size, buffer.size()));
     }
@@ -1003,7 +1004,7 @@ AutoGpuLayerEstimation estimate_gpu_layers_for_metal(const std::string & model_p
     }
 
     std::error_code ec;
-    const auto file_size = std::filesystem::file_size(model_path, ec);
+    const auto file_size = std::filesystem::file_size(Utils::utf8_to_path(model_path), ec);
     if (ec) {
         result.layers = -1;
         result.reason = "model file size unavailable";
@@ -1095,7 +1096,7 @@ bool populate_layer_metrics(const std::string& model_path,
                             LayerMetrics& metrics)
 {
     std::error_code ec;
-    const auto file_size = std::filesystem::file_size(model_path, ec);
+    const auto file_size = std::filesystem::file_size(Utils::utf8_to_path(model_path), ec);
     if (ec) {
         result.layers = -1;
         result.reason = "model file size unavailable";
@@ -1239,7 +1240,7 @@ enum class PreferredBackend {
     }
     std::string value(env);
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     if (value == "cuda") {
         return PreferredBackend::Cuda;
@@ -1824,7 +1825,7 @@ bool llama_logs_enabled_from_env()
 
     std::string value{env};
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return value != "0" && value != "false" && value != "off" && value != "no";
 }

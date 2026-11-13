@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "ReviewHistoryStore.hpp"
 
 #include "Logger.hpp"
@@ -135,7 +136,7 @@ void bind_text(sqlite3_stmt* stmt, int index, const std::string& value)
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;

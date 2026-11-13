@@ -1,3 +1,5 @@
+#include "Utils.hpp"
+#include "TextEncoding.hpp"
 #include "PluginArchiveExtractor.hpp"
 
 #include <zip.h>
@@ -15,7 +17,7 @@ namespace {
 std::string ascii_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -28,7 +30,7 @@ bool is_directory_entry(const std::string& entry_name)
 std::optional<std::filesystem::path> sanitize_archive_path(const std::string& entry_name)
 {
     const std::filesystem::path normalized =
-        std::filesystem::path(entry_name).lexically_normal();
+        Utils::utf8_to_path(entry_name).lexically_normal();
     if (normalized.empty() || normalized.has_root_name() || normalized.has_root_directory()) {
         return std::nullopt;
     }
@@ -87,7 +89,8 @@ bool extract_entry(zip_t* archive,
                    std::string* error)
 {
     const auto destination_path = destination_root / relative_path;
-    const auto partial_path = std::filesystem::path(destination_path.string() + ".part");
+    auto partial_path = destination_path;
+    partial_path += ".part";
 
     std::error_code ec;
     std::filesystem::create_directories(destination_path.parent_path(), ec);
@@ -186,7 +189,7 @@ bool PluginArchiveExtractor::ExtractionResult::ok() const
 
 bool PluginArchiveExtractor::supports_archive(const std::filesystem::path& package_path)
 {
-    const auto extension = ascii_lower_copy(package_path.extension().string());
+    const auto extension = ascii_lower_copy(Utils::path_to_utf8(package_path.extension()));
     return extension == ".aifsplugin" || extension == ".zip";
 }
 
@@ -199,7 +202,7 @@ PluginArchiveExtractor::ExtractionResult PluginArchiveExtractor::extract_archive
     }
 
     int error_code = 0;
-    zip_t* archive = zip_open(archive_path.string().c_str(), ZIP_RDONLY, &error_code);
+    zip_t* archive = zip_open(Utils::path_to_utf8(archive_path).c_str(), ZIP_RDONLY, &error_code);
     if (!archive) {
         zip_error_t error;
         zip_error_init_with_code(&error, error_code);

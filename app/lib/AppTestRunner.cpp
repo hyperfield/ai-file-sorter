@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "AppTestRunner.hpp"
 
 #include "CategorizationService.hpp"
@@ -161,7 +162,7 @@ struct SelfTestContext {
 std::string normalize_suite(std::string suite)
 {
     std::transform(suite.begin(), suite.end(), suite.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     if (suite.empty()) {
         return "all";

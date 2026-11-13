@@ -1,3 +1,4 @@
+#include "Utils.hpp"
 #include "IniConfig.hpp"
 #include "Logger.hpp"
 #include <cstdio>
@@ -59,7 +60,7 @@ std::optional<std::pair<std::string, std::string>> parse_key_value(const std::st
 
 
 bool IniConfig::load(const std::string &filename) {
-    std::ifstream file(filename);
+    std::ifstream file(Utils::utf8_to_path(filename));
     if (!file.is_open()) {
         ini_log(spdlog::level::err, "Failed to open config file: {}", filename);
         return false;
@@ -102,7 +103,7 @@ void IniConfig::setValue(const std::string &section, const std::string &key, con
 
 bool IniConfig::save(const std::string &filename) const
 {
-    std::ofstream file(filename);
+    std::ofstream file(Utils::utf8_to_path(filename));
     
     if (!file.is_open()) {
         ini_log(spdlog::level::err, "Failed to open config file: {}", filename);

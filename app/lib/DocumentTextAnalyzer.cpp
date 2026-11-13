@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "DocumentTextAnalyzer.hpp"
 #include "ContentAnalysisUnavailable.hpp"
 #include "DocumentXmlTextExtractor.hpp"
@@ -45,14 +46,14 @@ QString path_to_qstring(const std::filesystem::path& path) {
 
 std::string to_lower_copy(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
 
 std::string trim_copy(const std::string& value) {
     auto result = value;
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     result.erase(result.begin(), std::find_if(result.begin(), result.end(), not_space));
     result.erase(std::find_if(result.rbegin(), result.rend(), not_space).base(), result.end());
     return result;
@@ -63,7 +64,7 @@ std::string collapse_whitespace(const std::string& value) {
     collapsed.reserve(value.size());
     bool last_space = false;
     for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
+        if (TextEncoding::ascii_space(ch)) {
             if (!last_space) {
                 collapsed.push_back(' ');
                 last_space = true;

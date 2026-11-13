@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "FolderStructurePluginCatalog.hpp"
 
 #include <QByteArray>
@@ -28,7 +29,7 @@ namespace {
 constexpr char kCatalogVersion[] = "aifs.folder_structure_plugin_catalog.v1";
 
 std::string trim_copy(std::string value) {
-    const auto not_space = [](unsigned char ch) { return std::isspace(ch) == 0; };
+    const auto not_space = [](unsigned char ch) { return TextEncoding::ascii_space(ch) == 0; };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;

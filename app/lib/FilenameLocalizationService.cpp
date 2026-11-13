@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "FilenameLocalizationService.hpp"
 
 #include "ILLMClient.hpp"
@@ -53,7 +54,7 @@ std::vector<std::string> split_words(const QString& value)
 std::string trim_copy(const std::string& value)
 {
     auto result = value;
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     result.erase(result.begin(), std::find_if(result.begin(), result.end(), not_space));
     result.erase(std::find_if(result.rbegin(), result.rend(), not_space).base(), result.end());
     return result;
