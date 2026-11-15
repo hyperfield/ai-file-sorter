@@ -39,6 +39,10 @@ public:
     {
         return {host.settings_.get_process_images_only(), host.settings_.get_process_documents_only()};
     }
+    static bool sorts_folders(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return host.settings_.get_categorize_directories();
+    }
     static SortingMode sorting_mode(const HeadlessAnalysisWorkflowHost& host)
     {
         return host.settings_.get_sorting_mode();
@@ -434,4 +438,35 @@ TEST_CASE("HeadlessAnalysisWorkflowHost resets destination while inheriting sort
     CHECK(reloaded.get_sorting_mode() == SortingMode::ExistingFolderTree);
     CHECK(reloaded.get_suggest_new_folders());
     CHECK(reloaded.get_destination_folder() == Utils::path_to_utf8(archive));
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost gives folder sorting priority over recursion") {
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    bool folders = true;
+    bool explicit_recursion = true;
+    bool recursive_value = true;
+    SECTION("conflicting per-task overrides") {}
+    SECTION("inherited folders with CLI recursion") { explicit_recursion = false; }
+    SECTION("explicit recursion off overrides CLI") { recursive_value = false; }
+    SECTION("recursive files with folder sorting off") { folders = false; }
+    Settings stored;
+    stored.set_categorize_directories(folders);
+    REQUIRE(stored.save());
+    for (const auto operation : {HeadlessAnalysisWorkflowHost::OperationMode::Categorize,
+                                 HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename,
+                                 HeadlessAnalysisWorkflowHost::OperationMode::Rename}) {
+        HeadlessAnalysisWorkflowHost::Options options;
+        options.folder_path = temp.path();
+        options.operation_mode = operation;
+        options.include_subdirectories = true;
+        if (explicit_recursion) {
+            options.settings_overrides.categorize_directories = folders;
+            options.settings_overrides.include_subdirectories = recursive_value;
+        }
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        const bool rename = operation == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        CHECK(HeadlessAnalysisWorkflowHostTestAccess::sorts_folders(host) == (folders && !rename));
+        CHECK(host.include_subdirectories() == ((!folders || rename) && recursive_value));
+    }
 }

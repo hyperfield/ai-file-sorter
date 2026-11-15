@@ -4441,3 +4441,33 @@ Run: `./build-tests/ai_file_sorter_tests "StoragePluginDialog refreshes plugin m
 ### Test infrastructure: `tests/unit/test_cli_reporter.cpp`
 
 This file registers a Catch2 event listener that prints a one-line "[TEST]" banner for each test case as it begins. It does not define test cases itself, but it makes CLI output easier to follow during long runs.
+
+#### Test case: Settings makes whole-folder sorting nonrecursive
+
+Purpose: Verify directory sorting disables recursive scanning regardless of setter order, and conflicting legacy settings preserve directory sorting on reload.
+
+Run: `./build-tests/ai_file_sorter_tests "Settings makes whole-folder sorting nonrecursive"`
+
+#### Test case: Whole-folder sorting clears and disables recursive scanning
+
+Purpose: Exercise the main window's actual controls: choosing Sort folders clears and disables Scan subfolders; unchecking it makes recursion available again. Programmatic conflicting checks do not clear folder sorting.
+
+Run: `./build-tests/ai_file_sorter_tests "Whole-folder sorting clears and disables recursive scanning"`
+
+#### Test case: HeadlessAnalysisWorkflowHost gives folder sorting priority over recursion
+
+Purpose: Verify sorting preserves whole-folder targets over inherited, CLI, and explicit recursive-scanning requests. Explicit Rename clears folder sorting and honors recursion, including explicit false overriding a CLI request.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost gives folder sorting priority over recursion"`
+
+#### Test case: HeadlessAnalysisCommand sorts whole folders without analyzing their contents
+
+Purpose: Verify folder candidates remain whole items despite conflicting recursion requests. A loopback text server receives only direct candidates; nested filenames and document contents are not sent for analysis. Review leaves files unchanged; apply moves the whole folder with its contents unchanged.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand sorts whole folders without analyzing their contents"`
+
+#### Test case: HeadlessAnalysisCommand recursive Rename changes files and leaves folder names intact
+
+Purpose: Verify recursive Rename discovers supported files in subfolders, renames them in place, and leaves folder names intact.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand recursive Rename changes files and leaves folder names intact"`

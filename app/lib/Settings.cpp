@@ -581,7 +581,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
         offer_rename_documents = true;
     }
     if (include_subdirectories && categorize_directories) {
-        categorize_directories = false;
+        include_subdirectories = false;
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
     destination_folder = config.getValue("Settings", "DestinationFolder", "");
@@ -1221,6 +1221,9 @@ bool Settings::get_categorize_directories() const
 void Settings::set_categorize_directories(bool value)
 {
     categorize_directories = value;
+    if (value) {
+        include_subdirectories = false;
+    }
 }
 
 bool Settings::get_include_subdirectories() const
@@ -1230,7 +1233,7 @@ bool Settings::get_include_subdirectories() const
 
 void Settings::set_include_subdirectories(bool value)
 {
-    include_subdirectories = value;
+    include_subdirectories = value && !categorize_directories;
 }
 
 bool Settings::get_analyze_images_by_content() const

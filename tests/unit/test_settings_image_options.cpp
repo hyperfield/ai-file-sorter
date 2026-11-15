@@ -367,3 +367,31 @@ TEST_CASE("Settings persists selected visual model backend") {
     REQUIRE(reloaded.load());
     REQUIRE(reloaded.get_visual_model_id() == "gemma-3-4b-it");
 }
+
+TEST_CASE("Settings makes whole-folder sorting nonrecursive") {
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    for (unsigned flags = 0; flags < 4; ++flags) {
+        Settings settings;
+        const bool folders = (flags & 1) != 0;
+        const bool recursive = (flags & 2) != 0;
+        settings.set_categorize_directories(false);
+        settings.set_include_subdirectories(recursive);
+        settings.set_categorize_directories(folders);
+        settings.set_include_subdirectories(recursive);
+        CHECK(settings.get_categorize_directories() == folders);
+        CHECK(settings.get_include_subdirectories() == (recursive && !folders));
+        REQUIRE(settings.save());
+        Settings reloaded;
+        REQUIRE(reloaded.load());
+        CHECK(reloaded.get_categorize_directories() == folders);
+        CHECK(reloaded.get_include_subdirectories() == (recursive && !folders));
+    }
+    Settings stored;
+    const auto path = Utils::utf8_to_path(stored.get_config_dir()) / "config.ini";
+    { std::ofstream legacy(path); legacy << "[Settings]\nCategorizeDirectories=true\nIncludeSubdirectories=true\n"; }
+    Settings legacy;
+    REQUIRE(legacy.load());
+    CHECK(legacy.get_categorize_directories());
+    CHECK_FALSE(legacy.get_include_subdirectories());
+}

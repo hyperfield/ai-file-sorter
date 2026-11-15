@@ -536,6 +536,11 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
         settings_.set_add_audio_video_metadata_to_filename(true);
         settings_.set_categorize_files(false);
         settings_.set_categorize_directories(false);
+        // Explicit Rename does not sort whole folders; restore its requested recursion after clearing that default.
+        if (const auto recursive = options_.settings_overrides.include_subdirectories
+                ? options_.settings_overrides.include_subdirectories : options_.include_subdirectories) {
+            settings_.set_include_subdirectories(*recursive);
+        }
         settings_.set_offer_rename_images(true);
         settings_.set_offer_rename_documents(true);
         settings_.set_rename_images_only(true);

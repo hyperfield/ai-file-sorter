@@ -133,6 +133,14 @@ QCheckBox* MainAppTestAccess::categorize_files_checkbox(MainApp& app) {
     return app.categorize_files_checkbox;
 }
 
+QCheckBox* MainAppTestAccess::categorize_directories_checkbox(MainApp& app) {
+    return app.categorize_directories_checkbox;
+}
+
+QCheckBox* MainAppTestAccess::include_subdirectories_checkbox(MainApp& app) {
+    return app.include_subdirectories_checkbox;
+}
+
 FileScanOptions MainAppTestAccess::effective_scan_options(const MainApp& app) {
     return app.effective_scan_options();
 }

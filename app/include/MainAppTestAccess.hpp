@@ -179,6 +179,10 @@ public:
      * @return Pointer to the checkbox, or nullptr if unavailable.
      */
     static QCheckBox* categorize_files_checkbox(MainApp& app);
+    /** @brief Accesses whole-folder sorting. @param app Main window. @return Checkbox or nullptr. */
+    static QCheckBox* categorize_directories_checkbox(MainApp& app);
+    /** @brief Accesses recursive file scanning. @param app Main window. @return Checkbox or nullptr. */
+    static QCheckBox* include_subdirectories_checkbox(MainApp& app);
     /**
      * @brief Resolve the effective scan options currently selected in the UI.
      * @param app MainApp instance.

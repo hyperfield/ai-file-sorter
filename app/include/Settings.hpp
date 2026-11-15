@@ -265,7 +265,7 @@ public:
      */
     bool get_categorize_directories() const;
     /**
-     * @brief Enables or disables directory categorization.
+     * @brief Enables or disables directory categorization; enabling it turns off recursive scanning.
      * @param value True to categorize directories.
      */
     void set_categorize_directories(bool value);
@@ -277,7 +277,7 @@ public:
     bool get_include_subdirectories() const;
     /**
      * @brief Enables or disables scanning of subdirectories.
-     * @param value True to scan subdirectories.
+     * @param value Requests scanning subdirectories, allowed only when directory categorization is off.
      */
     void set_include_subdirectories(bool value);
 

@@ -899,3 +899,39 @@ TEST_CASE("Already-renamed images skip vision analysis") {
     }
 }
 #endif
+
+TEST_CASE("Whole-folder sorting clears and disables recursive scanning") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings settings;
+    settings.set_categorize_files(true);
+    settings.set_categorize_directories(false);
+    settings.set_include_subdirectories(true);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    REQUIRE(settings.save());
+    MainApp window(settings, false);
+    auto* folders = MainAppTestAccess::categorize_directories_checkbox(window);
+    auto* recursive = MainAppTestAccess::include_subdirectories_checkbox(window);
+    REQUIRE(folders);
+    REQUIRE(recursive);
+    REQUIRE(recursive->isChecked());
+    REQUIRE(folders->isEnabled());
+    folders->click();
+    CHECK(folders->isChecked());
+    CHECK_FALSE(recursive->isChecked());
+    CHECK_FALSE(recursive->isEnabled());
+    CHECK(settings.get_categorize_directories());
+    CHECK_FALSE(settings.get_include_subdirectories());
+    recursive->setChecked(true);
+    CHECK_FALSE(recursive->isChecked());
+    CHECK(folders->isChecked());
+    folders->click();
+    CHECK(recursive->isEnabled());
+    CHECK_FALSE(recursive->isChecked());
+    recursive->click();
+    CHECK(settings.get_include_subdirectories());
+    CHECK_FALSE(settings.get_categorize_directories());
+}

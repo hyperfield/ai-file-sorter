@@ -132,18 +132,19 @@ void MainWindowStateBinder::connect_checkbox_signals()
         ensure_one_checkbox_active(app_.categorize_directories_checkbox);
         update_file_scan_option(FileScanOptions::Directories, checked);
         app_.settings.set_categorize_directories(checked);
+        if (checked && app_.include_subdirectories_checkbox) {
+            QSignalBlocker blocker(app_.include_subdirectories_checkbox);
+            app_.include_subdirectories_checkbox->setChecked(false);
+        }
+        update_image_only_controls();
     });
 
     if (app_.include_subdirectories_checkbox) {
         QObject::connect(app_.include_subdirectories_checkbox, &QCheckBox::toggled, &app_, [this](bool checked) {
             app_.settings.set_include_subdirectories(checked);
-            if (checked &&
-                app_.categorize_directories_checkbox &&
-                app_.categorize_directories_checkbox->isChecked()) {
-                QSignalBlocker blocker(app_.categorize_directories_checkbox);
-                app_.categorize_directories_checkbox->setChecked(false);
-                update_file_scan_option(FileScanOptions::Directories, false);
-                app_.settings.set_categorize_directories(false);
+            if (checked && !app_.settings.get_include_subdirectories()) {
+                QSignalBlocker blocker(app_.include_subdirectories_checkbox);
+                app_.include_subdirectories_checkbox->setChecked(false);
             }
             update_image_only_controls();
         });
@@ -734,9 +735,7 @@ void MainWindowStateBinder::update_image_only_controls()
     const bool document_analysis_enabled = analyze_documents && !document_group_locked;
     const bool disable_files_categorization =
         !allow_other_files && images_rename_only && documents_rename_only;
-    const bool include_subdirs_active = app_.include_subdirectories_checkbox &&
-                                        app_.include_subdirectories_checkbox->isChecked();
-    const bool disable_directories_categorization = restrict_types || include_subdirs_active;
+    const bool disable_directories_categorization = restrict_types;
     const bool existing_folder_mode =
         app_.settings.get_sorting_mode() == SortingMode::ExistingFolderTree;
 
@@ -748,6 +747,9 @@ void MainWindowStateBinder::update_image_only_controls()
     }
     if (app_.categorize_directories_checkbox) {
         app_.categorize_directories_checkbox->setEnabled(!disable_directories_categorization);
+    }
+    if (app_.include_subdirectories_checkbox) {
+        app_.include_subdirectories_checkbox->setEnabled(!app_.settings.get_categorize_directories());
     }
     if (app_.categorization_style_heading) {
         app_.categorization_style_heading->setEnabled(!disable_files_categorization && !existing_folder_mode);

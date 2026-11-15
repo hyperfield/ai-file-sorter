@@ -167,6 +167,13 @@ Enabling both includes supported pictures and documents; other files and whole
 folders remain excluded from analysis, preview, review, and apply. Filtering does
 not enable content analysis or rewrite saved preferences.
 
+Whole-folder sorting takes priority over recursion: `categorizeDirectories: true`
+disables `includeSubdirectories`, including conflicting saved settings, CLI requests,
+and task overrides. Both apps clear and disable Scan subfolders while Sort folders is
+selected. To scan files recursively, first turn off whole-folder sorting. Explicit
+Rename disables directory categorization and honors its own recursion request; settings
+overrides take precedence over the CLI recursion switch. Task overlays remain in memory.
+
 The explicit `rename` operation enables image/document content analysis, both rename
 pipelines, and audio/video metadata naming for the task, even when those settings or
 overrides are false. Picture-only/document-only filters are cleared. Files stay in

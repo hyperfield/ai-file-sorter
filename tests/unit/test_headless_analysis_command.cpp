@@ -1935,3 +1935,129 @@ TEST_CASE("HeadlessAnalysisCommand rejects cross-folder file selections")
     AnalysisRuntimeLock lock(runtime_dir);
     CHECK_FALSE(lock.is_locked());
 }
+
+
+TEST_CASE("HeadlessAnalysisCommand sorts whole folders without analyzing their contents")
+{
+    QtAppContext qt;
+    ChatCompletionTestServer server;
+    server.respond = [](const auto&) {
+        return ChatCompletionTestServer::answer(QStringLiteral("Category: Sorted\nSubcategory: Items"));
+    };
+    const bool auto_apply = GENERATE(false, true);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto source = Utils::utf8_to_path(dir.path().toStdString()) / "source";
+    const auto folder = source / "Candidate folder";
+    REQUIRE(std::filesystem::create_directories(folder));
+    make_file_at(source / "top.bin");
+    const auto document_path = folder / "inside.txt";
+    const QByteArray contents = QByteArray("NESTED_CONTENT_MUST_NOT_BE_SENT ").repeated(20);
+    QFile document(QString::fromStdString(Utils::path_to_utf8(document_path)));
+    REQUIRE(document.open(QIODevice::WriteOnly));
+    REQUIRE(document.write(contents) == contents.size());
+    document.close();
+    write_headless_media_fixture(folder / "inside.mp4", true);
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_categorize_files(true);
+    settings.set_categorize_directories(true);
+    settings.set_analyze_documents_by_content(true);
+    settings.set_llm_choice(LLMChoice::Remote_Custom);
+    const auto endpoint = settings.upsert_custom_api_endpoint(
+        {"folder-boundary", "Local sorting server", "", server.url(), "", "text-model", false});
+    settings.set_active_custom_api_id(endpoint);
+    REQUIRE(settings.save());
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto before = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+    options.paths = {source};
+    options.status_file = source.parent_path() / "status.json";
+    options.job_id = "whole-folder-boundary";
+    options.include_subdirectories = true;
+    options.settings_overrides.categorize_directories = true;
+    options.settings_overrides.include_subdirectories = true;
+    options.settings_overrides.respect_rename_preferences = true;
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = false;
+    options.settings_overrides.add_audio_video_metadata_to_filename = true;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    const int result = server.run([&] {
+        return HeadlessAnalysisCommand::run(options, source.parent_path() / "runtime", out, err);
+    });
+    INFO(err.str());
+    REQUIRE(result == HeadlessAnalysisCommand::Success);
+    REQUIRE_FALSE(server.requests.empty());
+    for (const auto& request : server.requests) {
+        const auto payload = QJsonDocument(request.json).toJson();
+        CHECK_FALSE(payload.contains("inside.txt"));
+        CHECK_FALSE(payload.contains("inside.mp4"));
+        CHECK_FALSE(payload.contains("NESTED_CONTENT_MUST_NOT_BE_SENT"));
+    }
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject().value(QStringLiteral("entries")).toArray();
+    REQUIRE(rows.size() == 2);
+    for (const auto& value : rows) {
+        const auto row = value.toObject();
+        const auto name = row.value(QStringLiteral("fileName")).toString();
+        CHECK((name == QStringLiteral("Candidate folder") || name == QStringLiteral("top.bin")));
+        CHECK(row.value(QStringLiteral("destinationName")).toString() == name);
+    }
+    const auto current_folder = auto_apply ? source / "Sorted" / "Items" / "Candidate folder" : folder;
+    CHECK(std::filesystem::is_directory(current_folder));
+    CHECK(std::filesystem::exists(current_folder / "inside.mp4"));
+    QFile nested(QString::fromStdString(Utils::path_to_utf8(current_folder / "inside.txt")));
+    REQUIRE(nested.open(QIODevice::ReadOnly));
+    CHECK(nested.readAll() == contents);
+    CHECK(std::filesystem::exists(source / "top.bin") == !auto_apply);
+    if (auto_apply) {
+        CHECK(status.value(QStringLiteral("apply")).toObject().value(QStringLiteral("movedCount")).toInt() == 2);
+        CHECK(status.value(QStringLiteral("apply")).toObject().value(QStringLiteral("renamedCount")).toInt() == 0);
+    }
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == before);
+}
+
+TEST_CASE("HeadlessAnalysisCommand recursive Rename changes files and leaves folder names intact")
+{
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto source = Utils::utf8_to_path(dir.path().toStdString()) / "source";
+    const auto folder = source / "Keep this folder name";
+    REQUIRE(std::filesystem::create_directories(folder));
+    write_headless_media_fixture(folder / "inside.mp4", true);
+    Settings settings;
+    settings.set_categorize_directories(false);
+    settings.set_include_subdirectories(true);
+    REQUIRE(settings.save());
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Rename;
+    options.paths = {source};
+    options.status_file = source.parent_path() / "status.json";
+    options.job_id = "recursive-file-rename";
+    options.include_subdirectories = true;
+    enable_auto_apply(options);
+    std::ostringstream out;
+    std::ostringstream err;
+    REQUIRE(HeadlessAnalysisCommand::run(options, source.parent_path() / "runtime", out, err) ==
+            HeadlessAnalysisCommand::Success);
+    CHECK(std::filesystem::is_directory(folder));
+    CHECK_FALSE(std::filesystem::exists(folder / "inside.mp4"));
+    CHECK(std::filesystem::exists(folder / "celestial_echoes.mp4"));
+    const auto apply = read_status(*options.status_file).value(QStringLiteral("apply")).toObject();
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+}
