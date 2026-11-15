@@ -340,7 +340,8 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
         },
         [this](const CategorizedFile& entry, const std::string& reason) {
             notify_recategorization_reset(entry, reason);
-        }};
+        },
+        true};
 }
 
 FileScanOptions HeadlessAnalysisWorkflowHost::effective_scan_options() const
@@ -355,8 +356,8 @@ FileScanOptions HeadlessAnalysisWorkflowHost::effective_scan_options() const
 
     const bool analyze_images = settings_.get_analyze_images_by_content();
     const bool analyze_documents = settings_.get_analyze_documents_by_content();
-    const bool images_only = analyze_images && settings_.get_process_images_only();
-    const bool documents_only = analyze_documents && settings_.get_process_documents_only();
+    const bool images_only = settings_.get_process_images_only();
+    const bool documents_only = settings_.get_process_documents_only();
     if (images_only || documents_only) {
         FileScanOptions options = FileScanOptions::Files;
         if (settings_.get_include_subdirectories()) {
@@ -526,11 +527,10 @@ void HeadlessAnalysisWorkflowHost::sync_whitelists_to_learning_store()
 
 void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
 {
-    settings_.set_process_images_only(false);
-    settings_.set_process_documents_only(false);
-
     switch (options_.operation_mode) {
     case OperationMode::Rename:
+        settings_.set_process_images_only(false);
+        settings_.set_process_documents_only(false);
         settings_.set_analyze_images_by_content(true);
         settings_.set_analyze_documents_by_content(true);
         settings_.set_add_audio_video_metadata_to_filename(true);

@@ -148,6 +148,14 @@ overrides independently control which file groups receive rename suggestions. Ex
 `renameImagesOnly` and `renameDocumentsOnly` preserve the source folder for the enabled
 group. A disabled rename group cannot become rename-only. Omitted overrides retain the
 combined operation's existing defaults: both rename groups enabled, neither rename-only.
+
+Sorting operations preserve `processImagesOnly` and `processDocumentsOnly`, whether
+inherited or explicitly overridden. These headless scope filters apply even when
+content analysis is disabled: matching files can still be sorted by filename.
+Enabling both includes supported pictures and documents; other files and whole
+folders remain excluded from analysis, preview, review, and apply. Filtering does
+not enable content analysis or rewrite saved preferences.
+
 The explicit `rename` operation enables image/document content analysis, both rename
 pipelines, and audio/video metadata naming for the task, even when those settings or
 overrides are false. Picture-only/document-only filters are cleared. Files stay in

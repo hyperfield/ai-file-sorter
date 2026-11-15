@@ -74,4 +74,6 @@ struct AnalysisWorkflowContext {
     std::function<bool(const std::string&)> prompt_visual_cpu_fallback;
     std::function<bool(const std::string&)> prompt_continue_without_visual_analysis;
     std::function<void(const CategorizedFile&, const std::string&)> notify_recategorization_reset;
+    /** @brief Applies headless file-type scope independently of optional content analysis. */
+    bool independent_file_type_filters{false};
 };

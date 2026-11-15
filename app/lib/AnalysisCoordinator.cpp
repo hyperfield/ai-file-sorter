@@ -446,8 +446,10 @@ AnalysisRunResult AnalysisCoordinator::execute()
         app_.prune_empty_cached_entries_for(directory_path);
         const bool analyze_images = app_.settings.get_analyze_images_by_content();
         const bool analyze_documents = app_.settings.get_analyze_documents_by_content();
-        const bool process_images_only = analyze_images && app_.settings.get_process_images_only();
-        const bool process_documents_only = analyze_documents && app_.settings.get_process_documents_only();
+        const bool process_images_only = (analyze_images || app_.independent_file_type_filters) &&
+                                         app_.settings.get_process_images_only();
+        const bool process_documents_only = (analyze_documents || app_.independent_file_type_filters) &&
+                                            app_.settings.get_process_documents_only();
         const bool rename_images_only = analyze_images && app_.settings.get_rename_images_only();
         const bool rename_documents_only = analyze_documents && app_.settings.get_rename_documents_only();
         const bool allow_image_renames = app_.settings.get_offer_rename_images();
@@ -490,7 +492,30 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 Utils::path_to_utf8(Utils::utf8_to_path(entry.file_path) /
                                    Utils::utf8_to_path(entry.file_name)));
         };
+        auto is_supported_image_entry = [](const CategorizedFile& entry) {
+            if (entry.type != FileType::File) {
+                return false;
+            }
+            const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                   Utils::utf8_to_path(entry.file_name);
+            return LlavaImageAnalyzer::is_supported_image(full_path);
+        };
+        auto is_supported_document_entry = [](const CategorizedFile& entry) {
+            if (entry.type != FileType::File) {
+                return false;
+            }
+            const auto full_path = Utils::utf8_to_path(entry.file_path) /
+                                   Utils::utf8_to_path(entry.file_name);
+            return DocumentTextAnalyzer::is_supported_document(full_path);
+        };
         auto raw_cached_entries = app_.categorization_service.load_cached_entries(directory_path);
+        if (process_images_only || process_documents_only) {
+            // Exclude cached types before scheduling content refresh or creating analysis indices.
+            std::erase_if(raw_cached_entries, [&](const CategorizedFile& entry) {
+                return !(process_images_only && is_supported_image_entry(entry)) &&
+                       !(process_documents_only && is_supported_document_entry(entry));
+            });
+        }
         std::unordered_set<std::string> renamed_files;
         for (const auto& entry : raw_cached_entries) {
             if (entry.rename_applied) {
@@ -534,22 +559,6 @@ AnalysisRunResult AnalysisCoordinator::execute()
         };
         auto has_category = [](const CategorizedFile& entry) {
             return !entry.category.empty() && !entry.subcategory.empty();
-        };
-        auto is_supported_image_entry = [](const CategorizedFile& entry) {
-            if (entry.type != FileType::File) {
-                return false;
-            }
-            const auto full_path = Utils::utf8_to_path(entry.file_path) /
-                                   Utils::utf8_to_path(entry.file_name);
-            return LlavaImageAnalyzer::is_supported_image(full_path);
-        };
-        auto is_supported_document_entry = [](const CategorizedFile& entry) {
-            if (entry.type != FileType::File) {
-                return false;
-            }
-            const auto full_path = Utils::utf8_to_path(entry.file_path) /
-                                   Utils::utf8_to_path(entry.file_name);
-            return DocumentTextAnalyzer::is_supported_document(full_path);
         };
         auto is_missing_category_label = [](const std::string& value) {
             std::string trimmed = value;
@@ -852,51 +861,6 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 continue;
             }
             app_.already_categorized_files.push_back(entry);
-        }
-
-        if (process_images_only || process_documents_only) {
-            const bool allow_images = process_images_only;
-            const bool allow_documents = process_documents_only;
-            auto filter_entries = [&](std::vector<CategorizedFile>& entries) {
-                entries.erase(
-                    std::remove_if(entries.begin(),
-                                   entries.end(),
-                                   [&](const CategorizedFile& entry) {
-                                       if (entry.type != FileType::File) {
-                                           return true;
-                                       }
-                                       const auto full_path = Utils::utf8_to_path(entry.file_path) /
-                                                              Utils::utf8_to_path(entry.file_name);
-                                       const bool is_image = LlavaImageAnalyzer::is_supported_image(full_path);
-                                       const bool is_document = DocumentTextAnalyzer::is_supported_document(full_path);
-                                       if (is_image && allow_images) {
-                                           return false;
-                                       }
-                                       if (is_document && allow_documents) {
-                                           return false;
-                                       }
-                                       return true;
-                                   }),
-                    entries.end());
-            };
-            filter_entries(app_.already_categorized_files);
-            filter_entries(pending_renames);
-            if (!cached_visual_indices.empty()) {
-                for (size_t index = 0; index < app_.already_categorized_files.size(); ++index) {
-                    auto it = cached_visual_indices.find(file_key(app_.already_categorized_files[index]));
-                    if (it != cached_visual_indices.end()) {
-                        it->second = index;
-                    }
-                }
-            }
-            if (!cached_document_indices.empty()) {
-                for (size_t index = 0; index < app_.already_categorized_files.size(); ++index) {
-                    auto it = cached_document_indices.find(file_key(app_.already_categorized_files[index]));
-                    if (it != cached_document_indices.end()) {
-                        it->second = index;
-                    }
-                }
-            }
         }
 
         update_stop();

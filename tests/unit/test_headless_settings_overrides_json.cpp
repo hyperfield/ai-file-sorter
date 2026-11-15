@@ -35,6 +35,10 @@ public:
         return {host.settings_.get_analyze_images_by_content(), host.settings_.get_analyze_documents_by_content(),
                 host.settings_.get_add_audio_video_metadata_to_filename()};
     }
+    static std::array<bool, 2> file_type_filters(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return {host.settings_.get_process_images_only(), host.settings_.get_process_documents_only()};
+    }
     static SortingMode sorting_mode(const HeadlessAnalysisWorkflowHost& host)
     {
         return host.settings_.get_sorting_mode();
@@ -282,6 +286,50 @@ TEST_CASE("HeadlessAnalysisWorkflowHost respects explicit per-type rename prefer
         CHECK(config_bytes() == before);
     }
     CHECK(config_bytes() == before);
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost preserves sorting file-type filters", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    bool explicit_overrides = false;
+    SECTION("persisted file-type filters") {}
+    SECTION("explicit overrides take precedence") { explicit_overrides = true; }
+    for (unsigned flags = 0; flags < 4; ++flags) {
+        const bool images = (flags & 1) != 0;
+        const bool documents = (flags & 2) != 0;
+        Settings stored;
+        stored.set_analyze_images_by_content(false);
+        stored.set_analyze_documents_by_content(false);
+        stored.set_process_images_only(explicit_overrides ? !images : images);
+        stored.set_process_documents_only(explicit_overrides ? !documents : documents);
+        REQUIRE(stored.save());
+        const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+        const auto config_bytes = [&]() {
+            std::ifstream input(config, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        };
+        const auto original_config = config_bytes();
+        for (const auto operation : {HeadlessAnalysisWorkflowHost::OperationMode::Categorize,
+                                     HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename,
+                                     HeadlessAnalysisWorkflowHost::OperationMode::Rename}) {
+            HeadlessAnalysisWorkflowHost::Options options;
+            options.folder_path = temp.path();
+            options.operation_mode = operation;
+            if (explicit_overrides) {
+                options.settings_overrides.process_images_only = images;
+                options.settings_overrides.process_documents_only = documents;
+            }
+            HeadlessAnalysisWorkflowHost host(std::move(options));
+            const bool rename = operation == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+            const std::array<bool, 2> expected{!rename && images, !rename && documents};
+            CHECK(HeadlessAnalysisWorkflowHostTestAccess::file_type_filters(host) == expected);
+            const auto content = HeadlessAnalysisWorkflowHostTestAccess::content_naming(host);
+            CHECK(content[0] == rename);
+            CHECK(content[1] == rename);
+            CHECK(config_bytes() == original_config);
+        }
+    }
 }
 
 TEST_CASE("HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences", "[headless][sorting-rules]")

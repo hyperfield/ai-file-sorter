@@ -1041,6 +1041,84 @@ void write_headless_media_fixture(const std::filesystem::path& path, bool with_m
 
 } // namespace
 
+TEST_CASE("HeadlessAnalysisCommand honors file-type filters throughout sorting")
+{
+    const unsigned filters = GENERATE(1U, 2U, 3U);
+    const auto operation = GENERATE(HeadlessAnalysisCommand::Operation::Categorize,
+                                    HeadlessAnalysisCommand::Operation::CategorizeAndRename);
+    const bool selected_files = GENERATE(false, true);
+    const bool auto_apply = GENERATE(false, true);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+    const auto child = target / "Unselected folder";
+    REQUIRE(std::filesystem::create_directories(child));
+    const std::vector<std::string> names{"photo.jpg", "notes.txt", "clip.mp4", "archive.bin"};
+    std::vector<std::filesystem::path> sources;
+    for (const auto& name : names) {
+        sources.push_back(make_file_at(target / name));
+    }
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    // Excluded cached groups must never be scheduled for content analysis.
+    settings.set_analyze_images_by_content(filters == 2);
+    settings.set_analyze_documents_by_content(filters == 1);
+    settings.set_process_images_only((filters & 1) == 0);
+    settings.set_process_documents_only((filters & 2) == 0);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    for (const auto& name : names) {
+        cache_categorization(db, target, name, "Sorted", "Items");
+    }
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto original_config = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = operation;
+    options.paths = selected_files ? sources : std::vector<std::filesystem::path>{target};
+    options.status_file = target.parent_path() / "status.json";
+    options.job_id = "filtered-sort";
+    options.settings_overrides.respect_rename_preferences = true;
+    // Exercise processing scope independently of naming and model availability.
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = false;
+    options.settings_overrides.process_images_only = (filters & 1) != 0;
+    options.settings_overrides.process_documents_only = (filters & 2) != 0;
+    options.settings_overrides.categorize_files = true;
+    options.settings_overrides.categorize_directories = true;
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    REQUIRE(HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err) ==
+            HeadlessAnalysisCommand::Success);
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject()
+                         .value(QStringLiteral("entries")).toArray();
+    const int expected_count = filters == 3 ? 2 : 1;
+    REQUIRE(rows.size() == expected_count);
+    for (const auto& row : rows) {
+        const auto name = row.toObject().value(QStringLiteral("fileName")).toString();
+        const bool permitted = ((filters & 1) != 0 && name == QStringLiteral("photo.jpg")) ||
+                               ((filters & 2) != 0 && name == QStringLiteral("notes.txt"));
+        CHECK(permitted);
+    }
+    for (std::size_t i = 0; i < names.size(); ++i) {
+        const bool allowed = (i == 0 && (filters & 1) != 0) || (i == 1 && (filters & 2) != 0);
+        CHECK(std::filesystem::exists(sources[i]) == !(auto_apply && allowed));
+        CHECK(std::filesystem::exists(target / "Sorted" / "Items" / names[i]) == (auto_apply && allowed));
+    }
+    CHECK(std::filesystem::is_directory(child));
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == original_config);
+}
+
 TEST_CASE("HeadlessAnalysisCommand explicitly renames selected media despite disabled file-type preferences")
 {
     bool audio = false;

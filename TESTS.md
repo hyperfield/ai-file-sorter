@@ -924,6 +924,24 @@ Procedure: Run the command, inspect the selected and sibling files, and read the
 Expected outcome: Only the selected file is moved, the sibling remains in place, and the review/apply counts report one moved entry.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand categorizes only a selected file target"`
 
+#### Test case: HeadlessAnalysisCommand honors file-type filters throughout sorting
+
+Purpose: Verify sorting and combined sort/rename requests restrict analysis, review, and apply to supported picture/document groups, including when content analysis is off.
+
+Setup: Cache picture, document, video, and binary files beside a child folder. Set persisted filters opposite to the per-task overrides.
+
+Procedure: Exercise picture-only, document-only, and combined filters with folder/file selections and review-only/automatic apply.
+
+Expected: Only the permitted picture/document entries appear or move; media, binary files, whole folders, and saved settings remain unchanged.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand honors file-type filters throughout sorting"`
+
+#### Test case: HeadlessAnalysisWorkflowHost preserves sorting file-type filters
+
+Purpose: Verify sorting preserves inherited and explicit processing filters for every filter combination, while explicit Rename clears them without changing saved settings or enabling content analysis during sorting.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost preserves sorting file-type filters"`
+
 #### Test case: HeadlessAnalysisCommand explicitly renames selected media despite disabled file-type preferences
 
 Purpose: Verify explicit rename handles uncached audio/video independently of disabled or partially enabled picture/document defaults, without moving files or changing saved settings.
