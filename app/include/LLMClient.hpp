@@ -3,6 +3,7 @@
 
 #include "ILLMClient.hpp"
 #include <Types.hpp>
+#include <cstddef>
 #include <string>
 
 class LLMClient : public ILLMClient {
@@ -35,6 +36,22 @@ private:
      * @brief Resolve the final /chat/completions URL from the base URL or default.
      */
     std::string resolve_api_url() const;
+    /**
+     * @brief Add one request's token usage (from the API's usage block, or an
+     * llm-cost estimate when absent) to this client's running spend meter.
+     */
+    void record_usage(const std::string& request_payload,
+                      const std::string& reply,
+                      std::size_t prompt_tokens,
+                      std::size_t completion_tokens,
+                      bool reported_by_api);
+    struct UsageTotals {
+        std::size_t requests{0};
+        std::size_t prompt_tokens{0};
+        std::size_t completion_tokens{0};
+        double cost_usd{0.0};
+    };
+    UsageTotals usage_totals;
     bool prompt_logging_enabled{false};
     std::string last_prompt;
     std::string model;

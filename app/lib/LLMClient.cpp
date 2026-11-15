@@ -4,6 +4,8 @@
 #include "Logger.hpp"
 #include "RemoteApiError.hpp"
 #include <curl/curl.h>
+#define LLM_COST_IMPLEMENTATION
+#include "external/llm_cost.hpp"
 #include <cstdlib>
 #include <filesystem>
 #if __has_include(<jsoncpp/json/json.h>)
@@ -227,8 +229,15 @@ HttpResponseInfo perform_request(CurlRequest& request,
     return HttpResponseInfo{http_code, std::move(retry_after_header)};
 }
 
-std::string parse_category_response(const std::string& payload,
-                                    const std::shared_ptr<spdlog::logger>& logger)
+struct ParsedResponse {
+    std::string content;
+    std::size_t prompt_tokens{0};
+    std::size_t completion_tokens{0};
+    bool has_usage{false};
+};
+
+ParsedResponse parse_category_response(const std::string& payload,
+                                       const std::shared_ptr<spdlog::logger>& logger)
 {
     Json::CharReaderBuilder reader_builder;
     Json::Value root;
@@ -242,7 +251,31 @@ std::string parse_category_response(const std::string& payload,
         throw std::runtime_error("Response Error: Failed to parse JSON response. " + errors);
     }
 
-    return root["choices"][0]["message"]["content"].asString();
+    ParsedResponse parsed;
+    parsed.content = root["choices"][0]["message"]["content"].asString();
+    const Json::Value& usage = root["usage"];
+    if (usage.isObject() && usage["prompt_tokens"].isIntegral() && usage["completion_tokens"].isIntegral()) {
+        parsed.prompt_tokens = static_cast<std::size_t>(usage["prompt_tokens"].asUInt64());
+        parsed.completion_tokens = static_cast<std::size_t>(usage["completion_tokens"].asUInt64());
+        parsed.has_usage = true;
+    }
+    return parsed;
+}
+
+// Price table lookup for the spend meter. Longer names first so that
+// "gpt-4o-mini-2024-07-18" matches gpt-4o-mini rather than gpt-4o.
+const llm::Model* find_priced_model(const std::string& model_name)
+{
+    static const llm::Model* const kPriced[] = {
+        &llm::models::GPT4O_MINI, &llm::models::GPT4_TURBO, &llm::models::GPT4O,
+        &llm::models::GPT6_ASTRA, &llm::models::GPT6_SOL, &llm::models::GPT6_LUNA,
+    };
+    for (const llm::Model* candidate : kPriced) {
+        if (model_name.rfind(candidate->name, 0) == 0) {
+            return candidate;
+        }
+    }
+    return nullptr;
 }
 }
 
@@ -252,7 +285,60 @@ LLMClient::LLMClient(std::string api_key, std::string model, std::string base_ur
 {}
 
 
-LLMClient::~LLMClient() = default;
+LLMClient::~LLMClient()
+{
+    if (usage_totals.requests == 0) {
+        return;
+    }
+    if (auto logger = Logger::get_logger("core_logger")) {
+        const llm::Model* priced = find_priced_model(effective_model());
+        logger->info("Remote LLM usage for this run: {} request(s), {} prompt + {} completion tokens{}{}",
+                     usage_totals.requests,
+                     usage_totals.prompt_tokens,
+                     usage_totals.completion_tokens,
+                     priced ? ", estimated cost " : "",
+                     priced ? llm::format_cost(usage_totals.cost_usd) : std::string());
+    }
+}
+
+
+void LLMClient::record_usage(const std::string& request_payload,
+                             const std::string& reply,
+                             std::size_t prompt_tokens,
+                             std::size_t completion_tokens,
+                             bool reported_by_api)
+{
+    const std::string model_name = effective_model();
+    const llm::Model* priced = find_priced_model(model_name);
+    if (!reported_by_api) {
+        // Endpoint did not return a usage block; fall back to llm-cost's estimate.
+        const llm::Model& basis = priced ? *priced : llm::models::GPT4O_MINI;
+        prompt_tokens = llm::count(request_payload, basis).tokens;
+        completion_tokens = llm::count(reply, basis).tokens;
+    }
+
+    double cost = 0.0;
+    if (priced) {
+        cost = (prompt_tokens / 1000.0) * priced->input_cost_per_1k
+             + (completion_tokens / 1000.0) * priced->output_cost_per_1k;
+    }
+
+    ++usage_totals.requests;
+    usage_totals.prompt_tokens += prompt_tokens;
+    usage_totals.completion_tokens += completion_tokens;
+    usage_totals.cost_usd += cost;
+
+    if (auto logger = Logger::get_logger("core_logger")) {
+        logger->debug("Remote LLM usage ({}): {} prompt + {} completion tokens{}{}; run total {}",
+                      reported_by_api ? "reported" : "estimated",
+                      prompt_tokens,
+                      completion_tokens,
+                      priced ? ", " : "",
+                      priced ? llm::format_cost(cost) : std::string(),
+                      priced ? llm::format_cost(usage_totals.cost_usd)
+                             : std::to_string(usage_totals.prompt_tokens + usage_totals.completion_tokens) + " tokens");
+    }
+}
 
 
 void LLMClient::set_prompt_logging_enabled(bool enabled)
@@ -288,7 +374,13 @@ std::string LLMClient::send_api_request(std::string json_payload) {
                                              response.retry_after,
                                              logger);
     }
-    return parse_category_response(response_string, logger);
+    ParsedResponse parsed = parse_category_response(response_string, logger);
+    record_usage(json_payload,
+                 parsed.content,
+                 parsed.prompt_tokens,
+                 parsed.completion_tokens,
+                 parsed.has_usage);
+    return std::move(parsed.content);
 }
 
 std::string LLMClient::effective_model() const
