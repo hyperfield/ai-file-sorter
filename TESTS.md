@@ -924,6 +924,24 @@ Procedure: Run the command, inspect the selected and sibling files, and read the
 Expected outcome: Only the selected file is moved, the sibling remains in place, and the review/apply counts report one moved entry.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand categorizes only a selected file target"`
 
+#### Test case: HeadlessAnalysisWorkflowHost enables analysis required by sorting renames
+
+Purpose: Verify opted-in picture/document rename choices activate their own content analysis independently of main-app defaults and contradictory analysis-off overrides. Other groups retain their preferences; legacy combined and strict sort-only semantics remain unchanged.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost enables analysis required by sorting renames"`
+
+#### Test case: HeadlessAnalysisCommand sorts and renames documents with main-app analysis disabled
+
+Purpose: Verify Explorer's document rename choice produces a real review/apply result when main-app content analysis and ordinary sorting are disabled.
+
+Setup: Create a fresh selected document and an unselected sibling; keep analysis and renaming off in persisted settings and use a loopback text API fixture.
+
+Procedure: Request document-only renaming through opted-in combined-task overrides, with analysis omitted or explicitly false, using review-only and automatic apply.
+
+Expected: Real document contents reach the local API and produce the selected file's new name in place. The unselected contents are never sent. Review mode changes nothing; the sibling and saved settings remain unchanged.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand sorts and renames documents with main-app analysis disabled"`
+
 #### Test case: HeadlessAnalysisCommand honors file-type filters throughout sorting
 
 Purpose: Verify sorting and combined sort/rename requests restrict analysis, review, and apply to supported picture/document groups, including when content analysis is off.
@@ -941,6 +959,18 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand honors file-ty
 Purpose: Verify sorting preserves inherited and explicit processing filters for every filter combination, while explicit Rename clears them without changing saved settings or enabling content analysis during sorting.
 
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost preserves sorting file-type filters"`
+
+#### Test case: HeadlessAnalysisCommand sorts media with independent metadata naming
+
+Purpose: Verify audio/video metadata naming works during sorting independently of picture/document rename settings, including cached categories with or without filename suggestions.
+
+Setup: Create selected and unselected audio/video fixtures with embedded title metadata. Exercise fresh files, cached categorization, and cached naming with opposite persisted metadata preferences.
+
+Procedure: Run opted-in combined sorting with metadata naming on/off through review-only and automatic apply. Fresh categorization uses a loopback API; cached cases require no model request.
+
+Expected: Enabled naming retains a cached filename or derives one from metadata; disabled naming moves the file under its original name. Review changes nothing. Apply moves and optionally renames only the selected file. Saved preferences remain unchanged.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand sorts media with independent metadata naming"`
 
 #### Test case: HeadlessAnalysisCommand explicitly renames selected media despite disabled file-type preferences
 

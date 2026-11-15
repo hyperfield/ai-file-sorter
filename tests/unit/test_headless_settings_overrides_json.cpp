@@ -288,6 +288,57 @@ TEST_CASE("HeadlessAnalysisWorkflowHost respects explicit per-type rename prefer
     CHECK(config_bytes() == before);
 }
 
+TEST_CASE("HeadlessAnalysisWorkflowHost enables analysis required by sorting renames", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    bool stored_analysis = false;
+    bool explicit_analysis_off = false;
+    bool respect = true;
+    auto operation = HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename;
+    SECTION("disabled main-app analysis switches") {}
+    SECTION("explicit analysis-off overrides cannot suppress requested renames") {
+        stored_analysis = true;
+        explicit_analysis_off = true;
+    }
+    SECTION("non-renamed groups retain existing content analysis") { stored_analysis = true; }
+    SECTION("legacy combined operations retain their inherited analysis") { respect = false; }
+    SECTION("sort-only ignores rename preferences") { operation = HeadlessAnalysisWorkflowHost::OperationMode::Categorize; }
+    SECTION("explicit rename still enables both groups") { operation = HeadlessAnalysisWorkflowHost::OperationMode::Rename; }
+    for (unsigned groups = 0; groups < 4; ++groups) {
+        Settings stored;
+        stored.set_analyze_images_by_content(stored_analysis);
+        stored.set_analyze_documents_by_content(stored_analysis);
+        REQUIRE(stored.save());
+        const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+        const auto config_bytes = [&]() {
+            std::ifstream input(config, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        };
+        const auto before = config_bytes();
+        HeadlessAnalysisWorkflowHost::Options options;
+        options.folder_path = temp.path();
+        options.operation_mode = operation;
+        if (respect) {
+            options.settings_overrides.respect_rename_preferences = true;
+        }
+        options.settings_overrides.offer_rename_images = (groups & 1) != 0;
+        options.settings_overrides.offer_rename_documents = (groups & 2) != 0;
+        if (explicit_analysis_off) {
+            options.settings_overrides.analyze_images_by_content = false;
+            options.settings_overrides.analyze_documents_by_content = false;
+        }
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        const bool rename = operation == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        const bool opted_in_sort = respect && operation == HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename;
+        const bool inherited = stored_analysis && !explicit_analysis_off;
+        const auto actual = HeadlessAnalysisWorkflowHostTestAccess::content_naming(host);
+        CHECK(actual[0] == (rename || inherited || (opted_in_sort && (groups & 1) != 0)));
+        CHECK(actual[1] == (rename || inherited || (opted_in_sort && (groups & 2) != 0)));
+        CHECK(config_bytes() == before);
+    }
+}
+
 TEST_CASE("HeadlessAnalysisWorkflowHost preserves sorting file-type filters", "[headless][sorting-rules]")
 {
     TempDir temp;

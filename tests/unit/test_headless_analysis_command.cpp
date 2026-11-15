@@ -1,6 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include "AnalysisRuntimeLock.hpp"
+#include "ChatCompletionTestServer.hpp"
+#include "TestHelpers.hpp"
 #include "DatabaseManager.hpp"
 #include "HeadlessAnalysisCommand.hpp"
 #include "HeadlessReviewApplyService.hpp"
@@ -1041,6 +1044,101 @@ void write_headless_media_fixture(const std::filesystem::path& path, bool with_m
 
 } // namespace
 
+TEST_CASE("HeadlessAnalysisCommand sorts and renames documents with main-app analysis disabled")
+{
+    QtAppContext qt;
+    ChatCompletionTestServer server;
+    server.respond = [](const auto&) {
+        return ChatCompletionTestServer::answer(QStringLiteral("quarterly budget revenue"));
+    };
+    const bool auto_apply = GENERATE(false, true);
+    const bool explicit_analysis_off = GENERATE(false, true);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+    REQUIRE(std::filesystem::create_directories(target));
+    const auto source = make_file_at(target / "report.txt");
+    const auto sibling = make_file_at(target / "unselected.txt");
+    QFile document(QString::fromStdString(Utils::path_to_utf8(source)));
+    REQUIRE(document.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    const QByteArray contents = QByteArray("Quarterly budget report: Revenue increased, expenses fell, and the team approved the next release.\n").repeated(5);
+    REQUIRE(document.write(contents) == contents.size());
+    document.close();
+    QFile unselected(QString::fromStdString(Utils::path_to_utf8(sibling)));
+    REQUIRE(unselected.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    REQUIRE(unselected.write("UNSELECTED_SECRET") > 0);
+    unselected.close();
+    Settings settings;
+    settings.set_llm_choice(LLMChoice::Remote_Custom);
+    const auto endpoint = settings.upsert_custom_api_endpoint(
+        {"document-test", "Local document server", "", server.url(), "", "document-model", false});
+    settings.set_active_custom_api_id(endpoint);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(false);
+    settings.set_offer_rename_documents(false);
+    settings.set_process_images_only(false);
+    settings.set_process_documents_only(false);
+    settings.set_categorize_files(false);
+    settings.set_categorize_directories(false);
+    REQUIRE(settings.save());
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto original_config = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+    options.paths = {source};
+    options.status_file = target.parent_path() / "status.json";
+    options.job_id = "sort-document-analysis-dependency";
+    options.settings_overrides.respect_rename_preferences = true;
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = true;
+    options.settings_overrides.rename_documents_only = true;
+    if (explicit_analysis_off) {
+        options.settings_overrides.analyze_documents_by_content = false;
+    }
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = server.run([&] {
+        return HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err);
+    });
+    REQUIRE(exit_code == HeadlessAnalysisCommand::Success);
+    REQUIRE_FALSE(server.requests.empty());
+    bool sent_source_content = false;
+    for (const auto& request : server.requests) {
+        const auto payload = QJsonDocument(request.json).toJson();
+        sent_source_content = sent_source_content || payload.contains("Quarterly budget report");
+        CHECK_FALSE(payload.contains("UNSELECTED_SECRET"));
+    }
+    CHECK(sent_source_content);
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject().value(QStringLiteral("entries")).toArray();
+    REQUIRE(rows.size() == 1);
+    CHECK(rows.at(0).toObject().value(QStringLiteral("fileName")).toString() == QStringLiteral("report.txt"));
+    const auto suggested = rows.at(0).toObject().value(QStringLiteral("destinationName")).toString().toStdString();
+    REQUIRE_FALSE(suggested.empty());
+    CHECK(suggested != "report.txt");
+    const auto destination = target / Utils::utf8_to_path(suggested);
+    CHECK(destination.parent_path() == target);
+    CHECK(destination.extension() == ".txt");
+    CHECK(rows.at(0).toObject().value(QStringLiteral("renameOnly")).toBool());
+    CHECK(std::filesystem::exists(source) == !auto_apply);
+    CHECK(std::filesystem::exists(destination) == auto_apply);
+    CHECK(std::filesystem::exists(sibling));
+    CHECK_FALSE(std::filesystem::exists(target / "clearer_unselected.txt"));
+    CHECK(status.value(QStringLiteral("apply")).toObject().value(QStringLiteral("movedCount")).toInt() == 0);
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == original_config);
+}
+
 TEST_CASE("HeadlessAnalysisCommand honors file-type filters throughout sorting")
 {
     const unsigned filters = GENERATE(1U, 2U, 3U);
@@ -1115,6 +1213,105 @@ TEST_CASE("HeadlessAnalysisCommand honors file-type filters throughout sorting")
         CHECK(std::filesystem::exists(target / "Sorted" / "Items" / names[i]) == (auto_apply && allowed));
     }
     CHECK(std::filesystem::is_directory(child));
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == original_config);
+}
+
+TEST_CASE("HeadlessAnalysisCommand sorts media with independent metadata naming")
+{
+    QtAppContext qt;
+    ChatCompletionTestServer server;
+    server.respond = [](const auto&) {
+        return ChatCompletionTestServer::answer(QStringLiteral("Category: Media\nSubcategory: Clips"));
+    };
+    enum class CacheState { Fresh, Categorized, Named };
+    const auto cache = GENERATE(CacheState::Fresh, CacheState::Categorized, CacheState::Named);
+    const bool audio = GENERATE(false, true);
+    const bool metadata_naming = GENERATE(false, true);
+    const bool auto_apply = GENERATE(false, true);
+    CAPTURE(cache, audio, metadata_naming, auto_apply);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+    REQUIRE(std::filesystem::create_directories(target));
+    const std::string extension = audio ? ".m4a" : ".mp4";
+    const auto source = target / ("source" + extension);
+    const auto sibling = target / ("unselected" + extension);
+    write_headless_media_fixture(source, true);
+    write_headless_media_fixture(sibling, true);
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_llm_choice(LLMChoice::Remote_Custom);
+    const auto endpoint = settings.upsert_custom_api_endpoint(
+        {"media-sort", "Local categorization server", "", server.url(), "", "text-model", false});
+    settings.set_active_custom_api_id(endpoint);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(false);
+    settings.set_offer_rename_documents(false);
+    settings.set_process_images_only(false);
+    settings.set_process_documents_only(false);
+    settings.set_categorize_files(true);
+    settings.set_categorize_directories(false);
+    settings.set_add_audio_video_metadata_to_filename(!metadata_naming);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    const std::string cached_name = "cached_title" + extension;
+    cache_categorization(db, target, "unselected" + extension, "Media", "Clips");
+    if (cache != CacheState::Fresh) {
+        cache_categorization(db, target, "source" + extension, "Media", "Clips",
+                             cache == CacheState::Named ? cached_name : std::string());
+    }
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto original_config = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+    options.paths = {source};
+    options.status_file = target.parent_path() / "status.json";
+    options.job_id = "sort-media-metadata";
+    options.settings_overrides.respect_rename_preferences = true;
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = false;
+    options.settings_overrides.add_audio_video_metadata_to_filename = metadata_naming;
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    const auto exit_code = server.run([&] {
+        return HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err);
+    });
+    INFO(err.str());
+    REQUIRE(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK(server.requests.empty() == (cache != CacheState::Fresh));
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject().value(QStringLiteral("entries")).toArray();
+    REQUIRE(rows.size() == 1);
+    const std::string expected_name = !metadata_naming ? "source" + extension :
+        cache == CacheState::Named ? cached_name : "celestial_echoes" + extension;
+    const auto destination = target / "Media" / "Clips" / expected_name;
+    const auto row = rows.at(0).toObject();
+    CHECK(row.value(QStringLiteral("fileName")).toString().toStdString() == "source" + extension);
+    CHECK(row.value(QStringLiteral("destinationName")).toString().toStdString() == expected_name);
+    CHECK_FALSE(row.value(QStringLiteral("renameOnly")).toBool());
+    const auto cached_sibling = db.get_categorized_file(normalized_path_key(target),
+                                                        "unselected" + extension, FileType::File);
+    REQUIRE(cached_sibling.has_value());
+    CHECK(cached_sibling->suggested_name.empty());
+    CHECK(std::filesystem::exists(source) == !auto_apply);
+    CHECK(std::filesystem::exists(destination) == auto_apply);
+    CHECK(std::filesystem::exists(sibling));
+    if (auto_apply) {
+        const auto apply = status.value(QStringLiteral("apply")).toObject();
+        CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
+        CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == (metadata_naming ? 1 : 0));
+    }
     REQUIRE(config.open(QIODevice::ReadOnly));
     CHECK(config.readAll() == original_config);
 }

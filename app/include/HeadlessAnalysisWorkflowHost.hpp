@@ -220,6 +220,9 @@ private:
      */
     void apply_operation_settings_overlay();
 
+    /** @brief Applies combined-task rename preferences and their required analysis in memory. */
+    void apply_combined_operation_settings();
+
     /**
      * @brief Remove empty cached categorizations for a directory and report resets.
      * @param directory_path Directory cache key to prune.

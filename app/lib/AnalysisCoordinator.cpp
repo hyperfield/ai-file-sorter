@@ -104,6 +104,49 @@ bool cached_entry_is_supported_document(const CategorizedFile& entry)
     return DocumentTextAnalyzer::is_supported_document(full_path);
 }
 
+/**
+ * @brief Tests whether a cached entry supports audio/video metadata naming.
+ * @param entry Cached file or directory.
+ * @return True only for a supported media file.
+ */
+bool cached_entry_is_supported_media(const CategorizedFile& entry)
+{
+    return entry.type == FileType::File &&
+           MediaRenameMetadataService::is_supported_media(Utils::utf8_to_path(entry.file_name));
+}
+
+/**
+ * @brief Fills missing media names when categorization predates metadata naming.
+ * @param entries Cached and newly categorized entries prepared for review.
+ * @param filter_entries Optional host filter restricting analysis to selected files.
+ * @param suggest_name Shared provider for localized metadata-based names.
+ * @param persist_suggestion Stores each new suggestion without changing its category.
+ */
+void populate_cached_media_suggestions(
+    std::vector<CategorizedFile>& entries,
+    const std::function<void(std::vector<FileEntry>&)>& filter_entries,
+    const std::function<std::string(const FileEntry&)>& suggest_name,
+    const std::function<void(const CategorizedFile&, const std::string&)>& persist_suggestion)
+{
+    for (auto& entry : entries) {
+        if (!entry.suggested_name.empty() || entry.rename_applied || !cached_entry_is_supported_media(entry)) {
+            continue;
+        }
+        const auto path = Utils::utf8_to_path(entry.file_path) / Utils::utf8_to_path(entry.file_name);
+        std::vector<FileEntry> candidate{{Utils::path_to_utf8(path), entry.file_name, entry.type}};
+        if (filter_entries) {
+            filter_entries(candidate);
+        }
+        if (candidate.empty()) {
+            continue;
+        }
+        entry.suggested_name = suggest_name(candidate.front());
+        if (!entry.suggested_name.empty()) {
+            persist_suggestion(entry, entry.suggested_name);
+        }
+    }
+}
+
 void strip_cached_date_category_for_routing(CategorizedFile& entry,
                                             bool is_image_entry,
                                             bool is_document_entry)
@@ -786,7 +829,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
             }
             const bool allow_entry_renames =
                 (is_image_entry && allow_image_renames) ||
-                (is_document_entry && allow_document_renames);
+                (is_document_entry && allow_document_renames) ||
+                (add_audio_video_metadata_to_filename && cached_entry_is_supported_media(entry));
             const bool suggested_matches =
                 !entry.suggested_name.empty() && to_lower(entry.suggested_name) == to_lower(entry.file_name);
             const bool already_renamed = entry.rename_applied || suggested_matches;
@@ -2229,6 +2273,13 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                               app_.new_files_with_categories.end());
 
         persist_analysis_results(app_.new_files_with_categories);
+
+        if (add_audio_video_metadata_to_filename) {
+            populate_cached_media_suggestions(app_.already_categorized_files,
+                                              app_.filter_file_entries,
+                                              suggested_name_provider,
+                                              persist_cached_suggestion);
+        }
 
         auto localize_review_suggestions =
             [&, this](std::vector<CategorizedFile>& entries, bool persist_updates) {

@@ -543,17 +543,9 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
         settings_.set_add_image_date_to_category(false);
         settings_.set_add_document_date_to_category(false);
         return;
-    case OperationMode::CategorizeAndRename: {
-        const auto& overrides = options_.settings_overrides;
-        const bool respect = overrides.respect_rename_preferences.value_or(false);
-        const bool images = !respect || overrides.offer_rename_images.value_or(true);
-        const bool documents = !respect || overrides.offer_rename_documents.value_or(true);
-        settings_.set_offer_rename_images(images);
-        settings_.set_offer_rename_documents(documents);
-        settings_.set_rename_images_only(respect && images && overrides.rename_images_only.value_or(false));
-        settings_.set_rename_documents_only(respect && documents && overrides.rename_documents_only.value_or(false));
+    case OperationMode::CategorizeAndRename:
+        apply_combined_operation_settings();
         return;
-    }
     case OperationMode::Categorize:
     default:
         settings_.set_offer_rename_images(false);
@@ -561,6 +553,27 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
         settings_.set_rename_images_only(false);
         settings_.set_rename_documents_only(false);
         return;
+    }
+}
+
+void HeadlessAnalysisWorkflowHost::apply_combined_operation_settings()
+{
+    const auto& overrides = options_.settings_overrides;
+    const bool respect = overrides.respect_rename_preferences.value_or(false);
+    const bool images = !respect || overrides.offer_rename_images.value_or(true);
+    const bool documents = !respect || overrides.offer_rename_documents.value_or(true);
+    settings_.set_offer_rename_images(images);
+    settings_.set_offer_rename_documents(documents);
+    settings_.set_rename_images_only(respect && images && overrides.rename_images_only.value_or(false));
+    settings_.set_rename_documents_only(respect && documents && overrides.rename_documents_only.value_or(false));
+    if (!respect) {
+        return;
+    }
+    if (images) {
+        settings_.set_analyze_images_by_content(true);
+    }
+    if (documents) {
+        settings_.set_analyze_documents_by_content(true);
     }
 }
 

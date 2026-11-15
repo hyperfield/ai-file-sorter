@@ -148,6 +148,17 @@ overrides independently control which file groups receive rename suggestions. Ex
 `renameImagesOnly` and `renameDocumentsOnly` preserve the source folder for the enabled
 group. A disabled rename group cannot become rename-only. Omitted overrides retain the
 combined operation's existing defaults: both rename groups enabled, neither rename-only.
+For opted-in combined tasks, each enabled rename group also enables the matching
+content-analysis pipeline for that run, even if persisted settings or explicit
+analysis overrides are false. A group that does not request renaming retains its
+inherited or explicitly overridden analysis preference. Saved configuration is unchanged.
+
+Audio/video naming is controlled independently by `addAudioVideoMetadataToFilename`.
+Sorting integrations must request `categorize-and-rename` when this is their only enabled
+naming option. Enabled metadata naming preserves cached media suggestions and fills missing
+ones from available embedded metadata; disabling it suppresses cached media filename changes.
+These files keep their sorting destinations, and picture/document processing filters still
+exclude them. Saved preferences remain unchanged.
 
 Sorting operations preserve `processImagesOnly` and `processDocumentsOnly`, whether
 inherited or explicitly overridden. These headless scope filters apply even when
