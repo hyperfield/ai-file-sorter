@@ -10,6 +10,7 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <array>
 #include <string>
 #include <fstream>
 #include <iterator>
@@ -23,6 +24,16 @@ public:
     static std::pair<int, int> filename_words(const HeadlessAnalysisWorkflowHost& host)
     {
         return {host.settings_.get_image_filename_words(), host.settings_.get_document_filename_words()};
+    }
+    static std::array<bool, 4> rename_preferences(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return {host.settings_.get_offer_rename_images(), host.settings_.get_offer_rename_documents(),
+                host.settings_.get_rename_images_only(), host.settings_.get_rename_documents_only()};
+    }
+    static std::array<bool, 3> content_naming(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return {host.settings_.get_analyze_images_by_content(), host.settings_.get_analyze_documents_by_content(),
+                host.settings_.get_add_audio_video_metadata_to_filename()};
     }
     static SortingMode sorting_mode(const HeadlessAnalysisWorkflowHost& host)
     {
@@ -183,6 +194,94 @@ TEST_CASE("HeadlessAnalysisWorkflowHost isolates filename word overrides from pe
     REQUIRE(reloaded.load());
     CHECK(reloaded.get_image_filename_words() == 4);
     CHECK(reloaded.get_document_filename_words() == 5);
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost respects explicit per-type rename preferences", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings stored;
+    stored.set_offer_rename_images(false);
+    stored.set_offer_rename_documents(false);
+    stored.set_rename_images_only(false);
+    stored.set_rename_documents_only(false);
+    REQUIRE(stored.save());
+    const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+    const auto config_bytes = [&]() {
+        std::ifstream input(config, std::ios::binary);
+        REQUIRE(input.good());
+        return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    };
+    const auto before = config_bytes();
+    HeadlessAnalysisWorkflowHost::Options options;
+    options.folder_path = temp.path();
+    options.operation_mode = HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename;
+    options.settings_overrides.respect_rename_preferences = true;
+    std::array<bool, 4> expected{true, true, false, false};
+    SECTION("omitted overrides preserve the combined operation defaults") {}
+    SECTION("JSON opt-in is parsed before applying independent rename preferences") {
+        options.settings_overrides = HeadlessSettingsOverridesJson::from_json(
+            {{QStringLiteral("respectRenamePreferences"), true},
+             {QStringLiteral("offerRenameImages"), false},
+             {QStringLiteral("offerRenameDocuments"), true}});
+        expected = {false, true, false, false};
+    }
+    SECTION("older queued tasks preserve their combined-operation behavior") {
+        options.settings_overrides.respect_rename_preferences.reset();
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = true;
+        options.settings_overrides.rename_documents_only = true;
+    }
+    SECTION("pictures can be renamed without enabling document renames") {
+        options.settings_overrides.offer_rename_images = true;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = true;
+        expected = {true, false, true, false};
+    }
+    SECTION("documents can be renamed without enabling picture renames") {
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = true;
+        options.settings_overrides.rename_documents_only = true;
+        expected = {false, true, false, true};
+    }
+    SECTION("disabled rename groups do not become rename-only") {
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = true;
+        options.settings_overrides.rename_documents_only = true;
+        expected = {false, false, false, false};
+    }
+    SECTION("sort-only still suppresses all rename options") {
+        options.operation_mode = HeadlessAnalysisWorkflowHost::OperationMode::Categorize;
+        options.settings_overrides.offer_rename_images = true;
+        options.settings_overrides.offer_rename_documents = true;
+        options.settings_overrides.rename_images_only = true;
+        options.settings_overrides.rename_documents_only = true;
+        expected = {false, false, false, false};
+    }
+    SECTION("explicit rename action still keeps all files in place") {
+        options.operation_mode = HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        options.settings_overrides.analyze_images_by_content = false;
+        options.settings_overrides.analyze_documents_by_content = false;
+        options.settings_overrides.add_audio_video_metadata_to_filename = false;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = false;
+        options.settings_overrides.rename_documents_only = false;
+        expected = {true, true, true, true};
+    }
+    {
+        const bool explicit_rename = options.operation_mode == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        CHECK(HeadlessAnalysisWorkflowHostTestAccess::rename_preferences(host) == expected);
+        if (explicit_rename) {
+            const std::array<bool, 3> all_enabled{true, true, true};
+            CHECK(HeadlessAnalysisWorkflowHostTestAccess::content_naming(host) == all_enabled);
+        }
+        CHECK(config_bytes() == before);
+    }
+    CHECK(config_bytes() == before);
 }
 
 TEST_CASE("HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences", "[headless][sorting-rules]")

@@ -924,6 +924,18 @@ Procedure: Run the command, inspect the selected and sibling files, and read the
 Expected outcome: Only the selected file is moved, the sibling remains in place, and the review/apply counts report one moved entry.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand categorizes only a selected file target"`
 
+#### Test case: HeadlessAnalysisCommand explicitly renames selected media despite disabled file-type preferences
+
+Purpose: Verify explicit rename handles uncached audio/video independently of disabled or partially enabled picture/document defaults, without moving files or changing saved settings.
+
+Setup: Create selected MP4/M4A files with embedded title metadata and an unselected sibling; disable content analysis and media naming and exercise all picture/document rename checkbox combinations.
+
+Procedure: Run the real headless command with automatic apply, review-only, and missing-metadata sections.
+
+Expected: Metadata supplies the selected file's new name in place; the sibling and saved config stay unchanged. Review-only leaves files untouched, and missing metadata preserves the original name.
+
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand explicitly renames selected media despite disabled file-type preferences"`
+
 #### Test case: HeadlessAnalysisCommand applies cached rename for a folder
 Purpose: Verify the headless rename operation applies cached suggested names without moving files into category folders.
 Setup: Create a temporary target folder containing a document, enable document rename suggestions in isolated settings, and insert a cached category row with a suggested filename.
@@ -1015,6 +1027,13 @@ Purpose: Limit generated-category compatibility to legacy Explorer sidecars with
 Procedure: Parse sidecars with Explorer and unrelated job IDs; cover omitted modes, both explicit modes, and explicit invalid values.
 Expected outcome: Only an `explorer-` job whose object omits `sortingMode` receives the generated-category fallback. Other fields survive; explicit modes are honored, and invalid values retain normal inheritance behavior.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes"`
+
+#### Test case: HeadlessAnalysisWorkflowHost respects explicit per-type rename preferences
+Purpose: Verify that combined sorting and renaming honors independent picture/document settings without changing saved configuration.
+Setup: Use an isolated configuration directory and construct the production headless host with explicit overrides.
+Procedure: Cover JSON opt-in, omitted overrides, legacy queued tasks, picture-only and document-only renaming, rename-without-moving options, disabled groups, and the strict sort-only and rename-only operations.
+Expected outcome: Explicit combined-operation preferences remain effective, legacy defaults remain compatible, and configuration bytes are unchanged. The cached combined-operation integration case also checks disabled document renaming and rename-without-moving output paths and apply counters.
+Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisWorkflowHost respects explicit per-type rename preferences"`
 
 #### Test case: HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences
 

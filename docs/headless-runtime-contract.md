@@ -142,6 +142,24 @@ root and the legacy Explorer compatibility rule below, omitted preferences inher
 the app's persisted settings. Operation-specific overlays still enforce
 categorization-only and rename-only behavior.
 
+For `categorize-and-rename` with `respectRenamePreferences: true`, explicit
+`offerRenameImages` and `offerRenameDocuments`
+overrides independently control which file groups receive rename suggestions. Explicit
+`renameImagesOnly` and `renameDocumentsOnly` preserve the source folder for the enabled
+group. A disabled rename group cannot become rename-only. Omitted overrides retain the
+combined operation's existing defaults: both rename groups enabled, neither rename-only.
+The explicit `rename` operation enables image/document content analysis, both rename
+pipelines, and audio/video metadata naming for the task, even when those settings or
+overrides are false. Picture-only/document-only filters are cleared. Files stay in
+their original folders, and review/auto-approval and filename-length preferences
+still apply. Uncached media gets filename suggestions directly from embedded
+metadata without classification or a text-model request. Missing usable metadata
+leaves the filename unchanged. These overlays never rewrite saved preferences.
+
+Omitting `respectRenamePreferences` preserves the legacy operation defaults, including
+for existing queued tasks. The strict `categorize` and `rename` operations continue
+enforcing their single action.
+
 **Destination initialization is deliberately different from other preferences.** The host
 loads app preferences, sets the analyzed folder, and clears the persisted destination
 before applying explicit overrides. Omitting `destinationFolder`, or setting it to an

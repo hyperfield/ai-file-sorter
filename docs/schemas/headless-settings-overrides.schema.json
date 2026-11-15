@@ -21,6 +21,7 @@
     "processImagesOnly": { "type": "boolean" },
     "addImageDateToCategory": { "type": "boolean" },
     "addImageDatePlaceToFilename": { "type": "boolean" },
+    "respectRenamePreferences": { "type": "boolean", "description": "Opt into independent offerRenameImages/offerRenameDocuments and rename-without-moving overrides for categorize-and-rename. Omission or false preserves legacy operation defaults." },
     "offerRenameImages": { "type": "boolean" },
     "imageFilenameWords": { "$ref": "#/$defs/filenameWords" },
     "renameImagesOnly": { "type": "boolean" },

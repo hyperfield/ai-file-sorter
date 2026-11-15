@@ -287,9 +287,15 @@ private:
      */
     void notify_recategorization_reset(const CategorizedFile& entry, const std::string& reason);
 
+    /** @brief Adds metadata-based media names for an explicit rename task without running sorting. */
+    void append_media_rename_suggestions();
+
     /**
-     * @brief Filter review entries to explicitly selected file paths.
+     * @brief Applies explicit keep-in-place choices to cached and new review entries.
+     * @param entries Review entries belonging to the current headless task.
      */
+    void apply_rename_only_preferences(std::vector<CategorizedFile>& entries) const;
+    /** @brief Filters review entries to explicitly selected file paths. */
     void filter_review_entries_to_selected_paths();
 
     /**

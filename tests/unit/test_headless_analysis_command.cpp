@@ -22,6 +22,7 @@
 #include <QtGlobal>
 
 #include <algorithm>
+#include <QtEndian>
 #include <memory>
 #include <sstream>
 #include <vector>
@@ -1010,6 +1011,115 @@ TEST_CASE("HeadlessAnalysisCommand renames only a selected file target")
     CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
 }
 
+namespace {
+
+/** @brief Builds a minimal MP4 atom containing the supplied payload. */
+QByteArray media_test_atom(const QByteArray& type, const QByteArray& payload)
+{
+    constexpr quint32 atom_header_bytes = 8;
+    QByteArray atom(4, '\0');
+    qToBigEndian<quint32>(atom_header_bytes + static_cast<quint32>(payload.size()),
+                         reinterpret_cast<uchar*>(atom.data()));
+    return atom + type + payload;
+}
+
+/** @brief Writes readable title metadata without a decoder, model, or external media tool. */
+void write_headless_media_fixture(const std::filesystem::path& path, bool with_metadata)
+{
+    QByteArray bytes;
+    if (with_metadata) {
+        const auto data = media_test_atom("data", QByteArray::fromHex("0000000100000000") + "Celestial Echoes");
+        const auto title = media_test_atom(QByteArray::fromHex("a96e616d"), data);
+        const auto meta = media_test_atom("meta", QByteArray(4, '\0') + media_test_atom("ilst", title));
+        bytes = media_test_atom("ftyp", QByteArray::fromHex("69736f6d0000000169736f6d6d703431")) +
+                media_test_atom("moov", media_test_atom("udta", meta));
+    }
+    QFile output(QString::fromStdString(Utils::path_to_utf8(path)));
+    REQUIRE(output.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    REQUIRE(output.write(bytes) == bytes.size());
+}
+
+} // namespace
+
+TEST_CASE("HeadlessAnalysisCommand explicitly renames selected media despite disabled file-type preferences")
+{
+    bool audio = false;
+    bool review_only = false;
+    bool with_metadata = true;
+    SECTION("video metadata") {}
+    SECTION("audio metadata") { audio = true; }
+    SECTION("review before applying") { review_only = true; }
+    SECTION("missing metadata keeps the original name") { with_metadata = false; }
+    for (unsigned groups = 0; groups < 4; ++groups) {
+        QTemporaryDir dir;
+        QTemporaryDir config_root;
+        REQUIRE(dir.isValid());
+        REQUIRE(config_root.isValid());
+        ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+        const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+        REQUIRE(std::filesystem::create_directories(target));
+        const std::string extension = audio ? ".m4a" : ".mp4";
+        const auto source = target / ("source" + extension);
+        const auto sibling = target / ("unselected" + extension);
+        const auto destination = target / ("celestial_echoes" + extension);
+        write_headless_media_fixture(source, with_metadata);
+        write_headless_media_fixture(sibling, true);
+
+        Settings settings;
+        settings.set_analyze_images_by_content(false);
+        settings.set_analyze_documents_by_content(false);
+        settings.set_offer_rename_images((groups & 1) != 0);
+        settings.set_offer_rename_documents((groups & 2) != 0);
+        settings.set_add_audio_video_metadata_to_filename(false);
+        settings.set_process_images_only(true);
+        settings.set_process_documents_only(true);
+        REQUIRE(settings.save());
+        QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+        REQUIRE(config.open(QIODevice::ReadOnly));
+        const auto original_config = config.readAll();
+        config.close();
+
+        HeadlessAnalysisCommand::Options options;
+        options.operation = HeadlessAnalysisCommand::Operation::Rename;
+        options.paths = {source};
+        options.status_file = target.parent_path() / "status.json";
+        options.job_id = "explicit-media-rename";
+        options.settings_overrides.analyze_images_by_content = false;
+        options.settings_overrides.analyze_documents_by_content = false;
+        options.settings_overrides.add_audio_video_metadata_to_filename = false;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        enable_auto_apply(options);
+        if (review_only) {
+            options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+        }
+        std::ostringstream out;
+        std::ostringstream err;
+        const int result = HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err);
+        CHECK(result == HeadlessAnalysisCommand::Success);
+        const bool applied = with_metadata && !review_only;
+        CHECK(std::filesystem::exists(source) == !applied);
+        CHECK(std::filesystem::exists(destination) == applied);
+        CHECK(std::filesystem::exists(sibling));
+        const auto status = read_status(*options.status_file);
+        if (applied) {
+            const auto apply = status.value(QStringLiteral("apply")).toObject();
+            CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+            CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+        }
+        if (review_only) {
+            CHECK(status.value(QStringLiteral("status")).toString() == QStringLiteral("review_required"));
+            const auto entries = status.value(QStringLiteral("review")).toObject()
+                                       .value(QStringLiteral("entries")).toArray();
+            REQUIRE(entries.size() == 1);
+            CHECK(entries.at(0).toObject().value(QStringLiteral("destinationName")).toString() ==
+                  QStringLiteral("celestial_echoes.mp4"));
+        }
+        REQUIRE(config.open(QIODevice::ReadOnly));
+        CHECK(config.readAll() == original_config);
+    }
+}
+
 TEST_CASE("HeadlessAnalysisCommand skips rename when no cached suggestion exists")
 {
     QTemporaryDir dir;
@@ -1071,7 +1181,7 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
         std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
     REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
     const std::filesystem::path source = make_file_at(target / "summary.txt");
-    const std::filesystem::path destination =
+    std::filesystem::path destination =
         target / "Documents" / "Reports" / "renamed_summary.txt";
 
     Settings settings;
@@ -1097,6 +1207,29 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
     options.status_file = status;
     options.job_id = "headless-cached-categorize-rename";
     enable_auto_apply(options);
+    int expected_moves = 1;
+    int expected_renames = 1;
+    SECTION("legacy combined operation retains cached renaming") {}
+    SECTION("disabled document renaming ignores its cached filename suggestion") {
+        options.settings_overrides.respect_rename_preferences = true;
+        options.settings_overrides.offer_rename_images = true;
+        options.settings_overrides.offer_rename_documents = false;
+        destination = target / "Documents" / "Reports" / "summary.txt";
+        expected_renames = 0;
+    }
+    SECTION("document renaming remains independent of picture renaming") {
+        options.settings_overrides.respect_rename_preferences = true;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = true;
+    }
+    SECTION("rename documents without moving keeps cached files in their source folder") {
+        options.settings_overrides.respect_rename_preferences = true;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = true;
+        options.settings_overrides.rename_documents_only = true;
+        destination = target / "renamed_summary.txt";
+        expected_moves = 0;
+    }
 
     std::ostringstream out;
     std::ostringstream err;
@@ -1110,8 +1243,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
     CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("completed"));
     CHECK(object.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize-and-rename"));
     const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
-    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
-    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == expected_moves);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == expected_renames);
     CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
     CHECK(apply.value(QStringLiteral("undoPlanSaved")).toBool());
 }

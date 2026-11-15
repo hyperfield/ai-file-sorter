@@ -47,6 +47,8 @@ struct HeadlessSettingsOverrides {
     std::optional<bool> add_image_date_to_category;
     /** @brief Override whether picture date/place prefixes are added to suggested filenames. */
     std::optional<bool> add_image_date_place_to_filename;
+    /** @brief Opt into independent per-type rename preferences for combined sorting tasks. */
+    std::optional<bool> respect_rename_preferences;
     /** @brief Override whether picture rename suggestions are generated. */
     std::optional<bool> offer_rename_images;
     /** @brief Override the image filename word limit for this run, clamped to three through six. */

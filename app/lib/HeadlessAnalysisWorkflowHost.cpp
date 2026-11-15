@@ -7,11 +7,14 @@
 #include "CategorizationService.hpp"
 #include "CategorizationSession.hpp"
 #include "DatabaseManager.hpp"
+#include "DocumentTextAnalyzer.hpp"
+#include "LlavaImageAnalyzer.hpp"
 #include "FolderStructurePluginManager.hpp"
 #include "GeminiClient.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "LocalLLMClient.hpp"
+#include "MediaRenameMetadataService.hpp"
 #include "Logger.hpp"
 #include "ResultsCoordinator.hpp"
 #include "UserLearningStore.hpp"
@@ -29,6 +32,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -118,8 +122,58 @@ AnalysisRunResult HeadlessAnalysisWorkflowHost::execute()
     AnalysisRunResult result = AnalysisCoordinator(make_context()).execute();
     if (result.status == AnalysisRunStatus::Completed) {
         filter_review_entries_to_selected_paths();
+        append_media_rename_suggestions();
+        if (should_stop()) {
+            return {AnalysisRunStatus::Cancelled, {}};
+        }
+        apply_rename_only_preferences(new_files_to_sort_);
     }
     return result;
+}
+
+void HeadlessAnalysisWorkflowHost::append_media_rename_suggestions()
+{
+    if (options_.operation_mode != OperationMode::Rename) {
+        return;
+    }
+    auto files = results_coordinator_->list_directory(folder_path(), effective_scan_options());
+    filter_file_entries_to_selected_paths(files);
+    std::unordered_map<std::string, std::size_t> review_indices;
+    for (std::size_t i = 0; i < new_files_to_sort_.size(); ++i) {
+        const auto& entry = new_files_to_sort_[i];
+        review_indices.emplace(selected_path_key(Utils::utf8_to_path(entry.file_path) /
+                                                  Utils::utf8_to_path(entry.file_name)), i);
+    }
+    MediaRenameMetadataService metadata;
+    for (const auto& file : files) {
+        if (should_stop()) {
+            return;
+        }
+        const auto path = Utils::utf8_to_path(file.full_path);
+        if (file.type != FileType::File || !MediaRenameMetadataService::is_supported_media(path)) {
+            continue;
+        }
+        const auto existing = review_indices.find(selected_path_key(path));
+        if (existing != review_indices.end() && !new_files_to_sort_[existing->second].suggested_name.empty()) {
+            continue;
+        }
+        const auto suggested = metadata.suggest_name(path);
+        if (!suggested || *suggested == file.file_name) {
+            continue;
+        }
+        if (existing != review_indices.end()) {
+            new_files_to_sort_[existing->second].suggested_name = *suggested;
+            new_files_to_sort_[existing->second].rename_only = true;
+            continue;
+        }
+        CategorizedFile entry{};
+        entry.file_path = Utils::path_to_utf8(path.parent_path());
+        entry.file_name = file.file_name;
+        entry.type = FileType::File;
+        entry.suggested_name = *suggested;
+        entry.rename_only = true;
+        new_files_to_sort_.push_back(std::move(entry));
+    }
 }
 
 void HeadlessAnalysisWorkflowHost::request_stop()
@@ -157,6 +211,7 @@ std::vector<CategorizedFile> HeadlessAnalysisWorkflowHost::preview_review_entrie
                        }),
         entries.end());
 
+    apply_rename_only_preferences(entries);
     if (options_.selected_paths.empty()) {
         return entries;
     }
@@ -476,6 +531,9 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
 
     switch (options_.operation_mode) {
     case OperationMode::Rename:
+        settings_.set_analyze_images_by_content(true);
+        settings_.set_analyze_documents_by_content(true);
+        settings_.set_add_audio_video_metadata_to_filename(true);
         settings_.set_categorize_files(false);
         settings_.set_categorize_directories(false);
         settings_.set_offer_rename_images(true);
@@ -485,12 +543,17 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
         settings_.set_add_image_date_to_category(false);
         settings_.set_add_document_date_to_category(false);
         return;
-    case OperationMode::CategorizeAndRename:
-        settings_.set_offer_rename_images(true);
-        settings_.set_offer_rename_documents(true);
-        settings_.set_rename_images_only(false);
-        settings_.set_rename_documents_only(false);
+    case OperationMode::CategorizeAndRename: {
+        const auto& overrides = options_.settings_overrides;
+        const bool respect = overrides.respect_rename_preferences.value_or(false);
+        const bool images = !respect || overrides.offer_rename_images.value_or(true);
+        const bool documents = !respect || overrides.offer_rename_documents.value_or(true);
+        settings_.set_offer_rename_images(images);
+        settings_.set_offer_rename_documents(documents);
+        settings_.set_rename_images_only(respect && images && overrides.rename_images_only.value_or(false));
+        settings_.set_rename_documents_only(respect && documents && overrides.rename_documents_only.value_or(false));
         return;
+    }
     case OperationMode::Categorize:
     default:
         settings_.set_offer_rename_images(false);
@@ -742,6 +805,25 @@ void HeadlessAnalysisWorkflowHost::notify_recategorization_reset(const Categoriz
                                                                  const std::string& reason)
 {
     append_progress("[WARN] " + entry.file_name + " will be re-categorized: " + reason);
+}
+
+void HeadlessAnalysisWorkflowHost::apply_rename_only_preferences(std::vector<CategorizedFile>& entries) const
+{
+    if (options_.operation_mode != OperationMode::CategorizeAndRename ||
+        !options_.settings_overrides.respect_rename_preferences.value_or(false)) {
+        return;
+    }
+    for (auto& entry : entries) {
+        if (entry.type != FileType::File) {
+            continue;
+        }
+        const auto path = Utils::utf8_to_path(entry.file_name);
+        if (LlavaImageAnalyzer::is_supported_image(path)) {
+            entry.rename_only = settings_.get_rename_images_only();
+        } else if (DocumentTextAnalyzer::is_supported_document(path)) {
+            entry.rename_only = settings_.get_rename_documents_only();
+        }
+    }
 }
 
 void HeadlessAnalysisWorkflowHost::filter_review_entries_to_selected_paths()

@@ -159,6 +159,9 @@ HeadlessSettingsOverrides HeadlessSettingsOverridesJson::from_json(const QJsonOb
     set_optional_bool(object, QStringLiteral("addImageDatePlaceToFilename"), [&](bool value) {
         overrides.add_image_date_place_to_filename = value;
     });
+    set_optional_bool(object, QStringLiteral("respectRenamePreferences"), [&](bool value) {
+        overrides.respect_rename_preferences = value;
+    });
     set_optional_bool(object, QStringLiteral("offerRenameImages"), [&](bool value) {
         overrides.offer_rename_images = value;
     });
