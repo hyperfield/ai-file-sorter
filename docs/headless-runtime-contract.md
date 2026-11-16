@@ -97,6 +97,11 @@ Only explicit abstention (or an empty catalog), with new-folder suggestions enab
 separate proposal request. That request requires a nonempty string path and
 `createFolder:true`; path safety, naming conventions, number reservation and
 equivalent pending-folder reuse still validate the proposal before review.
+Number allocation reads the complete set of routable direct children of each
+proposed parent, independently of the prompt catalog's retained-entry budget,
+and merges those occupied IDs with pending review reservations. Fresh and cached
+proposals use the same check. An unreadable or unsafe parent rejects the proposal;
+analysis does not create directories while reserving numbers.
 If a proposal names a literal existing catalog path, normal routing validates
 and reuses that existing path with its actual existence flags. The optional
 `verify_existing_proposals` control instead performs one bounded reconsideration

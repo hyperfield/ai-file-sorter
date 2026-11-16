@@ -910,6 +910,20 @@ std::string human_label_path(std::string_view relative_path)
 }
 
 namespace {
+bool refresh_allocation_siblings(std::vector<FolderTreeCatalog::Entry>& entries, std::string_view parent,
+    const ChildFolderInventory& child_folders)
+{
+    if (!child_folders) return true;
+    auto siblings = child_folders(parent);
+    if (!siblings) return false;
+    std::set<std::string> known;
+    for (const auto& entry : entries) known.insert(entry.relative_path);
+    for (auto& entry : *siblings) {
+        if (known.insert(entry.relative_path).second) entries.push_back(std::move(entry));
+    }
+    return true;
+}
+
 std::optional<std::string> allocate_top_segment(const std::vector<PathInfo>& infos,
     const SegmentPattern& proposed)
 {
@@ -925,7 +939,8 @@ std::optional<std::string> allocate_top_segment(const std::vector<PathInfo>& inf
 } // namespace
 
 std::optional<std::string> allocate_proposed_path(
-    const FolderTreeCatalog::Catalog& catalog, std::string_view proposed_path)
+    const FolderTreeCatalog::Catalog& catalog, std::string_view proposed_path,
+    const ChildFolderInventory& child_folders)
 {
     const auto validation = FolderTreeCatalog::validate_relative_folder_path(proposed_path);
     if (!validation.valid) return std::nullopt;
@@ -933,6 +948,7 @@ std::optional<std::string> allocate_proposed_path(
     auto entries = catalog.entries();
     std::string parent;
     for (const auto& segment : split_path(validation.normalized_path)) {
+        if (!refresh_allocation_siblings(entries, parent, child_folders)) return std::nullopt;
         const auto literal = parent.empty() ? segment : parent + "/" + segment;
         const FolderTreeCatalog::Catalog planning(entries);
         if (const auto existing = planning.find_existing(literal)) {

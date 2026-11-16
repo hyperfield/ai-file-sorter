@@ -3,6 +3,7 @@
 #include "FolderTreeCatalog.hpp"
 
 #include <optional>
+#include <functional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -11,6 +12,12 @@
 struct FolderStructurePluginProfile;
 
 namespace FolderStructurePattern {
+
+/**
+ * @brief Supplies complete physical siblings for a root-relative parent during allocation.
+ * An empty parent denotes the destination root. No value means the inventory could not be read.
+ */
+using ChildFolderInventory = std::function<std::optional<std::vector<FolderTreeCatalog::Entry>>(std::string_view)>;
 
 /**
  * @brief Summary of naming conventions inferred from an existing folder tree.
@@ -86,10 +93,12 @@ std::optional<SuggestedPath> suggest_new_folder(
  * @brief Allocate collision-free prefixes for a model-chosen path, without choosing its labels or parent.
  * @param catalog Existing and reserved folders.
  * @param proposed_path Valid model-selected relative path.
+ * @param child_folders Optional complete sibling inventory, merged with existing and reserved folders at each step.
  * @return Convention-compliant path, or empty for unsafe paths or exhausted ranges.
  */
 std::optional<std::string> allocate_proposed_path(
-    const FolderTreeCatalog::Catalog& catalog, std::string_view proposed_path);
+    const FolderTreeCatalog::Catalog& catalog, std::string_view proposed_path,
+    const ChildFolderInventory& child_folders = {});
 
 /**
  * @brief Return folder path text with leading numeric/range/code prefixes removed from each segment.

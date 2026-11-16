@@ -1328,10 +1328,22 @@ DatabaseManager::ResolvedCategory CategorizationService::route_semantic_category
         if (!selection.suggested_new) return selection;
         selection = reuse_pending_proposal(std::move(selection));
         // Resolve equivalent proposals before allocation, including exhausted numeric ranges.
-        if (planning_catalog.find_existing(selection.relative_path)) return selection;
+        std::optional<FolderTreeCatalog::Catalog> physical_siblings;
+        const auto inventory = [&](std::string_view parent)
+            -> std::optional<std::vector<FolderTreeCatalog::Entry>> {
+            std::string error;
+            physical_siblings = FolderTreeCatalog::scan_direct_children(
+                Utils::utf8_to_path(destination_root), parent, &error);
+            if (!physical_siblings) {
+                if (core_logger) core_logger->warn("Cannot inspect allocation siblings in '{}': {}", parent, error);
+                return std::nullopt;
+            }
+            return physical_siblings->entries();
+        };
         const auto allocated = FolderStructurePattern::allocate_proposed_path(
-            planning_catalog, selection.relative_path);
-        return allocated ? FolderTreeCatalog::resolve_target_path(*allocated, catalog, allow_new) : std::nullopt;
+            planning_catalog, selection.relative_path, inventory);
+        return allocated && physical_siblings
+            ? FolderTreeCatalog::resolve_target_path(*allocated, *physical_siblings, allow_new) : std::nullopt;
     };
 
     if (auto cached = db_manager.get_folder_tree_routing(display_name,

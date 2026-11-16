@@ -156,6 +156,16 @@ private:
 };
 
 /**
+ * @brief Read every routable direct child of one destination parent without a retained-entry limit.
+ * @param root Existing destination root.
+ * @param parent_relative_path Safe parent path below the root, or empty for the root itself.
+ * @param error Optional diagnostic when the parent cannot be inspected safely.
+ * @return Complete sibling catalog, an empty catalog for an uncreated parent, or no value on failure.
+ */
+std::optional<Catalog> scan_direct_children(const std::filesystem::path& root,
+    std::string_view parent_relative_path = {}, std::string* error = nullptr);
+
+/**
  * @brief Validate and normalize a folder path relative to a sorting root.
  * @param relative_path Candidate relative folder path.
  * @return Validation result with a normalized forward-slash path on success.

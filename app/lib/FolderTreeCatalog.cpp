@@ -176,6 +176,33 @@ std::string routable_directory_path(const std::filesystem::path& root,
     return FolderTreeCatalog::validate_relative_folder_path(relative).valid ? relative : std::string{};
 }
 
+std::optional<std::filesystem::path> allocation_parent_directory(const std::filesystem::path& root,
+    std::string_view parent, std::string* error)
+{
+    std::filesystem::path relative;
+    if (!parent.empty()) {
+        const auto validation = FolderTreeCatalog::validate_relative_folder_path(parent);
+        if (!validation.valid) {
+            if (error) *error = validation.error;
+            return std::nullopt;
+        }
+        relative = Utils::utf8_to_path(validation.normalized_path);
+    }
+    std::error_code ec;
+    if (!std::filesystem::is_directory(root, ec)) {
+        if (error) *error = ec ? ec.message() : "The destination root is not a directory.";
+        return std::nullopt;
+    }
+    const auto directory = root / relative;
+    const auto within = std::filesystem::relative(directory, root, ec);
+    if (ec || (within != "." &&
+        !FolderTreeCatalog::validate_relative_folder_path(Utils::path_to_utf8(within)).valid)) {
+        if (error) *error = ec ? ec.message() : "The allocation parent is outside the destination root.";
+        return std::nullopt;
+    }
+    return directory;
+}
+
 std::vector<std::string> split_path(std::string_view value)
 {
     std::vector<std::string> segments;
@@ -669,6 +696,30 @@ Catalog Catalog::scan(const std::filesystem::path& root,
         return left.relative_path < right.relative_path;
     });
     return catalog;
+}
+
+std::optional<Catalog> scan_direct_children(const std::filesystem::path& root,
+    std::string_view parent_relative_path, std::string* error)
+{
+    const auto directory = allocation_parent_directory(root, parent_relative_path, error);
+    if (!directory) return std::nullopt;
+    std::error_code ec;
+    const bool exists = std::filesystem::exists(*directory, ec);
+    if (!ec && !exists) return Catalog{};
+    std::filesystem::directory_iterator it, end;
+    if (!ec) it = std::filesystem::directory_iterator(*directory, ec);
+    std::vector<Entry> entries;
+    while (!ec && it != end) {
+        const auto relative = routable_directory_path(root, *it, ec);
+        if (ec) break;
+        if (!relative.empty()) entries.push_back({relative, path_depth(Utils::utf8_to_path(relative))});
+        it.increment(ec);
+    }
+    if (ec) {
+        if (error) *error = ec.message();
+        return std::nullopt;
+    }
+    return Catalog(std::move(entries));
 }
 
 Catalog::Catalog(std::vector<Entry> entries)

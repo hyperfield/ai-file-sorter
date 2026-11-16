@@ -29,6 +29,68 @@ TEST_CASE("FolderTreeCatalog scans relative destination folders")
           "20-29 Work/22 Clients");
 }
 
+TEST_CASE("FolderTreeCatalog reads complete direct sibling inventories safely", "[folder-allocation]")
+{
+    TempDir root;
+    constexpr int kSiblingCount = 510;
+    for (int i = 0; i < kSiblingCount; ++i) {
+        std::filesystem::create_directories(root.path() / "Parent" / ("Item " + std::to_string(i)));
+    }
+    std::filesystem::create_directories(root.path() / "Parent/Item 0/Nested");
+    std::filesystem::create_directories(root.path() / "Parent/.ignored");
+    const auto siblings = FolderTreeCatalog::scan_direct_children(root.path(), "Parent");
+    REQUIRE(siblings);
+    CHECK(siblings->entries().size() == kSiblingCount);
+    CHECK(siblings->find_existing("Parent/Item 509").has_value());
+    CHECK_FALSE(siblings->find_existing("Parent/Item 0/Nested").has_value());
+    CHECK_FALSE(siblings->find_existing("Parent/.ignored").has_value());
+    CHECK(siblings->entries().front().depth == 2);
+    const auto top = FolderTreeCatalog::scan_direct_children(root.path());
+    REQUIRE(top);
+    CHECK(top->entries().size() == 1);
+    CHECK(top->find_existing("Parent").has_value());
+    const auto pending = FolderTreeCatalog::scan_direct_children(root.path(), "Uncreated/Parent");
+    REQUIRE(pending);
+    CHECK(pending->empty());
+    CHECK_FALSE(FolderTreeCatalog::scan_direct_children(root.path(), "../outside"));
+    CHECK_FALSE(FolderTreeCatalog::scan_direct_children(root.path() / "missing"));
+    std::ofstream(root.path() / "blocked") << "file";
+    std::string error;
+    CHECK_FALSE(FolderTreeCatalog::scan_direct_children(root.path(), "blocked", &error));
+    CHECK_FALSE(error.empty());
+    TempDir outside;
+    std::error_code symlink_error;
+    std::filesystem::create_directory_symlink(outside.path(), root.path() / "escape", symlink_error);
+    if (!symlink_error) CHECK_FALSE(FolderTreeCatalog::scan_direct_children(root.path(), "escape"));
+}
+
+TEST_CASE("FolderStructurePattern inventories siblings of newly allocated parents", "[folder-allocation]")
+{
+    TempDir root;
+    std::filesystem::create_directories(root.path() / "10-19 Finance/11 Invoices");
+    constexpr int kLargeFolderCount = 510;
+    for (int i = 0; i < kLargeFolderCount; ++i) {
+        std::filesystem::create_directories(root.path() / "20-29 Work/21 Projects/21.01 Current" /
+                                             ("Notes " + std::to_string(i)));
+    }
+    std::filesystem::create_directories(root.path() / "30-39 Reference/31 Books");
+    std::filesystem::create_directories(root.path() / "90-99 Archive/91 Old");
+    const auto catalog = FolderTreeCatalog::Catalog::scan(root.path());
+    std::vector<std::string> parents;
+    const auto allocated = FolderStructurePattern::allocate_proposed_path(catalog, "30-39 Research/Books",
+        [&](std::string_view parent) -> std::optional<std::vector<FolderTreeCatalog::Entry>> {
+            parents.emplace_back(parent);
+            const auto siblings = FolderTreeCatalog::scan_direct_children(root.path(), parent);
+            return siblings ? std::optional(siblings->entries()) : std::nullopt;
+        });
+    REQUIRE(allocated);
+    CHECK(*allocated == "40-49 Research/41 Books");
+    CHECK(parents == std::vector<std::string>{"", "40-49 Research"});
+    CHECK_FALSE(std::filesystem::exists(root.path() / "40-49 Research"));
+    CHECK_FALSE(FolderStructurePattern::allocate_proposed_path(catalog, "20-29 Work/Proposals",
+        [](std::string_view) -> std::optional<std::vector<FolderTreeCatalog::Entry>> { return std::nullopt; }));
+}
+
 TEST_CASE("FolderTreeCatalog validates safe relative folder paths")
 {
     const auto valid = FolderTreeCatalog::validate_relative_folder_path("10-19 Admin\\11 Reports");

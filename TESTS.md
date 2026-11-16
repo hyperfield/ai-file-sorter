@@ -482,6 +482,7 @@ The `[consistency]` group also verifies that harmonization preserves active cate
 - `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip and reaches both LLM stages separately from the path, including when preliminary labels differ from the model-selected destination.
 - `Source directories do not affect classification or routing requests`: identical image/document evidence and filenames in unrelated source directories produce identical classification and routing requests. Source paths remain distinct in review/cache records, content evidence is preserved, and destination choices remain available.
 - `Review plan reserves new numbers across batches and reuses proposed destinations`: deferred batches allocate distinct numbers for distinct labels, reuse an equivalent pending folder, preserve true on-disk existence flags, and do not create directories during analysis.
+- `Automatic folder allocation checks occupied IDs beyond the routing catalog`: archives over 500 folders preserve unique category and item IDs for fresh and cached proposals, reserve numbers across batches, reuse pending destinations, and recognize physical targets omitted from the prompt catalog. Applying the proposed directories leaves the archive valid under the Johnny.Decimal validator.
 - `Review plan matches pending labels only within the same literal parent`: equivalent code-prefixed labels reuse the first proposal with case, spacing, and Unicode normalization, without merging different roots, literal parents, or distinct labels.
 - `Review plan preserves meaningful numbers in literal and human labels`: literal year names, bare numeric names, and years inside convention-prefixed labels remain distinct.
 - `CategorizationService reuses weak Landscape proposals even when the range fills`: fresh and cached routes reuse the same pending child below the semantic-confidence threshold, including the range's last free number, persist corrected cache targets, and respect existing-only mode.
@@ -2856,6 +2857,22 @@ Setup: Create a temporary Johnny.Decimal-like folder tree.
 Procedure: Scan the root and look up top-level and nested destination paths.
 Expected outcome: Existing folders are returned with normalized forward-slash relative paths.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeCatalog scans relative destination folders"`
+
+#### Test case: FolderTreeCatalog reads complete direct sibling inventories safely
+
+Purpose: Keep number allocation independent of the prompt catalog's entry limit.
+Setup: Create more than 500 direct child folders, a nested descendant, a hidden child, and invalid or unavailable parent paths.
+Assertions: The inventory includes every routable direct child with its root-relative depth, excludes descendants and hidden folders, returns an empty catalog for an uncreated parent, and rejects unsafe or unreadable parents. Symlink escapes are checked when the host permits symlink creation.
+
+Run: `./build-tests/ai_file_sorter_tests "[folder-allocation]"`
+
+#### Test case: FolderStructurePattern inventories siblings of newly allocated parents
+
+Purpose: Read the correct sibling inventory after an occupied area number changes a proposed parent's number.
+Setup: A large numbered archive contains an occupied `30-39` area; a proposal requests a new area and category.
+Assertions: Allocation uses `40-49 Research/41 Books`, inventories the newly allocated parent, creates no directories, and rejects an unavailable inventory.
+
+Run: `./build-tests/ai_file_sorter_tests "[folder-allocation]"`
 
 #### Test case: FolderTreeCatalog validates safe relative folder paths
 Purpose: Ensure existing-folder targets cannot escape the selected root or contain unsafe path syntax.

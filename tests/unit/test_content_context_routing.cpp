@@ -10,6 +10,7 @@
 #include "FolderTreeSelectionContract.hpp"
 #include "FolderPurposeMetadata.hpp"
 #include "ILLMClient.hpp"
+#include "JohnnyDecimalValidator.hpp"
 #include "LocalFsProvider.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
@@ -25,6 +26,7 @@
 #include <fstream>
 #include <functional>
 #include <memory>
+#include <limits>
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/spdlog.h>
 #include <sqlite3.h>
@@ -549,6 +551,91 @@ TEST_CASE("Review plan reserves new numbers across batches and reuses proposed d
     CHECK_FALSE(std::filesystem::exists(archive.path() / "10-19 Finance" / "13 Budgets"));
     CHECK_FALSE(plan.reserve(archive.path().string(), "../outside"));
     CHECK(plan.planning_catalog("another-root", FolderTreeCatalog::Catalog{}).empty());
+}
+
+TEST_CASE("Automatic folder allocation checks occupied IDs beyond the routing catalog", "[content-routing][folder-plan][folder-allocation]")
+{
+    const bool cached_routes = GENERATE(false, true);
+    const bool item_ids = GENERATE(false, true);
+    TempDir config, source, archive;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_use_consistency_hints(false);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(archive.path().string());
+    std::filesystem::create_directories(archive.path() / "00-09 System/01 Index");
+    std::filesystem::create_directories(archive.path() / "10-19 Admin/11 Finance");
+    const auto current = archive.path() / "20-29 Work/21 Projects/21.01 Current";
+    constexpr int kLargeFolderCount = 510;
+    for (int i = 0; i < kLargeFolderCount; ++i) {
+        std::filesystem::create_directories(current / ("Notes " + std::to_string(i)));
+    }
+    std::filesystem::create_directories(archive.path() / "20-29 Work/22 Existing");
+    std::filesystem::create_directories(archive.path() / "20-29 Work/21 Projects/21.02 Existing");
+    const std::string parent = item_ids ? "20-29 Work/21 Projects" : "20-29 Work";
+    const std::string first_id = item_ids ? "21.03" : "23";
+    const std::string second_id = item_ids ? "21.04" : "24";
+    const std::string stale_id = item_ids ? "21.02" : "22";
+    const auto catalog = FolderTreeCatalog::Catalog::scan(archive.path());
+    DatabaseManager database(settings.get_config_dir());
+    CategorizationService service(settings, database, nullptr);
+    FolderTreeRoutingPlan plan;
+    const auto requests = std::make_shared<std::vector<Request>>();
+    const auto factory = [requests, parent] {
+        return std::make_unique<RoutingLLM>(requests, [parent](const Request& request) {
+            const std::string label = request.name == "contracts.txt" ? "Contracts" : "Proposals";
+            if (request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos) {
+                return std::string("Work : ") + label;
+            }
+            if (request.context.find(FolderTreeSelectionContract::kProposalMarker) != std::string::npos) {
+                return std::string("{\"targetFolder\":\"") + parent + "/" + label + "\",\"createFolder\":true}";
+            }
+            return std::string(R"({"targetFolder":null,"createFolder":false})");
+        });
+    };
+    std::atomic<bool> stop{false};
+    std::vector<std::string> targets;
+    for (const auto* name : {"proposal.txt", "contracts.txt", "proposal_update.txt"}) {
+        const std::string label = std::string(name) == "contracts.txt" ? "Contracts" : "Proposals";
+        if (cached_routes) {
+            REQUIRE(database.insert_or_update_file_with_categorization(
+                name, "F", source.path().string(), {0, "Work", label}, false, ""));
+            DatabaseManager::FolderTreeRoutingRecord route;
+            route.destination_root = archive.path().string();
+            route.tree_fingerprint = catalog.fingerprint();
+            route.allow_new_folders = true;
+            route.semantic_category = "Work";
+            route.semantic_subcategory = label;
+            route.target_folder_relative_path = parent + "/" + stale_id + " " + label;
+            route.target_folder_suggested_new = true;
+            REQUIRE(database.insert_or_update_folder_tree_routing(name, "F", source.path().string(), route));
+        }
+        const auto result = service.categorize_entries(
+            {{(source.path() / name).string(), name, FileType::File}}, true, stop,
+            {}, {}, {}, {}, factory, {}, {}, {}, &plan);
+        REQUIRE(result.size() == 1);
+        CHECK(result.front().target_folder_suggested_new);
+        CHECK_FALSE(result.front().target_folder_exists);
+        targets.push_back(result.front().target_folder_relative_path);
+    }
+    CHECK(targets == std::vector<std::string>{parent + "/" + first_id + " Proposals",
+        parent + "/" + second_id + " Contracts", parent + "/" + first_id + " Proposals"});
+    CHECK_FALSE(std::filesystem::exists(archive.path() / parent / (first_id + " Proposals")));
+    for (const auto& target : targets) std::filesystem::create_directories(archive.path() / target);
+    const auto validation = JohnnyDecimalValidator::validate_archive(archive.path(),
+        JohnnyDecimalValidator::Scope::Items, FolderTreeCatalog::kDefaultMaxDepth,
+        std::numeric_limits<std::size_t>::max());
+    INFO(JohnnyDecimalValidator::format_report(validation));
+    CHECK_FALSE(validation.has_errors());
+    const auto existing = service.categorize_entries(
+        {{(source.path() / "proposal.txt").string(), "proposal.txt", FileType::File}}, true, stop,
+        {}, {}, {}, {}, factory, {}, {}, {}, &plan);
+    REQUIRE(existing.size() == 1);
+    CHECK(existing.front().target_folder_relative_path == parent + "/" + first_id + " Proposals");
+    CHECK(existing.front().target_folder_exists);
+    CHECK_FALSE(existing.front().target_folder_suggested_new);
 }
 
 TEST_CASE("Review plan matches pending labels only within the same literal parent", "[content-routing][folder-plan]")
