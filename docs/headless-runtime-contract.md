@@ -49,6 +49,17 @@ sampling is not configured by these native controls.
 
 ## Existing-Folder Response Contract
 
+Before existing-folder categorization starts, the shared workflow validates the
+complete destination tree's depth, independently of the routing catalog's
+retained-entry budget. The destination root is depth zero; folders at depth eight
+are supported, while the first folder at depth nine causes analysis to fail with
+its relative path and guidance to choose a more specific root. Hidden and invalid
+folder paths use the routing scanner's inclusion rules. Unreadable branches fail
+validation, and cancellation interrupts validation. Rename-only operations and
+category-based sorting do not require this destination check.
+New folder proposals are also limited to eight levels, so routing cannot extend
+a validated destination beyond the supported depth.
+
 Classification and folder-routing requests exclude the item's source directory.
 Models receive the filename, available content evidence, and relevant destination
 folders. The filename alone is passed as the backend's path/context argument so

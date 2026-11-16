@@ -497,6 +497,7 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     auto* destination_layout = new QHBoxLayout();
     app.destination_path_label = new QLabel(central);
     app.destination_path_entry = new QLineEdit(central);
+    app.destination_path_entry->setObjectName(QStringLiteral("destinationPathEntry"));
     app.destination_browse_button = new QPushButton(central);
     app.create_folder_structure_button = new QPushButton(central);
     app.create_folder_structure_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -505,6 +506,13 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     destination_layout->addWidget(app.destination_browse_button);
     destination_layout->addWidget(app.create_folder_structure_button);
     main_layout->addLayout(destination_layout);
+
+    app.destination_depth_status_label = new QLabel(central);
+    app.destination_depth_status_label->setObjectName(QStringLiteral("destinationDepthStatus"));
+    app.destination_depth_status_label->setTextFormat(Qt::PlainText);
+    app.destination_depth_status_label->setWordWrap(true);
+    app.destination_depth_status_label->hide();
+    main_layout->addWidget(app.destination_depth_status_label);
 
     app.use_whitelist_checkbox = new QCheckBox(central);
     app.whitelist_selector = new QComboBox(central);

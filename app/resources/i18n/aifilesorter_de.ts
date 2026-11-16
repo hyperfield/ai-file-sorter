@@ -2229,6 +2229,10 @@ Gemma 1.1 7B und über eine API verfügbare LLMs sind ebenfalls geeignet.
 
 Sie können mit Ihrem aktuellen Modell fortfahren oder es unter LLM auswählen ändern.</translation>
         </message>
+    <message>
+        <source>Checking destination folder depth...</source>
+        <translation>Tiefe des Zielordners wird überprüft...</translation>
+    </message>
 </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4336,6 +4340,29 @@ Bitte aktualisieren Sie, um fortzufahren. Wenn Sie Beenden wählen, wird die Anw
         <message>
             <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
             <translation>Speichert gefundene Ortsnamen für Foto‑Standorte, damit die App sie ohne erneute Online‑Abfrage wiederverwenden kann.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>Das Ziel enthält Ordner mit mehr als %1 Ebenen:
+%2
+
+Wählen Sie einen spezifischeren Zielordner oder organisieren Sie diesen Zweig neu.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Die Struktur des Zielordners konnte nicht überprüft werden:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

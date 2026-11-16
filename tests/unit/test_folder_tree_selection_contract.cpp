@@ -1,4 +1,5 @@
 #include "FolderTreeSelectionContract.hpp"
+#include "FolderStructurePattern.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -6,6 +7,22 @@
 #include <catch2/generators/catch_generators.hpp>
 
 using namespace FolderTreeSelectionContract;
+
+TEST_CASE("Folder proposals cannot exceed the supported destination depth", "[destination-depth][folder-constraint]")
+{
+    const FolderTreeCatalog::Catalog catalog;
+    std::string path = "Level";
+    for (int i = 1; i < FolderTreeCatalog::kDefaultMaxDepth; ++i) path += "/Level";
+    const auto response = [&] {
+        return QJsonDocument(QJsonObject{{"targetFolder", QString::fromStdString(path)},
+            {"createFolder", true}}).toJson(QJsonDocument::Compact).toStdString();
+    };
+    CHECK(parse_proposal(response(), catalog).has_value());
+    CHECK(FolderStructurePattern::allocate_proposed_path(catalog, path).has_value());
+    path += "/Too deep";
+    CHECK_FALSE(parse_proposal(response(), catalog).has_value());
+    CHECK_FALSE(FolderStructurePattern::allocate_proposed_path(catalog, path).has_value());
+}
 
 TEST_CASE("Existing-folder schema contains only literal offered paths and abstention", "[folder-constraint]")
 {

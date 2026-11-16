@@ -47,6 +47,64 @@ TEST_CASE("FolderTreeCatalog validates safe relative folder paths")
     CHECK_FALSE(FolderTreeCatalog::validate_relative_folder_path("Media/Bad\x01").valid);
 }
 
+TEST_CASE("FolderTreeCatalog validates destination depth relative to the selected root", "[destination-depth]")
+{
+    using namespace FolderTreeCatalog;
+    TempDir root;
+    std::filesystem::path relative;
+    for (int i = 1; i <= kDefaultMaxDepth; ++i) relative /= "Level " + std::to_string(i);
+    std::filesystem::create_directories(root.path() / relative);
+    // Files at the next level do not add another directory level.
+    std::ofstream(root.path() / relative / "notes.txt") << "fixture";
+    CHECK(validate_depth(root.path()).status == DepthValidationStatus::Valid);
+    CHECK(depth_validation_message(validate_depth(root.path())).empty());
+
+    relative /= "Too deep";
+    std::filesystem::create_directories(root.path() / relative / "Even deeper");
+    const auto result = validate_depth(root.path());
+    CHECK(result.status == DepthValidationStatus::TooDeep);
+    CHECK(result.relative_path == Utils::path_to_utf8(relative.generic_string()));
+    CHECK(depth_validation_message(result).find("Too deep") != std::string::npos);
+    CHECK(depth_validation_message(result).find("Even deeper") == std::string::npos);
+    // A more specific selected destination has its own depth zero.
+    CHECK(validate_depth(root.path() / "Level 1/Level 2").status == DepthValidationStatus::Valid);
+}
+
+TEST_CASE("FolderTreeCatalog depth validation ignores the routing entry budget", "[destination-depth]")
+{
+    TempDir root;
+    constexpr int kWideFolderCount = 510;
+    for (int i = 0; i < kWideFolderCount; ++i) {
+        std::filesystem::create_directories(root.path() / "A Shallow" / ("Folder " + std::to_string(i)));
+    }
+    std::filesystem::path deep = "Z Deep";
+    for (int i = 1; i <= FolderTreeCatalog::kDefaultMaxDepth; ++i) deep /= "Level " + std::to_string(i);
+    std::filesystem::create_directories(root.path() / deep);
+    const auto result = FolderTreeCatalog::validate_depth(root.path());
+    CHECK(result.status == FolderTreeCatalog::DepthValidationStatus::TooDeep);
+    CHECK(result.relative_path == Utils::path_to_utf8(deep.generic_string()));
+}
+
+TEST_CASE("FolderTreeCatalog depth validation respects excluded folders and cancellation", "[destination-depth]")
+{
+    using namespace FolderTreeCatalog;
+    TempDir root;
+    std::filesystem::path relative = ".hidden";
+    for (int i = 0; i <= kDefaultMaxDepth; ++i) relative /= "Nested";
+    std::filesystem::create_directories(root.path() / relative);
+    CHECK(validate_depth(root.path()).status == DepthValidationStatus::Valid);
+    CHECK(validate_depth(root.path() / "missing").status == DepthValidationStatus::Failed);
+    CHECK_FALSE(depth_validation_message(validate_depth(root.path() / "missing")).empty());
+    CHECK(validate_depth(root.path(), [] { return true; }).status == DepthValidationStatus::Cancelled);
+    for (int i = 0; i < kDefaultMaxDepth; ++i) {
+        std::filesystem::create_directories(root.path() / ("Folder " + std::to_string(i)));
+    }
+    int probes = 0;
+    const auto cancelled = validate_depth(root.path(), [&] { return ++probes > 3; });
+    CHECK(cancelled.status == DepthValidationStatus::Cancelled);
+    CHECK(depth_validation_message(cancelled).empty());
+}
+
 TEST_CASE("FolderTreeCatalog parses existing-only model responses")
 {
     FolderTreeCatalog::Catalog catalog({

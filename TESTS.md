@@ -3018,6 +3018,33 @@ Procedure: Build the routing explanation text.
 Expected outcome: The explanation includes the AI category, semantic target, Johnny.Decimal pattern, readable target, closest existing folder, and new-folder decision.
 Run: `./build-tests/ai_file_sorter_tests "FolderTreeRoutingExplanation describes Johnny Decimal destinations"`
 
+### Destination depth validation
+
+- `FolderTreeCatalog validates destination depth relative to the selected root`:
+  Eight directory levels pass, files add no directory level, the first ninth-level
+  folder fails with its path, and selecting a more specific root resets depth zero.
+- `FolderTreeCatalog depth validation ignores the routing entry budget`:
+  A deep branch is detected in a destination with more than 500 shallow folders.
+- `FolderTreeCatalog depth validation respects excluded folders and cancellation`:
+  Hidden subtrees are excluded, missing roots fail, and cancellation interrupts
+  both pending and in-progress checks.
+- `AnalysisCoordinator revalidates destination depth before routing`:
+  A destination made too deep after an earlier successful check fails before
+  constructing an LLM client or producing review entries.
+- `MainApp validates destination depth asynchronously and discards stale checks`:
+  Analyze is disabled while validation runs, unsupported paths show an error,
+  rapid edits publish only the current destination's result, and category-based
+  sorting remains available.
+- `HeadlessAnalysisCommand enforces destination depth only for existing-folder categorization`:
+  Unsupported destinations produce a failed JSON status and release the runtime
+  lock; generated-category and rename-only requests remain available.
+
+Run these checks with `ai_file_sorter_tests "[destination-depth]"` after rebuilding.
+
+`Folder proposals cannot exceed the supported destination depth` additionally
+checks that proposal parsing and deterministic path allocation accept depth eight
+and reject depth nine before reserving or creating a proposed destination.
+
 ### `tests/unit/test_johnny_decimal_tools.cpp`
 
 #### Test case: JohnnyDecimalItemAnalysis parses standard IDs without truncating malformed numbers

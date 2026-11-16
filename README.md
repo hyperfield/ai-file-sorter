@@ -292,6 +292,11 @@ archives. Install and manage them from the **Plugins** menu. The app can suggest
 Johnny.Decimal support when it recognizes a matching archive; some plugins require
 a separate license and activation.
 
+Existing-folder sorting supports destination folders up to eight levels below
+the selected destination root. The app checks the destination in the background
+and checks it again before analysis. If a deeper folder is found, select a more
+specific destination root or reorganize the indicated branch before starting.
+
 ### Sorting styles
 
 - **More refined**: The flexible, detail-oriented mode. It is less tied to the default category structure, so it can choose a more specific top-level category when that fits better. For example: `Security / PCI DSS`, `Manuals / Camera Guides`, or `Wildlife / Lions`. This works well for mixed, specialized, or long-tail folders.

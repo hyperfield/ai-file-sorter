@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -10,6 +11,37 @@
 struct FolderStructurePluginProfile;
 
 namespace FolderTreeCatalog {
+
+/** @brief Maximum supported destination folder depth, relative to the selected root. */
+inline constexpr int kDefaultMaxDepth = 8;
+
+/** @brief Outcome of checking the complete destination tree's depth. */
+enum class DepthValidationStatus { Valid, TooDeep, Cancelled, Failed };
+
+/** @brief Depth validation result, including the first offending or unreadable path. */
+struct DepthValidationResult {
+    DepthValidationStatus status{DepthValidationStatus::Valid};
+    std::string relative_path;
+    std::string error;
+};
+
+/**
+ * @brief Check destination depth independently of the routing catalog's entry budget.
+ * @param root Destination root, counted as depth zero.
+ * @param should_stop Optional cancellation probe called during traversal.
+ * @param max_depth Maximum supported folder depth below the root.
+ * @return Validation outcome and the first offending path; traversal stops at the first excessive level.
+ */
+DepthValidationResult validate_depth(const std::filesystem::path& root,
+    const std::function<bool()>& should_stop = {}, int max_depth = kDefaultMaxDepth);
+
+/**
+ * @brief Format a localized destination depth validation error.
+ * @param result Outcome to describe.
+ * @param max_depth Maximum supported folder depth used for validation.
+ * @return User-facing error, or an empty string for valid or cancelled checks.
+ */
+std::string depth_validation_message(const DepthValidationResult& result, int max_depth = kDefaultMaxDepth);
 
 /**
  * @brief Marker injected into LLM prompt context when folder-tree routing is active.
@@ -69,7 +101,7 @@ public:
      * @return Catalog of relative folder paths.
      */
     static Catalog scan(const std::filesystem::path& root,
-                        int max_depth = 8,
+                        int max_depth = kDefaultMaxDepth,
                         std::size_t max_entries = 500);
 
     /**

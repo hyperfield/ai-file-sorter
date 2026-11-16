@@ -929,6 +929,7 @@ std::optional<std::string> allocate_proposed_path(
 {
     const auto validation = FolderTreeCatalog::validate_relative_folder_path(proposed_path);
     if (!validation.valid) return std::nullopt;
+    if (split_path(validation.normalized_path).size() > FolderTreeCatalog::kDefaultMaxDepth) return std::nullopt;
     auto entries = catalog.entries();
     std::string parent;
     for (const auto& segment : split_path(validation.normalized_path)) {

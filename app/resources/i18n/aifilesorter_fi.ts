@@ -2227,6 +2227,10 @@ Myös Gemma 1.1 7B ja API:n kautta käytettävät LLM:t ovat sopivia vaihtoehtoj
 
 Voit jatkaa nykyisellä mallilla tai vaihtaa sen kohdassa Valitse LLM.</translation>
         </message>
+    <message>
+        <source>Checking destination folder depth...</source>
+        <translation>Tarkistetaan kohdekansioiden syvyyttä...</translation>
+    </message>
 </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4334,6 +4338,29 @@ Päivitä jatkaaksesi. Jos päätät lopettaa, sovellus sulkeutuu.</translation>
         <message>
             <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
             <translation>Tallentaa valokuvien sijainneista löytyneet paikanimet, jotta sovellus voi käyttää niitä uudelleen ilman uutta verkkohakua.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>Kohde sisältää kansioita, jotka ovat yli %1 tasoa syvällä:
+%2
+
+Valitse tarkempi kohdekansio tai järjestä tämä haara uudelleen.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Kohteen kansiorakennetta ei voitu tarkistaa:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

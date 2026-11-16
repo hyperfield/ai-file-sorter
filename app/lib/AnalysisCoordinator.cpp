@@ -486,6 +486,17 @@ AnalysisRunResult AnalysisCoordinator::execute()
     update_stop();
 
     try {
+        if (app_.settings.get_sorting_mode() == SortingMode::ExistingFolderTree &&
+            (app_.settings.get_categorize_files() || app_.settings.get_categorize_directories())) {
+            const auto destination = Utils::utf8_to_path(app_.settings.get_effective_destination_folder(directory_path));
+            const auto depth = FolderTreeCatalog::validate_depth(destination, update_stop);
+            if (depth.status == FolderTreeCatalog::DepthValidationStatus::Cancelled) {
+                return {AnalysisRunStatus::Cancelled, {}};
+            }
+            if (depth.status != FolderTreeCatalog::DepthValidationStatus::Valid) {
+                return {AnalysisRunStatus::Failed, FolderTreeCatalog::depth_validation_message(depth)};
+            }
+        }
         app_.prune_empty_cached_entries_for(directory_path);
         const bool analyze_images = app_.settings.get_analyze_images_by_content();
         const bool analyze_documents = app_.settings.get_analyze_documents_by_content();

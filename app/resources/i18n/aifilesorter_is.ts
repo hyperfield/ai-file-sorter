@@ -2227,6 +2227,10 @@ Gemma 1.1 7B og LLM sem eru aðgengileg í gegnum API eru einnig hentugir valkos
 
 Þú getur haldið áfram með núverandi líkan eða breytt því í Velja LLM.</translation>
         </message>
+    <message>
+        <source>Checking destination folder depth...</source>
+        <translation>Athuga dýpt áfangamöppunnar...</translation>
+    </message>
 </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4334,6 +4338,29 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         <message>
             <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
             <translation>Vistar fundin staðarnöfn fyrir ljósmyndastaði svo forritið geti endurnýtt þau án frekari netleitar.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>Áfangastaðurinn inniheldur möppur sem eru dýpra en %1 stig:
+%2
+
+Veldu nákvæmari áfangamöppu eða endurskipuleggðu þessa grein.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Ekki tókst að athuga möppuskipan áfangastaðarins:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

@@ -130,6 +130,30 @@ WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& da
 }
 } // namespace
 
+TEST_CASE("AnalysisCoordinator revalidates destination depth before routing", "[destination-depth][content-routing]")
+{
+    TempDir config, source, destination;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_categorize_files(true);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_destination_folder(destination.path().string());
+    DatabaseManager database(settings.get_config_dir());
+    const auto requests = std::make_shared<std::vector<Request>>();
+    const auto clients = std::make_shared<std::atomic<int>>(0);
+    REQUIRE(FolderTreeCatalog::validate_depth(destination.path()).status ==
+            FolderTreeCatalog::DepthValidationStatus::Valid);
+    std::filesystem::path relative;
+    for (int i = 0; i <= FolderTreeCatalog::kDefaultMaxDepth; ++i) relative /= "Nested";
+    std::filesystem::create_directories(destination.path() / relative);
+    const auto run = run_cached_image_workflow(settings, database, source.path(), requests, {clients});
+    CHECK(run.result.status == AnalysisRunStatus::Failed);
+    CHECK(run.result.error_message.find(relative.generic_string()) != std::string::npos);
+    CHECK(clients->load() == 0);
+    CHECK(requests->empty());
+    CHECK(run.review.empty());
+}
+
 TEST_CASE("Existing-folder sorting ignores saved category whitelists", "[content-routing][whitelist-mode]")
 {
     const bool cached = GENERATE(false, true);

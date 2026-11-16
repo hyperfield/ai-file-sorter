@@ -5,6 +5,7 @@
 #include "CategorizationProgressDialog.hpp"
 #include "AnalysisRuntimeLock.hpp"
 #include "DatabaseManager.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "CategorizationService.hpp"
 #include "ConsistencyPassService.hpp"
 #include "ExplorerExtensionManager.hpp"
@@ -33,6 +34,7 @@
 #include <atomic>
 #include <array>
 #include <functional>
+#include <future>
 #include <memory>
 #include <optional>
 #include <string>
@@ -273,6 +275,16 @@ private:
      * @brief Enables and synchronizes destination-folder controls.
      */
     void update_destination_folder_controls();
+    /** @brief Connect destination edits to the asynchronous folder-depth check. */
+    void initialize_destination_depth_validation();
+    /** @brief Cancel outdated validation and schedule a check of the current destination. */
+    void schedule_destination_depth_validation();
+    /** @brief Collect a completed background check and start the latest queued check. */
+    void poll_destination_depth_validation();
+    /** @brief Refresh the destination validation message and Analyze button. */
+    void update_destination_depth_status();
+    /** @brief Return whether the current destination is pending validation or unsupported. */
+    bool destination_depth_blocks_analysis() const;
     void ensure_one_checkbox_active(QCheckBox* changed_checkbox);
     void update_file_scan_option(FileScanOptions option, bool enabled);
     bool visual_llm_files_available() const;
@@ -544,6 +556,7 @@ private:
     QPointer<QLabel> path_label;
     QPointer<QLabel> destination_path_label;
     QPointer<QLineEdit> destination_path_entry;
+    QPointer<QLabel> destination_depth_status_label;
     QPointer<QPushButton> destination_browse_button;
     QPointer<QCheckBox> use_analyzed_folder_as_destination_checkbox;
     QPointer<QCheckBox> use_subcategories_checkbox;
@@ -680,6 +693,12 @@ private:
 
     FileScanOptions file_scan_options{FileScanOptions::None};
     std::thread analyze_thread;
+    std::future<FolderTreeCatalog::DepthValidationResult> destination_depth_future_;
+    std::shared_ptr<std::atomic<bool>> destination_depth_cancel_;
+    std::optional<FolderTreeCatalog::DepthValidationResult> destination_depth_result_;
+    std::string destination_depth_requested_root_;
+    std::string destination_depth_running_root_;
+    QTimer* destination_depth_timer_{nullptr};
     std::jthread backend_status_probe_thread_;
     std::atomic<bool> stop_analysis{false};
     std::optional<AnalysisRuntimeLock::Lease> analysis_runtime_lease_;

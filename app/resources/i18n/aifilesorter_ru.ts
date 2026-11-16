@@ -2479,6 +2479,10 @@ Gemma 1.1 7B и LLM, к которым обращаются через API, та
 
 Вы можете продолжить с текущей моделью или изменить её в Выбрать LLM.</translation>
         </message>
+        <message>
+            <source>Checking destination folder depth...</source>
+            <translation>Проверка глубины папок назначения...</translation>
+        </message>
     </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4492,6 +4496,29 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Failed to activate the plugin license.</source>
             <translation>Не удалось активировать лицензию плагина.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>В папке назначения есть папки глубже %1 уровней:
+%2
+
+Выберите более конкретную папку назначения или измените структуру этой ветви.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Не удалось проверить структуру папок назначения:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

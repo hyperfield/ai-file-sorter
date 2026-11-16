@@ -2229,6 +2229,10 @@ Gemma 1.1 7B ve API üzerinden erişilen LLM'ler de uygun seçeneklerdir.
 
 Geçerli modelinizle devam edebilir veya LLM Seç bölümünden değiştirebilirsiniz.</translation>
         </message>
+    <message>
+        <source>Checking destination folder depth...</source>
+        <translation>Hedef klasör derinliği denetleniyor...</translation>
+    </message>
 </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4336,6 +4340,29 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
         <message>
             <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
             <translation>Fotoğraf konumları için bulunan yer adlarını kaydeder, böylece uygulama bunları tekrar çevrimiçi arama yapmadan kullanabilir.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>Hedef, %1 düzeyden daha derin klasörler içeriyor:
+%2
+
+Daha belirli bir hedef klasör seçin veya bu dalı yeniden düzenleyin.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Hedef klasör yapısı doğrulanamadı:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

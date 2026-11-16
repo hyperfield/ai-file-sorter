@@ -31,6 +31,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QCoreApplication>
 #include <spdlog/spdlog.h>
 
 namespace {
@@ -165,6 +166,14 @@ std::string relative_path_text(const std::filesystem::path& root,
     const std::u8string generic = relative.generic_u8string();
     std::string text(reinterpret_cast<const char*>(generic.data()), generic.size());
     return normalize_separators(text);
+}
+
+std::string routable_directory_path(const std::filesystem::path& root,
+    const std::filesystem::directory_entry& entry, std::error_code& error)
+{
+    if (!entry.is_directory(error) || error || is_hidden_directory(entry)) return {};
+    const auto relative = relative_path_text(root, entry.path());
+    return FolderTreeCatalog::validate_relative_folder_path(relative).valid ? relative : std::string{};
 }
 
 std::vector<std::string> split_path(std::string_view value)
@@ -570,6 +579,48 @@ std::optional<std::string_view> folder_segment_error(const std::string& segment)
 } // namespace
 
 namespace FolderTreeCatalog {
+
+DepthValidationResult validate_depth(const std::filesystem::path& root,
+    const std::function<bool()>& should_stop, int max_depth)
+{
+    const auto cancelled = [&]() { return should_stop && should_stop(); };
+    if (cancelled()) return {DepthValidationStatus::Cancelled, {}, {}};
+    std::error_code ec;
+    if (!std::filesystem::is_directory(root, ec)) {
+        return {DepthValidationStatus::Failed, Utils::path_to_utf8(root),
+                ec ? ec.message() : std::make_error_code(std::errc::not_a_directory).message()};
+    }
+    std::filesystem::recursive_directory_iterator it(root, ec), end;
+    while (!ec && it != end) {
+        if (cancelled()) return {DepthValidationStatus::Cancelled, {}, {}};
+        const auto relative = routable_directory_path(root, *it, ec);
+        if (ec) break;
+        if (relative.empty()) {
+            it.disable_recursion_pending();
+        } else if (it.depth() + 1 > max_depth) {
+            return {DepthValidationStatus::TooDeep, relative, {}};
+        }
+        it.increment(ec);
+    }
+    if (ec) return {DepthValidationStatus::Failed, Utils::path_to_utf8(root), ec.message()};
+    return {};
+}
+
+std::string depth_validation_message(const DepthValidationResult& result, int max_depth)
+{
+    if (result.status == DepthValidationStatus::TooDeep) {
+        return QCoreApplication::translate("FolderTreeCatalog",
+            "The destination contains folders deeper than %1 levels:\n%2\n\n"
+            "Select a more specific destination folder or reorganize this branch.")
+            .arg(max_depth).arg(QString::fromStdString(result.relative_path)).toStdString();
+    }
+    if (result.status == DepthValidationStatus::Failed) {
+        return QCoreApplication::translate("FolderTreeCatalog",
+            "Could not validate the destination folder structure:\n%1\n\n%2")
+            .arg(QString::fromStdString(result.relative_path), QString::fromStdString(result.error)).toStdString();
+    }
+    return {};
+}
 
 Catalog Catalog::scan(const std::filesystem::path& root,
                       int max_depth,

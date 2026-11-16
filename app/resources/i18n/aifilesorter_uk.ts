@@ -2481,6 +2481,10 @@ You can continue with your current model or change it in Select LLM.</source>
 
 Ви можете продовжити з поточною моделлю або змінити її в Вибрати LLM.</translation>
         </message>
+        <message>
+            <source>Checking destination folder depth...</source>
+            <translation>Перевірка глибини папок призначення...</translation>
+        </message>
     </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4494,6 +4498,29 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Failed to activate the plugin license.</source>
             <translation>Не вдалося активувати ліцензію плагіна.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>Папка призначення містить папки глибше ніж %1 рівнів:
+%2
+
+Виберіть конкретнішу папку призначення або змініть структуру цієї гілки.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Не вдалося перевірити структуру папок призначення:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

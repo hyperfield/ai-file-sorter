@@ -20,12 +20,69 @@
 #include <QPushButton>
 #include <QToolButton>
 #include <QTimer>
+#include <QElapsedTimer>
+#include <QThread>
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <unordered_set>
 #include <vector>
+
+TEST_CASE("MainApp validates destination depth asynchronously and discards stale checks", "[destination-depth]")
+{
+    QtAppContext qt;
+    TempDir config, source, destination;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_llm_choice(LLMChoice::Local_4b_Qwen35);
+    settings.set_language(Language::English);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(destination.path().string());
+    settings.set_categorize_files(true);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    REQUIRE(settings.save());
+    MainApp window(settings, false, true);
+    const auto wait_for = [](const auto& ready) {
+        QElapsedTimer elapsed;
+        elapsed.start();
+        constexpr int kWaitMilliseconds = 5000;
+        while (!ready() && elapsed.elapsed() < kWaitMilliseconds) {
+            QApplication::processEvents();
+            QThread::msleep(5);
+        }
+        return ready();
+    };
+    auto* button = MainAppTestAccess::analyze_button(window);
+    auto* status = window.findChild<QLabel*>(QStringLiteral("destinationDepthStatus"));
+    auto* entry = window.findChild<QLineEdit*>(QStringLiteral("destinationPathEntry"));
+    REQUIRE(button);
+    REQUIRE(status);
+    REQUIRE(entry);
+    CHECK_FALSE(button->isEnabled());
+    CHECK_FALSE(status->text().isEmpty());
+    REQUIRE(wait_for([&] { return button->isEnabled(); }));
+    CHECK(status->text().isEmpty());
+
+    std::filesystem::path deep;
+    for (int i = 0; i <= FolderTreeCatalog::kDefaultMaxDepth; ++i) deep /= "Nested";
+    std::filesystem::create_directories(destination.path() / deep);
+    // Rapid edits must publish only the latest destination's check.
+    entry->setText(QString::fromStdString(source.path().string()));
+    entry->setText(QString::fromStdString(destination.path().string()));
+    REQUIRE(wait_for([&] { return status->text().contains(QString::fromStdString(deep.generic_string())); }));
+    CHECK_FALSE(button->isEnabled());
+    auto* mode = MainAppTestAccess::sorting_mode_selector(window);
+    mode->setCurrentIndex(mode->findData(static_cast<int>(SortingMode::GeneratedCategories)));
+    CHECK(button->isEnabled());
+    CHECK(status->text().isEmpty());
+    mode->setCurrentIndex(mode->findData(static_cast<int>(SortingMode::ExistingFolderTree)));
+    entry->setText(QString::fromStdString(source.path().string()));
+    REQUIRE(wait_for([&] { return button->isEnabled(); }));
+    CHECK(status->text().isEmpty());
+}
 
 TEST_CASE("A configured vision API enables image analysis without a model download prompt", "[http-vision]")
 {

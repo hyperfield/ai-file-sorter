@@ -2479,6 +2479,10 @@ Gemma 1.1 7B oraz LLM-y dostępne przez API również są odpowiednimi opcjami.
 
 Możesz kontynuować z obecnym modelem lub zmienić go w Wybierz LLM.</translation>
         </message>
+        <message>
+            <source>Checking destination folder depth...</source>
+            <translation>Sprawdzanie głębokości folderów docelowych...</translation>
+        </message>
     </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4492,6 +4496,29 @@ Zaktualizuj, aby kontynuować. Jeśli wybierzesz zakończenie, aplikacja zostani
         <message>
             <source>Failed to activate the plugin license.</source>
             <translation>Nie udało się aktywować licencji wtyczki.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>Miejsce docelowe zawiera foldery zagnieżdżone głębiej niż %1 poziomów:
+%2
+
+Wybierz bardziej szczegółowy folder docelowy lub uporządkuj tę gałąź.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Nie można sprawdzić struktury folderów docelowych:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

@@ -2229,6 +2229,10 @@ Gemma 1.1 7B 및 API를 통해 사용하는 LLM도 적합한 선택입니다.
 
 현재 모델을 계속 사용하거나 LLM 선택에서 변경할 수 있습니다.</translation>
         </message>
+    <message>
+        <source>Checking destination folder depth...</source>
+        <translation>대상 폴더 깊이를 확인하는 중...</translation>
+    </message>
 </context>
     <context>
         <name>MainWindowStateBinder</name>
@@ -4336,6 +4340,29 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
             <translation>사진 위치에서 찾은 장소 이름을 저장해 앱이 온라인 조회 없이 재사용할 수 있게 합니다.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <source>The destination contains folders deeper than %1 levels:
+%2
+
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>대상에 %1단계보다 깊은 폴더가 있습니다:
+%2
+
+더 구체적인 대상 폴더를 선택하거나 이 분기를 재구성하세요.</translation>
+        </message>
+        <message>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>대상 폴더 구조를 확인할 수 없습니다:
+%1
+
+%2</translation>
         </message>
     </context>
 </TS>

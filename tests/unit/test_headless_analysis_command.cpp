@@ -6,6 +6,7 @@
 #include "TestHelpers.hpp"
 #include "DatabaseManager.hpp"
 #include "HeadlessAnalysisCommand.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "HeadlessReviewApplyService.hpp"
 #include "LocalFsProvider.hpp"
 #include "Settings.hpp"
@@ -316,6 +317,48 @@ TEST_CASE("HeadlessAnalysisCommand reports busy runtime lock")
     CHECK(object.value(QStringLiteral("lock")).toObject().value(QStringLiteral("owner")).toString() ==
           QStringLiteral("explorerWorker"));
     CHECK(out.str().find("\"blocked\"") != std::string::npos);
+}
+
+TEST_CASE("HeadlessAnalysisCommand enforces destination depth only for existing-folder categorization", "[destination-depth]")
+{
+    QtAppContext qt;
+    TempDir config, source, destination, runtime;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_language(Language::English);
+    REQUIRE(settings.save());
+    std::filesystem::path relative;
+    for (int i = 0; i <= FolderTreeCatalog::kDefaultMaxDepth; ++i) relative /= "Nested";
+    std::filesystem::create_directories(destination.path() / relative);
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths = {source.path()};
+    options.status_file = config.path() / "status.json";
+    options.settings_overrides.destination_folder = Utils::path_to_utf8(destination.path());
+    options.settings_overrides.sorting_mode = SortingMode::ExistingFolderTree;
+    bool should_fail = true;
+    SECTION("Existing-folder categorization rejects depth nine") {}
+    SECTION("Generated categories do not impose a destination depth check") {
+        options.settings_overrides.sorting_mode = SortingMode::GeneratedCategories;
+        should_fail = false;
+    }
+    SECTION("Rename-only does not impose a destination depth check") {
+        options.operation = HeadlessAnalysisCommand::Operation::Rename;
+        should_fail = false;
+    }
+    std::ostringstream out, err;
+    const int code = HeadlessAnalysisCommand::run(options, runtime.path(), out, err);
+    const auto status = read_status(*options.status_file);
+    if (should_fail) {
+        CHECK(code == HeadlessAnalysisCommand::Failure);
+        CHECK(status.value(QStringLiteral("status")).toString() == QStringLiteral("failed"));
+        CHECK(out.str().find(relative.generic_string()) != std::string::npos);
+    } else {
+        INFO(err.str());
+        CHECK(code == HeadlessAnalysisCommand::Success);
+    }
+    AnalysisRuntimeLock lock(runtime.path());
+    CHECK_FALSE(lock.is_locked());
 }
 
 TEST_CASE("HeadlessAnalysisCommand runs categorization for an empty folder")

@@ -69,6 +69,8 @@ std::optional<FolderTreeCatalog::Selection> FolderTreeSelectionContract::parse_p
     if (!object || !object->value("targetFolder").isString()) return {};
     const auto selection = FolderTreeCatalog::parse_selection(response, catalog, true);
     if (!selection) return {};
+    const auto& path = selection->relative_path;
+    if (std::count(path.begin(), path.end(), '/') >= FolderTreeCatalog::kDefaultMaxDepth) return {};
     // The catalog, not the model's creation flag, decides whether a literal target already exists.
     const auto target = object->value("targetFolder").toString().toStdString();
     if (selection->exists && selection->relative_path != target) return {};

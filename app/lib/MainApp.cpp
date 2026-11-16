@@ -687,10 +687,14 @@ MainApp::MainApp(Settings& settings,
     refresh_backend_status_label();
     set_app_icon();
     start_analysis_runtime_lock_polling();
+    initialize_destination_depth_validation();
 }
 
 
-MainApp::~MainApp() = default;
+MainApp::~MainApp()
+{
+    if (destination_depth_cancel_) destination_depth_cancel_->store(true);
+}
 
 
 void MainApp::run()
@@ -1214,6 +1218,7 @@ void MainApp::retranslate_ui()
     refresh_backend_status_label();
     populate_network_locations();
     apply_accessibility_metadata();
+    update_destination_depth_status();
 }
 
 void MainApp::apply_accessibility_metadata()
@@ -1682,6 +1687,8 @@ void MainApp::on_analyze_clicked()
                                         ? std::string()
                                         : destination_folder);
 
+    if (destination_depth_blocks_analysis()) return;
+
     if (const auto error = analysis_connection_error(Utils::is_network_available)) {
         show_error_dialog(*error);
         if (core_logger) {
@@ -1782,6 +1789,7 @@ void MainApp::on_destination_directory_selected(const QString& path)
     statusBar()->showMessage(tr("Destination selected: %1").arg(path), 3000);
     status_is_ready_ = false;
     maybe_suggest_johnny_decimal_plugin_for_current_folder_tree();
+    schedule_destination_depth_validation();
 }
 
 void MainApp::update_destination_folder_controls()
@@ -2032,7 +2040,8 @@ void MainApp::update_analyze_button_state(bool analyzing)
     }
     if (analyze_button) {
         const bool blocked_by_external_lock = !analyzing && external_analysis_lock_active_;
-        analyze_button->setEnabled(!blocked_by_external_lock);
+        analyze_button->setEnabled(!blocked_by_external_lock &&
+                                  (analyzing || !destination_depth_blocks_analysis()));
         if (blocked_by_external_lock) {
             statusBar()->showMessage(tr("Analyzing…"));
             status_is_ready_ = false;
@@ -3241,6 +3250,8 @@ void MainApp::handle_analysis_failure(const std::string& message)
         analyze_thread.join();
     }
     release_analysis_runtime_lock();
+
+    schedule_destination_depth_validation();
     close_progress_dialog();
     stop_analysis = false;
     show_error_dialog(message);
