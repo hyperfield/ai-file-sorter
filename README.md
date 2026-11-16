@@ -164,60 +164,8 @@ the main entry page, use these technical references:
 
 ## Changelog
 
-## [2.0.0] - Unreleased
-
-- Added European Portuguese, Polish, Russian, and Ukrainian interface translations, including Help and release notes.
-- Sort into an existing folder structure by default, with a separate destination, optional new-folder suggestions, and explanations for folder choices.
-- Refined folder routing, categorization, filename suggestions, and whitelist handling for more consistent results.
-- Create starter structures and add optional Johnny.Decimal tools for numbered folders, archive indexes, and validation reports.
-- Start with a broader Downloads layout and choose the language of new folder names independently of your category language.
-- Use **Qwen3.5 4B** by default for local text and image analysis, with simpler, grouped model drop-downs.
-- Fixed custom API connections, including local LM Studio and Ollama servers, being blocked by an unrelated internet connectivity check.
-- Set separate image and document filename word limits from 3 to 6 words in **Sorting rules...**.
-- Analyze larger and densely formatted documents more reliably, and preserve completed categories when content analysis is unavailable.
-- Compare downloaded text and image-analysis models in the system compatibility check, with saved results and retries for individual models and backends.
-- Use the new sorting settings and destination previews with **AI File Sorter for File Explorer 1.1.0**.
-- Storage integrations, including OneDrive support, now use separately installed, verified plugins.
-- Improved cancellation, cache reuse, handling of non-English filenames, review editing, and undo reliability.
-- Improved GPU compatibility and macOS stability, including menu icons, Metal backend detection, and the image-analysis benchmark. macOS 26.0 or later is now required.
-- Fixed Windows startup failures with incompatible Vulkan loaders by validating the loader before importing GPU libraries and allowing CPU fallback.
-- Pinned Ubuntu release builds to 24.04, generated Debian dependencies from the shipped binaries, and added package installation and startup checks in a clean runtime container.
-- Fixed Linux launcher discovery of packaged CPU, CUDA, and Vulkan runtime directories.
-
-## [1.9.2] - 2026-08-14
-
-- Fixed a Windows startup crash in Qt GUI theme refresh handling.
-
-## [1.9.1] - 2026-08-06
-
-- Fixed bundled Windows local-LLM runtime builds so the packaged GGML libraries run on generic SSE4.2-capable x64 CPUs instead of requiring AVX2.
-- Fixed embedded CA bundle staging for packaged and Microsoft Store builds by writing the certificate bundle under writable app data instead of the read-only install directory.
-
-## [1.9.0] - 2026-08-05
-
-- Added smart branching whitelists so categories can have their own allowed subcategories, with an improved whitelist editor that keeps global and category-specific subcategory modes mutually exclusive.
-- Added structured project-folder protection for recursive scans, covering Unity, Unreal, Godot, Blender, Git repositories, and common source-code project layouts.
-- Added file preview support in the Categorization Review dialog and improved accessibility labels/progress announcements for screen readers.
-- Added custom visual model support, configurable local model storage, and improved reuse of already-downloaded Gemma 3 4B model files.
-- Improved category and filename consistency by localizing suggested filenames, preserving UTF-8 metadata, stripping inline subcategory artifacts, and keeping date suffixes out of canonical cache labels.
-- Improved remote LLM handling with rate-limit/backoff parsing and optional request pacing.
-- Improved local runtime and release packaging reliability across Windows, Linux, and macOS, including safer backend probing, CUDA/Vulkan fallback handling, RPM packaging, and verified macOS release helpers.
-
-## [1.8.0] - 2026-05-10
-
-- Added backend status indicator to the status bar.
-- The app now runs as a single instance - opening it again brings the existing window to the front instead of starting a second copy.
-- Restored the app launcher for the non-Microsoft Store versions of the app and improved GPU selection, now preferring CUDA over Vulkan when both are available.
-- Improved local GPU startup and local visual model handling for better reliability and compatibility.
-- Added Gemma 3 4B IT and set it as the default visual model.
-- Added Gemma 3 4B IT and Gemma 1.1 7B as built-in local categorization model choices, replacing LLaMa 3B.
-- Improved image categorization quality and consistency by preserving image descriptions, using richer prompt context, adding special handling for screenshots and UI captures, and reducing drift between category labels.
-- Improved image analysis stability, fallback behavior, and model-download validation.
-- Added options to clear categorization and app caches, including a deeper reset of stored categorization state.
-- Added local learning from your review decisions to improve future suggestions.
-- Added localized Quick Start help, an FAQ link, and additional interface languages including Hindi, Swedish, Icelandic, Norwegian, Finnish, Danish, and Simplified Chinese.
-
-See [CHANGELOG.md](CHANGELOG.md) for the full history.
+See [what's new in 2.0.0](CHANGELOG.md#200---unreleased) for the latest release
+highlights, or the [full changelog](CHANGELOG.md) for earlier releases.
 
 ---
 
