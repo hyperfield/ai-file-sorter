@@ -4051,7 +4051,27 @@ Please update to continue. If you choose to quit, the application will close.</s
             <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
             <translation>选择用于类别文件夹名称和建议文件名的语言。现有文件夹将保留其名称。</translation>
         </message>
-    </context>
+    <message>
+            <location filename="../../lib/UiTranslator.cpp" line="98" />
+            <source>&amp;Portuguese</source>
+            <translation>&amp;葡萄牙语（葡萄牙）</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="99" />
+            <source>&amp;Polish</source>
+            <translation>&amp;波兰语</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="100" />
+            <source>&amp;Russian</source>
+            <translation>&amp;俄语</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="101" />
+            <source>&amp;Ukrainian</source>
+            <translation>&amp;乌克兰语</translation>
+        </message>
+</context>
     <context>
         <name>WhitelistManagerDialog</name>
         <message>

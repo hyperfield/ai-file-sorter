@@ -166,6 +166,7 @@ the main entry page, use these technical references:
 
 ## [2.0.0] - Unreleased
 
+- Added European Portuguese, Polish, Russian, and Ukrainian interface translations, including Help and release notes.
 - Sort into an existing folder structure by default, with a separate destination, optional new-folder suggestions, and explanations for folder choices.
 - Refined folder routing, categorization, filename suggestions, and whitelist handling for more consistent results.
 - Create starter structures and add optional Johnny.Decimal tools for numbered folders, archive indexes, and validation reports.
@@ -240,7 +241,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history.
 - **Audio/video metadata filename suggestions**: Turn embedded media tags into clean, library-style filenames for supported audio and video files, with full review before anything is renamed.
 - **Sortable review**: Sort the Categorization Review table by file name, category, or subcategory to triage faster.
 - **Qt6 Interface**: Lightweight and responsive UI with refreshed menus and icons.
-- **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Simplified Chinese, Spanish, Swedish, and Turkish.
+- **Interface languages**: English, Danish, Dutch, Finnish, French, German, Hindi, Icelandic, Italian, Korean, Norwegian, Polish, Portuguese (Portugal), Russian, Simplified Chinese, Spanish, Swedish, Turkish, and Ukrainian.
 - **Cross-Platform Compatibility**: Works on Windows, macOS, and Linux.
 - **Windows File Explorer integration**: Use the separately installed AI File Sorter for File Explorer extension to analyze selections and review changes. Extension version 1.1.0 uses the sorting and filename settings available in AI File Sorter 2.0.0. Legacy 1.0.x Explorer jobs retain generated-category sorting so their review destinations and category edits remain compatible.
 - **Local Database Caching**: Speeds up repeated categorization, preserves approved labels and rename suggestions, and provides recent-category hints for consistency.

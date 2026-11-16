@@ -12,13 +12,17 @@ struct WhatsNewLanguageSuffix {
     const char* suffix;
 };
 
-constexpr std::array<WhatsNewLanguageSuffix, 14> kWhatsNewLanguageSuffixes{{
+constexpr std::array<WhatsNewLanguageSuffix, 18> kWhatsNewLanguageSuffixes{{
     {Language::Dutch, "_nl"},
     {Language::Swedish, "_sv"},
     {Language::Icelandic, "_is"},
     {Language::Norwegian, "_nb"},
     {Language::Finnish, "_fi"},
     {Language::Danish, "_da"},
+    {Language::Portuguese, "_pt_pt"},
+    {Language::Polish, "_pl"},
+    {Language::Russian, "_ru"},
+    {Language::Ukrainian, "_uk"},
     {Language::French, "_fr"},
     {Language::German, "_de"},
     {Language::Hindi, "_hi"},

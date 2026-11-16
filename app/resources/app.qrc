@@ -16,7 +16,15 @@
     <file>images/icon_512x512.png</file>
     <file>images/icon_1080x1080.png</file>
     <file>help/quick_start.md</file>
+    <file>help/quick_start_pt_pt.md</file>
+    <file>help/quick_start_pl.md</file>
+    <file>help/quick_start_ru.md</file>
+    <file>help/quick_start_uk.md</file>
     <file>help/quick_start_windows.md</file>
+    <file>help/quick_start_windows_pt_pt.md</file>
+    <file>help/quick_start_windows_pl.md</file>
+    <file>help/quick_start_windows_ru.md</file>
+    <file>help/quick_start_windows_uk.md</file>
     <file>help/quick_start_windows_nl.md</file>
     <file>help/quick_start_windows_zh_cn.md</file>
     <file>help/quick_start_windows_sv.md</file>
@@ -46,6 +54,10 @@
     <file>help/quick_start_tr.md</file>
     <file>help/quick_start_ko.md</file>
     <file>whats_new/2.0.0.md</file>
+    <file>whats_new/2.0.0_pt_pt.md</file>
+    <file>whats_new/2.0.0_pl.md</file>
+    <file>whats_new/2.0.0_ru.md</file>
+    <file>whats_new/2.0.0_uk.md</file>
     <file>whats_new/2.0.0_da.md</file>
     <file>whats_new/2.0.0_de.md</file>
     <file>whats_new/2.0.0_es.md</file>
@@ -61,6 +73,10 @@
     <file>whats_new/2.0.0_tr.md</file>
     <file>whats_new/2.0.0_zh_cn.md</file>
     <file>whats_new/1.9.2.md</file>
+    <file>whats_new/1.9.2_pt_pt.md</file>
+    <file>whats_new/1.9.2_pl.md</file>
+    <file>whats_new/1.9.2_ru.md</file>
+    <file>whats_new/1.9.2_uk.md</file>
     <file>whats_new/1.9.2_da.md</file>
     <file>whats_new/1.9.2_de.md</file>
     <file>whats_new/1.9.2_es.md</file>
@@ -76,6 +92,10 @@
     <file>whats_new/1.9.2_tr.md</file>
     <file>whats_new/1.9.2_zh_cn.md</file>
     <file>whats_new/1.9.1.md</file>
+    <file>whats_new/1.9.1_pt_pt.md</file>
+    <file>whats_new/1.9.1_pl.md</file>
+    <file>whats_new/1.9.1_ru.md</file>
+    <file>whats_new/1.9.1_uk.md</file>
     <file>whats_new/1.9.1_da.md</file>
     <file>whats_new/1.9.1_de.md</file>
     <file>whats_new/1.9.1_es.md</file>
@@ -91,6 +111,10 @@
     <file>whats_new/1.9.1_tr.md</file>
     <file>whats_new/1.9.1_zh_cn.md</file>
     <file>whats_new/1.9.0.md</file>
+    <file>whats_new/1.9.0_pt_pt.md</file>
+    <file>whats_new/1.9.0_pl.md</file>
+    <file>whats_new/1.9.0_ru.md</file>
+    <file>whats_new/1.9.0_uk.md</file>
     <file>whats_new/1.9.0_da.md</file>
     <file>whats_new/1.9.0_de.md</file>
     <file>whats_new/1.9.0_es.md</file>

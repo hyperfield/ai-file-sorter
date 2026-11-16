@@ -4053,7 +4053,27 @@ Please update to continue. If you choose to quit, the application will close.</s
             <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
             <translation>카테고리 폴더 이름과 제안된 파일 이름에 사용할 언어를 선택하세요. 기존 폴더 이름은 유지됩니다.</translation>
         </message>
-    </context>
+    <message>
+            <location filename="../../lib/UiTranslator.cpp" line="98" />
+            <source>&amp;Portuguese</source>
+            <translation>&amp;포르투갈어(포르투갈)</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="99" />
+            <source>&amp;Polish</source>
+            <translation>&amp;폴란드어</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="100" />
+            <source>&amp;Russian</source>
+            <translation>&amp;러시아어</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="101" />
+            <source>&amp;Ukrainian</source>
+            <translation>&amp;우크라이나어</translation>
+        </message>
+</context>
     <context>
         <name>WhitelistManagerDialog</name>
         <message>

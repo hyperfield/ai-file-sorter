@@ -3789,7 +3789,7 @@ Run: `./build-tests/ai_file_sorter_tests "Quick Start and FAQ help labels are tr
 
 #### Translation catalog sync check
 Purpose: Ensure the committed `.ts` catalogs do not miss any currently used GUI source strings.
-Setup: Create temporary copies of all supported UI language catalogs, including Hindi, Swedish, Icelandic, Norwegian, Finnish, Danish, and Simplified Chinese, and locate Qt 6 `lupdate`/`lrelease`.
+Setup: Create temporary copies of all supported UI language catalogs, including European Portuguese, Polish, Russian, Ukrainian, Hindi, Swedish, Icelandic, Norwegian, Finnish, Danish, and Simplified Chinese, and locate Qt 6 `lupdate`/`lrelease`.
 Procedure: Run `lupdate` against `app/startapp_windows.cpp`, `app/lib/*.cpp`, and `app/include/*.hpp`, then scan the temporary catalogs for newly introduced `unfinished` entries.
 Expected outcome: No temporary catalog contains unfinished entries, which means the source tree and translation catalogs are in sync.
 Run: `./tests/run_translation_tests.sh`
@@ -4519,7 +4519,7 @@ text and Markdown while rejecting replacement characters and known UTF-8
 mojibake. Run `ctest --test-dir build-tests -C Release -R "^localization_validation$" --output-on-failure`.
 
 The `[release-notes]` native test loads the current release and releases 1.9.2
-and 1.9.1 for all 14 non-English languages, requiring translated bundled
+and 1.9.1 for all 18 non-English languages, requiring translated bundled
 content rather than English fallback. `[help]` checks bundled Quick Start
 content in the selected interface language.
 
@@ -4529,3 +4529,10 @@ content in the selected interface language.
 Ninja and Visual Studio. It checks enabled, disabled, and enabled-then-disabled
 unit/live-test options, ensuring explicit OFF flags clear prior cached test builds.
 Run `ctest --test-dir build-tests -C Release -R '^windows_build_options$' --output-on-failure`.
+
+### New European interface locales
+
+`[ui-locales]` covers European Portuguese, Polish, Russian, and Ukrainian settings
+round-trips, locale aliases, compiled app and Qt catalogs, translated Help and
+release notes, and language actions in the real main window. Rebuild the native
+test target, then run `ai_file_sorter_tests "[ui-locales]"`.

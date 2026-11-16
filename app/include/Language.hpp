@@ -2,7 +2,9 @@
 #define LANGUAGE_HPP
 
 #include <QString>
+#include <array>
 
+/** @brief Supported interface languages; existing ordinal values remain stable. */
 enum class Language {
     English,
     French,
@@ -18,97 +20,80 @@ enum class Language {
     Icelandic,
     Norwegian,
     Finnish,
-    Danish
+    Danish,
+    Portuguese,
+    Polish,
+    Russian,
+    Ukrainian
 };
 
+/** @brief Stable settings name and resource locale for an interface language. */
+struct InterfaceLanguageDescriptor {
+    Language id;
+    const char* name;
+    const char* code;
+};
+
+inline constexpr std::array<InterfaceLanguageDescriptor, 19> kInterfaceLanguages{{
+    {Language::English, "English", "en"},
+    {Language::French, "French", "fr"},
+    {Language::German, "German", "de"},
+    {Language::Hindi, "Hindi", "hi"},
+    {Language::Italian, "Italian", "it"},
+    {Language::Spanish, "Spanish", "es"},
+    {Language::Turkish, "Turkish", "tr"},
+    {Language::Korean, "Korean", "ko"},
+    {Language::SimplifiedChinese, "Simplified Chinese", "zh_cn"},
+    {Language::Dutch, "Dutch", "nl"},
+    {Language::Swedish, "Swedish", "sv"},
+    {Language::Icelandic, "Icelandic", "is"},
+    {Language::Norwegian, "Norwegian", "nb"},
+    {Language::Finnish, "Finnish", "fi"},
+    {Language::Danish, "Danish", "da"},
+    {Language::Portuguese, "Portuguese", "pt_pt"},
+    {Language::Polish, "Polish", "pl"},
+    {Language::Russian, "Russian", "ru"},
+    {Language::Ukrainian, "Ukrainian", "uk"},
+}};
+
+/** @brief Return the stable settings name.
+ * @param language Interface language to encode.
+ * @return English settings name, or English for an unknown enum value.
+ */
 inline QString languageToString(Language language)
 {
-    switch (language) {
-    case Language::German:
-        return QStringLiteral("German");
-    case Language::Hindi:
-        return QStringLiteral("Hindi");
-    case Language::Italian:
-        return QStringLiteral("Italian");
-    case Language::Spanish:
-        return QStringLiteral("Spanish");
-    case Language::Turkish:
-        return QStringLiteral("Turkish");
-    case Language::Korean:
-        return QStringLiteral("Korean");
-    case Language::SimplifiedChinese:
-        return QStringLiteral("Simplified Chinese");
-    case Language::Dutch:
-        return QStringLiteral("Dutch");
-    case Language::Swedish:
-        return QStringLiteral("Swedish");
-    case Language::Icelandic:
-        return QStringLiteral("Icelandic");
-    case Language::Norwegian:
-        return QStringLiteral("Norwegian");
-    case Language::Finnish:
-        return QStringLiteral("Finnish");
-    case Language::Danish:
-        return QStringLiteral("Danish");
-    case Language::French:
-        return QStringLiteral("French");
-    case Language::English:
-    default:
-        return QStringLiteral("English");
+    for (const auto& entry : kInterfaceLanguages) {
+        if (entry.id == language) return QString::fromLatin1(entry.name);
     }
+    return QStringLiteral("English");
 }
 
+/** @brief Parse a stored name or locale tag without changing existing aliases.
+ * @param value English language name or locale such as pt-PT, pl, ru, or uk-UA.
+ * @return Matching interface language, or English for an unknown value.
+ */
 inline Language languageFromString(const QString& value)
 {
-    const QString lowered = value.toLower();
-    if (lowered == QStringLiteral("french") || lowered == QStringLiteral("fr")) {
-        return Language::French;
+    QString normalized = value.trimmed().toLower();
+    normalized.replace(QLatin1Char('-'), QLatin1Char('_'));
+    for (const auto& entry : kInterfaceLanguages) {
+        if (normalized == QString::fromLatin1(entry.name).toLower()
+            || normalized == QLatin1String(entry.code)) return entry.id;
     }
-    if (lowered == QStringLiteral("german") || lowered == QStringLiteral("de")) {
-        return Language::German;
-    }
-    if (lowered == QStringLiteral("hindi") || lowered == QStringLiteral("hi")) {
-        return Language::Hindi;
-    }
-    if (lowered == QStringLiteral("italian") || lowered == QStringLiteral("it")) {
-        return Language::Italian;
-    }
-    if (lowered == QStringLiteral("spanish") || lowered == QStringLiteral("es")) {
-        return Language::Spanish;
-    }
-    if (lowered == QStringLiteral("turkish") || lowered == QStringLiteral("tr")) {
-        return Language::Turkish;
-    }
-    if (lowered == QStringLiteral("korean") || lowered == QStringLiteral("ko")) {
-        return Language::Korean;
-    }
-    if (lowered == QStringLiteral("simplified chinese")
-        || lowered == QStringLiteral("simplified_chinese")
-        || lowered == QStringLiteral("zh")
-        || lowered == QStringLiteral("zh-cn")
-        || lowered == QStringLiteral("zh_cn")
-        || lowered == QStringLiteral("zh-hans")
-        || lowered == QStringLiteral("zh_hans")) {
-        return Language::SimplifiedChinese;
-    }
-    if (lowered == QStringLiteral("dutch") || lowered == QStringLiteral("nl")) {
-        return Language::Dutch;
-    }
-    if (lowered == QStringLiteral("swedish") || lowered == QStringLiteral("sv")) {
-        return Language::Swedish;
-    }
-    if (lowered == QStringLiteral("icelandic") || lowered == QStringLiteral("is")) {
-        return Language::Icelandic;
-    }
-    if (lowered == QStringLiteral("norwegian") || lowered == QStringLiteral("nb")
-        || lowered == QStringLiteral("no")) {
-        return Language::Norwegian;
-    }
-    if (lowered == QStringLiteral("finnish") || lowered == QStringLiteral("fi")) {
-        return Language::Finnish;
-    }
-    if (lowered == QStringLiteral("danish") || lowered == QStringLiteral("da")) {
-        return Language::Danish;
+    struct Alias { const char* name; Language language; };
+    constexpr Alias aliases[] = {
+        {"simplified_chinese", Language::SimplifiedChinese},
+        {"zh", Language::SimplifiedChinese},
+        {"zh_hans", Language::SimplifiedChinese},
+        {"no", Language::Norwegian},
+        {"pt", Language::Portuguese},
+        {"portuguese (portugal)", Language::Portuguese},
+        {"pl_pl", Language::Polish},
+        {"ru_ru", Language::Russian},
+        {"uk_ua", Language::Ukrainian},
+    };
+    for (const auto& alias : aliases) {
+        if (normalized == QLatin1String(alias.name)) return alias.language;
     }
     return Language::English;
 }

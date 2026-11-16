@@ -5,6 +5,7 @@
 #include "Language.hpp"
 #include "Utils.hpp"
 #include "VisualModelCatalog.hpp"
+#include <utility>
 #include <filesystem>
 #include <cstdio>
 #include <iostream>
@@ -394,30 +395,37 @@ std::string normalize_visual_model_id(const std::string& value)
 Language system_default_language()
 {
     const QLocale locale = QLocale::system();
-    switch (locale.language()) {
-        case QLocale::Chinese:
-            if (locale.script() == QLocale::SimplifiedHanScript
-                || locale.territory() == QLocale::China
-                || locale.territory() == QLocale::Singapore) {
-                return Language::SimplifiedChinese;
-            }
-            return Language::English;
-        case QLocale::Danish: return Language::Danish;
-        case QLocale::Finnish: return Language::Finnish;
-        case QLocale::French: return Language::French;
-        case QLocale::German: return Language::German;
-        case QLocale::Hindi: return Language::Hindi;
-        case QLocale::Icelandic: return Language::Icelandic;
-        case QLocale::Italian: return Language::Italian;
-        case QLocale::NorwegianBokmal: return Language::Norwegian;
-        case QLocale::NorwegianNynorsk: return Language::Norwegian;
-        case QLocale::Swedish: return Language::Swedish;
-        case QLocale::Spanish: return Language::Spanish;
-        case QLocale::Turkish: return Language::Turkish;
-        case QLocale::Korean: return Language::Korean;
-        case QLocale::Dutch: return Language::Dutch;
-        default: return Language::English;
+    if (locale.language() == QLocale::Chinese) {
+        return locale.script() == QLocale::SimplifiedHanScript
+            || locale.territory() == QLocale::China
+            || locale.territory() == QLocale::Singapore
+            ? Language::SimplifiedChinese : Language::English;
     }
+    const std::pair<QLocale::Language, Language> languages[] = {
+        {QLocale::English, Language::English},
+        {QLocale::French, Language::French},
+        {QLocale::German, Language::German},
+        {QLocale::Hindi, Language::Hindi},
+        {QLocale::Italian, Language::Italian},
+        {QLocale::Spanish, Language::Spanish},
+        {QLocale::Turkish, Language::Turkish},
+        {QLocale::Korean, Language::Korean},
+        {QLocale::Dutch, Language::Dutch},
+        {QLocale::Swedish, Language::Swedish},
+        {QLocale::Icelandic, Language::Icelandic},
+        {QLocale::Finnish, Language::Finnish},
+        {QLocale::Danish, Language::Danish},
+        {QLocale::Portuguese, Language::Portuguese},
+        {QLocale::Polish, Language::Polish},
+        {QLocale::Russian, Language::Russian},
+        {QLocale::Ukrainian, Language::Ukrainian},
+        {QLocale::NorwegianBokmal, Language::Norwegian},
+        {QLocale::NorwegianNynorsk, Language::Norwegian},
+    };
+    for (const auto& [system_language, interface_language] : languages) {
+        if (locale.language() == system_language) return interface_language;
+    }
+    return Language::English;
 }
 
 std::string path_from_env_url(const char* env_key)

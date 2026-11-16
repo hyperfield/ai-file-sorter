@@ -413,7 +413,11 @@ TS_FILES := \
 	$(TS_DIR)/aifilesorter_fi.ts \
 	$(TS_DIR)/aifilesorter_da.ts \
 	$(TS_DIR)/aifilesorter_tr.ts \
-	$(TS_DIR)/aifilesorter_ko.ts
+	$(TS_DIR)/aifilesorter_ko.ts \
+	$(TS_DIR)/aifilesorter_pt_pt.ts \
+	$(TS_DIR)/aifilesorter_pl.ts \
+	$(TS_DIR)/aifilesorter_ru.ts \
+	$(TS_DIR)/aifilesorter_uk.ts
 QM_DIR := $(OBJ_DIR)/i18n
 QM_FILES := $(patsubst $(TS_DIR)/%.ts,$(QM_DIR)/%.qm,$(TS_FILES))
 QT_TS_FILES := $(wildcard $(TS_DIR)/qt/qtbase_*.ts)

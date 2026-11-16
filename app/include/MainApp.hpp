@@ -637,6 +637,10 @@ private:
     QAction* norwegian_action{nullptr};
     QAction* finnish_action{nullptr};
     QAction* danish_action{nullptr};
+    QAction* portuguese_action{nullptr};
+    QAction* polish_action{nullptr};
+    QAction* russian_action{nullptr};
+    QAction* ukrainian_action{nullptr};
     QAction* spanish_action{nullptr};
     QAction* turkish_action{nullptr};
     QAction* korean_action{nullptr};

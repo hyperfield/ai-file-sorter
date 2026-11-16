@@ -4051,7 +4051,27 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
             <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
             <translation>Välj språk för kategorimappnamn och föreslagna filnamn. Befintliga mappar behåller sina namn.</translation>
         </message>
-    </context>
+    <message>
+            <location filename="../../lib/UiTranslator.cpp" line="98" />
+            <source>&amp;Portuguese</source>
+            <translation>&amp;Portugisiska (Portugal)</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="99" />
+            <source>&amp;Polish</source>
+            <translation>&amp;Polska</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="100" />
+            <source>&amp;Russian</source>
+            <translation>&amp;Ryska</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="101" />
+            <source>&amp;Ukrainian</source>
+            <translation>&amp;Ukrainska</translation>
+        </message>
+</context>
     <context>
         <name>WhitelistManagerDialog</name>
         <message>

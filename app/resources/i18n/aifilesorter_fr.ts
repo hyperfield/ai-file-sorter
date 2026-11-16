@@ -4053,7 +4053,27 @@ Veuillez mettre à jour pour continuer. Si vous choisissez de quitter, l'applica
             <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
             <translation>Choisissez la langue des noms de dossiers de catégorie et des noms de fichiers suggérés. Les dossiers existants conservent leurs noms.</translation>
         </message>
-    </context>
+    <message>
+            <location filename="../../lib/UiTranslator.cpp" line="98" />
+            <source>&amp;Portuguese</source>
+            <translation>&amp;Portugais (Portugal)</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="99" />
+            <source>&amp;Polish</source>
+            <translation>&amp;Polonais</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="100" />
+            <source>&amp;Russian</source>
+            <translation>&amp;Russe</translation>
+        </message>
+<message>
+            <location filename="../../lib/UiTranslator.cpp" line="101" />
+            <source>&amp;Ukrainian</source>
+            <translation>&amp;Ukrainien</translation>
+        </message>
+</context>
     <context>
         <name>WhitelistManagerDialog</name>
         <message>

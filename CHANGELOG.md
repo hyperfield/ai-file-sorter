@@ -2,6 +2,7 @@
 
 ## [2.0.0] - Unreleased
 
+- Added European Portuguese, Polish, Russian, and Ukrainian interface translations, including Help and release notes.
 - Sort into an existing folder structure by default, with a separate destination, optional new-folder suggestions, and explanations for folder choices.
 - Refined folder routing, categorization, filename suggestions, and whitelist handling for more consistent results.
 - Create starter structures and add optional Johnny.Decimal plugins for numbered folders, archive indexes, and validation reports. Some plugins require a separate license.

@@ -143,6 +143,10 @@ public:
         QAction*& about_agpl_action;
         QAction*& support_project_action;
         QAction* sorting_rules_action{nullptr};
+        QAction* portuguese_action{nullptr};
+        QAction* polish_action{nullptr};
+        QAction* russian_action{nullptr};
+        QAction* ukrainian_action{nullptr};
     };
 
     /**
@@ -165,6 +169,10 @@ public:
         QAction*& spanish_action;
         QAction*& turkish_action;
         QAction*& korean_action;
+        QAction* portuguese_action{nullptr};
+        QAction* polish_action{nullptr};
+        QAction* russian_action{nullptr};
+        QAction* ukrainian_action{nullptr};
     };
 
     /**

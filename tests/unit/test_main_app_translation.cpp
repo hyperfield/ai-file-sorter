@@ -9,6 +9,8 @@
 #include "Logger.hpp"
 #include <app_version.hpp>
 
+#include <QAction>
+#include <QActionGroup>
 #include <QCoreApplication>
 
 #include <vector>
@@ -844,6 +846,10 @@ TEST_CASE("What's New content is packaged for the current app version", "[releas
         Language::Norwegian,
         Language::Finnish,
         Language::Danish,
+        Language::Portuguese,
+        Language::Polish,
+        Language::Russian,
+        Language::Ukrainian,
     };
 
     for (const Language language : localized_languages) {
@@ -1216,4 +1222,92 @@ TEST_CASE("Bundled network and Explorer translations preserve Unicode", "[ui-tra
             }
         }
     }
+}
+
+
+TEST_CASE("New European UI locales persist and load their bundled resources", "[ui-locales]")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    struct LocaleCase { Language id; const char* name; const char* tag; const char* analyze; };
+    const LocaleCase locales[] = {
+        {Language::Portuguese, "Portuguese", "pt-PT", "Analisar pasta"},
+        {Language::Polish, "Polish", "pl-PL", "Analizuj folder"},
+        {Language::Russian, "Russian", "ru-RU", "Анализировать папку"},
+        {Language::Ukrainian, "Ukrainian", "uk-UA", "Аналізувати теку"},
+    };
+    auto& manager = TranslationManager::instance();
+    manager.initialize(qApp);
+    REQUIRE(manager.available_languages().size() == kInterfaceLanguages.size());
+    for (const auto& locale : locales) {
+        CAPTURE(locale.name);
+        CHECK(languageToString(locale.id) == QString::fromLatin1(locale.name));
+        CHECK(languageFromString(QString::fromLatin1(locale.name)) == locale.id);
+        CHECK(languageFromString(QString::fromLatin1(locale.tag)) == locale.id);
+        CHECK(languageFromString(QString::fromLatin1(locale.tag).toUpper()) == locale.id);
+        Settings saved;
+        saved.set_language(locale.id);
+        REQUIRE(saved.save());
+        Settings restored;
+        REQUIRE(restored.load());
+        REQUIRE(restored.get_language() == locale.id);
+        manager.set_language(restored.get_language());
+        REQUIRE(manager.current_language() == locale.id);
+        REQUIRE(QCoreApplication::translate("UiTranslator", "Analyze folder")
+                == QString::fromUtf8(locale.analyze));
+        const auto help = MainAppHelpActions::quick_start_markdown_for_language(locale.id);
+        REQUIRE_FALSE(help.isEmpty());
+        REQUIRE_FALSE(help.contains(QStringLiteral("# Quick Start Guide")));
+        for (const QString& version : {QString::fromStdString(APP_VERSION.to_numeric_string()),
+                                      QStringLiteral("1.9.2"), QStringLiteral("1.9.1"), QStringLiteral("1.9.0")}) {
+            const auto notes = WhatsNewContent::markdown_for_version(version, locale.id);
+            REQUIRE_FALSE(notes.isEmpty());
+            REQUIRE(notes != WhatsNewContent::markdown_for_version(version, Language::English));
+        }
+        for (const auto* source : {"Cancel", "Save", "&Yes", "&No"}) {
+            const auto standard = QCoreApplication::translate("QPlatformTheme", source);
+            REQUIRE(standard != QString::fromLatin1(source));
+        }
+    }
+    CHECK(languageFromString(QStringLiteral("pt")) == Language::Portuguese);
+    CHECK(languageFromString(QStringLiteral("not-a-language")) == Language::English);
+    CHECK(languageFromString(QStringLiteral("zh-Hans")) == Language::SimplifiedChinese);
+    CHECK(languageFromString(QStringLiteral("no")) == Language::Norwegian);
+    manager.set_language(Language::English);
+}
+
+TEST_CASE("New European UI language actions update the real main window", "[ui-locales]")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_language(Language::English);
+    TranslationManager::instance().initialize_for_app(qApp, Language::English);
+    MainApp window(settings, /*development_mode=*/false, /*test_mode=*/true);
+    const auto category_language = settings.get_category_language();
+    QActionGroup* languages = nullptr;
+    for (auto* group : window.findChildren<QActionGroup*>()) {
+        if (group->actions().size() == static_cast<int>(kInterfaceLanguages.size())) languages = group;
+    }
+    REQUIRE(languages != nullptr);
+    for (const Language language : {Language::Portuguese, Language::Polish, Language::Russian, Language::Ukrainian}) {
+        auto* action = static_cast<QAction*>(nullptr);
+        for (auto* candidate : languages->actions()) {
+            if (candidate->data().toInt() == static_cast<int>(language)) action = candidate;
+        }
+        REQUIRE(action != nullptr);
+        REQUIRE_FALSE(action->text().isEmpty());
+        action->trigger();
+        CHECK(settings.get_language() == language);
+        CHECK(settings.get_category_language() == category_language);
+        CHECK(languages->checkedAction() == action);
+        CHECK(TranslationManager::instance().current_language() == language);
+        CHECK(MainAppTestAccess::analyze_button_text(window)
+              == QCoreApplication::translate("UiTranslator", "Analyze folder"));
+    }
+    TranslationManager::instance().set_language(Language::English);
 }

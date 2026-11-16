@@ -691,7 +691,11 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.about_qt_action,
             app.about_agpl_action,
             app.support_project_action,
-            app.sorting_rules_action},
+            app.sorting_rules_action,
+            app.portuguese_action,
+            app.polish_action,
+            app.russian_action,
+            app.ukrainian_action},
         .language = UiTranslator::LanguageControls{
             app.language_group,
             app.english_action,
@@ -708,7 +712,11 @@ UiTranslator::Dependencies MainAppUiBuilder::build_translator_dependencies(MainA
             app.danish_action,
             app.spanish_action,
             app.turkish_action,
-            app.korean_action},
+            app.korean_action,
+            app.portuguese_action,
+            app.polish_action,
+            app.russian_action,
+            app.ukrainian_action},
         .category_language = UiTranslator::CategoryLanguageControls{
             app.category_language_group,
             &app.category_language_actions_},
@@ -897,6 +905,18 @@ void MainAppUiBuilder::build_settings_menu(MainApp& app) {
     app.turkish_action->setCheckable(true);
     app.turkish_action->setData(static_cast<int>(Language::Turkish));
     app.language_group->addAction(app.turkish_action);
+
+    const auto add_interface_language = [&app](Language language) {
+        QAction* action = app.language_menu->addAction(QString());
+        action->setCheckable(true);
+        action->setData(static_cast<int>(language));
+        app.language_group->addAction(action);
+        return action;
+    };
+    app.portuguese_action = add_interface_language(Language::Portuguese);
+    app.polish_action = add_interface_language(Language::Polish);
+    app.russian_action = add_interface_language(Language::Russian);
+    app.ukrainian_action = add_interface_language(Language::Ukrainian);
 
     QObject::connect(app.language_group, &QActionGroup::triggered, &app, [&app](QAction* action) {
         if (!action) {
