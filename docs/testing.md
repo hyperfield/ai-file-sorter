@@ -51,6 +51,9 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
 
 ## When to run what
 
+- Windows build-script changes: run CTest's `windows_build_options` to verify
+  explicit test ON/OFF flags across Ninja and Visual Studio builds.
+
 - Prompt or taxonomy changes: run the prompt-builder and categorization-focused
   tests first.
 - Headless or Explorer-adjacent changes: run focused `Headless*` tests and keep

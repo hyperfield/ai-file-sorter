@@ -4488,3 +4488,10 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand sorts whole fo
 Purpose: Verify recursive Rename discovers supported files in subfolders, renames them in place, and leaves folder names intact.
 
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand recursive Rename changes files and leaves folder names intact"`
+
+### Windows build test options
+
+`windows_build_options` executes the build script's configure-argument function for
+Ninja and Visual Studio. It checks enabled, disabled, and enabled-then-disabled
+unit/live-test options, ensuring explicit OFF flags clear prior cached test builds.
+Run `ctest --test-dir build-tests -C Release -R '^windows_build_options$' --output-on-failure`.

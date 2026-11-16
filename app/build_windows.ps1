@@ -708,12 +708,11 @@ function Get-ConfigureArguments {
         $configureArgs += "-DAI_FILE_SORTER_PLUGIN_ENTITLEMENT_PUBLIC_KEYS=$PluginEntitlementPublicKeys"
     }
 
-    if ($EnableTests) {
-        $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=ON"
-    }
-    if ($EnableLiveLlmTests) {
-        $configureArgs += "-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=ON"
-    }
+    # Always pass both states so a cached test build cannot persist in a later release build.
+    $testState = if ($EnableTests) { "ON" } else { "OFF" }
+    $liveTestState = if ($EnableLiveLlmTests) { "ON" } else { "OFF" }
+    $configureArgs += "-DAI_FILE_SORTER_BUILD_TESTS=$testState"
+    $configureArgs += "-DAI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS=$liveTestState"
     if ($EnablePluginEntitlementDevBypass) {
         $configureArgs += "-DAI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS=ON"
     }

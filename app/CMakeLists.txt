@@ -2032,6 +2032,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     set_target_properties(aifs_storage_plugin_stub PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     )
+    aifs_set_windows_test_runtime_output(aifs_storage_plugin_stub)
 
     target_include_directories(ai_file_sorter_tests PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -2292,6 +2293,12 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                 -File ${CMAKE_SOURCE_DIR}/../tests/test_windows_cuda_runtime.ps1
         )
         set_tests_properties(windows_cuda_runtime_staging PROPERTIES LABELS "build;cuda" TIMEOUT 60)
+        add_test(
+            NAME windows_build_options
+            COMMAND ${AI_FILE_SORTER_POWERSHELL_EXECUTABLE} -NoProfile -ExecutionPolicy Bypass
+                -File ${CMAKE_SOURCE_DIR}/../tests/test_windows_build_options.ps1
+        )
+        set_tests_properties(windows_build_options PROPERTIES LABELS "build;windows" TIMEOUT 30)
     endif()
 
     find_package(Python3 COMPONENTS Interpreter QUIET)
