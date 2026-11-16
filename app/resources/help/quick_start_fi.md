@@ -26,9 +26,11 @@ Avaa **Settings -> Select LLM**. Valitse malli avattavasta **Local LLMs** -luett
 
 Jos käytät sovelluksen tarjoamaa paikallista mallia, laajenna **Downloads**, napsauta **Download** ja odota ilmoitusta **Model ready** ennen kuin vahvistat painikkeella **OK**. **Model storage** määrittää latauskansion. **See details** näyttää latausosoitteen, paikallisen polun ja tekniset tiedot.
 
-Valitse kuva-analyysiä varten myös **Visual model** kohdasta **Image analysis models** ja lataa kaikki sen tarvitsemat tiedostot. Tämä valinta on erillinen tekstimallista.
+Valitse paikallista kuva-analyysiä varten **Visuaalinen malli** kohdasta **Kuva-analyysimallit** ja lataa tarvittavat tiedostot. Kuvamalli valitaan erikseen tekstimallista.
 
 Valitse kohdasta **API connections** Gemini, ChatGPT (OpenAI) tai oma OpenAI-yhteensopiva päätepiste ja anna tarvittavat yhteystiedot sekä mallin nimi. Pilvi-API:t vaativat internetyhteyden ja lähettävät analyysin syötteet määritettyyn palveluun. Omat päätepisteet voivat toimia myös paikallisesti.
+
+Jos haluat analysoida kuvia OpenAI-yhteensopivan API-yhteyden kautta, ota yhteydelle käyttöön **Kuvia ymmärtävä malli** ja valitse se kohdasta **Kuva-analyysimallit** → **Visuaalinen malli**. Paikallista mallia tai projektoria ei tarvitse ladata. Kuvatuen käyttöönotto pyytää vahvistamaan, että kuvien sisältö lähetetään määritettyyn palvelimeen.
 
 ## Tarkista paikallinen suorituskyky (valinnainen)
 
@@ -63,14 +65,20 @@ Paavaihtoehdoilla paatat, tuleeko sovelluksen:
 - analysoida dokumentteja
 - tarjota uudelleennimeamisehdotuksia tuetuille tiedostoille
 
-Jos haluat vain uudelleennimeamisehdotuksia, ota kayttoon vastaava vain uudelleennimeaminen -tila.
+Jos haluat vain nimiehdotuksia, ota käyttöön **Tarjoa kuvatiedostojen uudelleennimeämistä** tai **Tarjoa asiakirjatiedostojen uudelleennimeämistä** ja sitten tiedostotyypin mukaan **Nimeä kuvat uudelleen siirtämättä** tai **Nimeä asiakirjat uudelleen siirtämättä**.
+
+**Lajittele kansiot** siirtää kokonaiset kansiot sisältöineen ja poistaa asetuksen **Skannaa alikansiot** käytöstä. Jos haluat etsiä tiedostoja alikansioista, poista **Lajittele kansiot** käytöstä ja ota **Skannaa alikansiot** käyttöön.
 
 ## 3. Valitse lajittelutapa
+
+Uusien profiilien oletus on **Käytä olemassa olevaa kansiorakennetta**. Tallennetut lajitteluvalinnat säilyvät. Valitse **Määränpää**, joka sisältää käytettävät kansiot, tai luo ne valitsemalla **Luo luokkakansiot**.
 
 Valitse lajittelutila:
 
 - **Create category folders** luo kansioita ehdotetuista kategorianimistä.
 - **Use existing folder structure** valitsee kansioita **Destination**-kohteen kansiopuusta. Ota **Suggest new folders when needed** käyttöön salliaksesi uudet kohteet, kun mikään kansio ei sovi hyvin; jätä se pois käytöstä käyttääksesi vain olemassa olevia kansioita.
+
+Lisää kohteeseen aloitusrakenne valinnalla **Luo kansiorakenne...**. **Folder language** käyttää aluksi luokkien kieltä, ja sen voi vaihtaa vain tätä rakennetta varten. Valittu LLM kääntää muut kuin englanninkieliset kansionimet. Tarkista käännetty esikatselu ennen valintaa **Luo**; numerointi ja sisäkkäisyys säilyvät.
 
 Suosittelemme olemassa oleviin kansioihin mallia **Qwen3.5 4B**. Myös **Gemma 1.1 7B** ja API:n kautta käytetyt mallit sopivat tähän. Muut paikalliset mallit näyttävät ohjeen; voit pitää mallisi tai vaihtaa sen kohdassa **Settings -> Select LLM**.
 
@@ -79,7 +87,7 @@ Valitse **Create category folders** -tilassa kategorisointityyli:
 - **More refined** yleiseen kayttoon ja tarkempaan ryhmittelyyn
 - **More consistent**, jos haluat vahvempaa nimikkeiden yhdenmukaisuutta samankaltaisille tiedostoille
 
-Voit myos ottaa kayttoon kategoriavalkolistat, jos haluat sovelluksen pysyvan rajatummassa kategorianimien joukossa.
+Sallittujen nimien luettelot rajaavat ehdotettuja luokkien ja aliluokkien nimiä tilassa **Luo luokkakansiot**. Ne ovat poissa käytöstä ja ne ohitetaan tilassa **Käytä olemassa olevaa kansiorakennetta**, joka käyttää kohdekansioiden rakennetta. Luetteloasetus säilyy tilaa vaihdettaessa.
 
 ## 4. Aloita analyysi
 

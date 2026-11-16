@@ -26,9 +26,11 @@ Ouvrez **Settings -> Select LLM**. Choisissez un modèle dans la liste déroulan
 
 Pour un modèle local proposé par l'application, développez **Downloads**, cliquez sur **Download** et attendez **Model ready** avant de confirmer avec **OK**. **Model storage** permet de choisir le dossier de téléchargement. **See details** affiche l'URL de téléchargement, le chemin local et les informations techniques.
 
-Pour l'analyse d'images, choisissez aussi un **Visual model** dans **Image analysis models** et téléchargez tous ses fichiers requis. Ce choix est distinct du modèle de texte.
+Pour analyser les images localement, choisissez un **Modèle visuel** dans **Modèles d'analyse d'images** et téléchargez ses fichiers requis. Le modèle visuel est choisi séparément du modèle de texte.
 
 Dans **API connections**, choisissez Gemini, ChatGPT (OpenAI) ou un point d'accès personnalisé compatible OpenAI, puis saisissez les paramètres de connexion requis et le nom du modèle. Les API cloud nécessitent Internet et envoient les données d'analyse au service configuré. Les points d'accès personnalisés peuvent aussi fonctionner localement.
+
+Pour analyser des images via une connexion API compatible OpenAI, activez **Modèle prenant en charge les images** pour cette connexion, puis sélectionnez-la dans **Modèles d'analyse d'images** → **Modèle visuel**. Aucun téléchargement local de modèle ou de projecteur n'est nécessaire. L'activation de la vision vous demande de confirmer l'envoi du contenu des images au serveur configuré.
 
 ## Vérifier les performances locales (facultatif)
 
@@ -63,14 +65,20 @@ Utilisez les options principales pour definir si l'application doit :
 - analyser les documents
 - proposer des suggestions de renommage pour les fichiers pris en charge
 
-Si vous voulez seulement des suggestions de renommage, activez le mode correspondant.
+Si vous souhaitez uniquement des suggestions de noms, activez **Proposer de renommer les fichiers image** ou **Proposer de renommer les fichiers de documents**, puis **Renommer les images sans les déplacer** ou **Renommer les documents sans les déplacer** pour le type de fichier concerné.
+
+**Trier les dossiers** déplace les dossiers entiers avec leur contenu et désactive **Scanner les sous-dossiers**. Pour analyser les fichiers à l'intérieur des sous-dossiers, désactivez **Trier les dossiers**, puis activez **Scanner les sous-dossiers**.
 
 ## 3. Choisir comment trier
+
+Les nouveaux profils utilisent **Utiliser une structure de dossiers existante** par défaut. Les choix de tri déjà enregistrés sont conservés. Choisissez une **Destination** contenant les dossiers à utiliser, ou sélectionnez **Créer des dossiers de catégorie** pour les créer.
 
 Choisissez un mode de tri :
 
 - **Create category folders** crée des dossiers à partir des noms de catégories proposés.
 - **Use existing folder structure** choisit des dossiers dans l'arborescence de votre **Destination**. Activez **Suggest new folders when needed** pour autoriser de nouvelles destinations si aucune ne convient ; laissez cette option désactivée pour utiliser uniquement les dossiers existants.
+
+Utilisez **Créer une structure de dossiers...** pour ajouter une arborescence de départ à votre destination. **Folder language** reprend initialement la langue de vos catégories et peut être modifiée pour cette structure uniquement. Les noms de dossiers non anglais sont traduits par le LLM sélectionné. Vérifiez l'aperçu traduit avant de choisir **Créer** ; la numérotation et l'imbrication sont conservées.
 
 Pour les dossiers existants, nous recommandons **Qwen3.5 4B**. **Gemma 1.1 7B** et les modèles accessibles par API sont aussi des options adaptées. Les autres modèles locaux affichent un conseil ; vous pouvez conserver votre modèle ou le changer dans **Settings -> Select LLM**.
 
@@ -79,7 +87,7 @@ En mode **Create category folders**, choisissez un style de catégorisation :
 - **More refined** pour un usage general et un classement plus detaille
 - **More consistent** si vous voulez une meilleure coherence entre fichiers similaires
 
-Vous pouvez aussi activer les listes blanches de categories pour limiter les noms de categories autorises.
+Les listes blanches limitent les noms de catégories et de sous-catégories proposés en mode **Créer des dossiers de catégorie**. Elles sont désactivées et ignorées en mode **Utiliser une structure de dossiers existante**, qui utilise votre arborescence de destination. Votre préférence de liste blanche est conservée lorsque vous changez de mode.
 
 ## 4. Lancer l'analyse
 

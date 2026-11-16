@@ -26,9 +26,11 @@ Apri **Settings -> Select LLM**. Scegli un modello dall'elenco a discesa **Local
 
 Per un modello locale proposto dall'app, espandi **Downloads**, fai clic su **Download** e attendi **Model ready** prima di confermare con **OK**. **Model storage** permette di scegliere la cartella di download. **See details** mostra l'URL di download, il percorso locale e le informazioni tecniche.
 
-Per l'analisi delle immagini, scegli anche un **Visual model** in **Image analysis models** e scarica tutti i file necessari. Questa scelta è separata dal modello di testo.
+Per analizzare le immagini in locale, scegli un **Modello visivo** in **Modelli di analisi immagini** e scarica i file richiesti. Il modello visivo viene scelto separatamente dal modello di testo.
 
 In **API connections**, scegli Gemini, ChatGPT (OpenAI) o un endpoint personalizzato compatibile con OpenAI, poi inserisci i dati di connessione richiesti e il nome del modello. Le API cloud richiedono Internet e inviano i dati di analisi al servizio configurato. Gli endpoint personalizzati possono anche funzionare localmente.
+
+Per analizzare le immagini tramite una connessione API compatibile con OpenAI, attiva **Modello con capacità visive** per quella connessione e selezionala in **Modelli di analisi immagini** → **Modello visivo**. Non occorre scaricare un modello o un proiettore locale. Quando attivi la visione, ti viene chiesto di confermare l'invio del contenuto delle immagini al server configurato.
 
 ## Verificare le prestazioni locali (facoltativo)
 
@@ -63,14 +65,20 @@ Usa le opzioni principali per decidere se l'app deve:
 - analizzare documenti
 - offrire suggerimenti di rinomina per i file supportati
 
-Se vuoi solo suggerimenti di rinomina, abilita la modalita solo rinomina pertinente.
+Se desideri soltanto suggerimenti per i nomi, attiva **Offri di rinominare i file immagine** o **Offri di rinominare i file di documenti**, quindi **Rinomina immagini senza spostarle** o **Rinomina documenti senza spostarli** per il tipo di file interessato.
+
+**Ordina cartelle** sposta cartelle intere con il loro contenuto e disattiva **Scansiona le sottocartelle**. Per analizzare invece i file nelle sottocartelle, disattiva **Ordina cartelle** e attiva **Scansiona le sottocartelle**.
 
 ## 3. Scegliere come ordinare
+
+I nuovi profili usano **Usa struttura di cartelle esistente** come impostazione iniziale. Le scelte di ordinamento già salvate vengono mantenute. Scegli una **Destinazione** contenente le cartelle da usare, oppure seleziona **Crea cartelle di categoria** per crearle.
 
 Scegli una modalità di ordinamento:
 
 - **Create category folders** crea cartelle dai nomi di categoria suggeriti.
 - **Use existing folder structure** sceglie cartelle nell'albero di **Destination**. Attiva **Suggest new folders when needed** per consentire nuove destinazioni quando nessuna è adatta; lascialo disattivato per usare solo cartelle esistenti.
+
+Usa **Crea struttura di cartelle...** per aggiungere una struttura iniziale alla destinazione. **Folder language** parte dalla lingua delle categorie e può essere cambiata soltanto per quella struttura. I nomi di cartelle non inglesi vengono tradotti con l'LLM selezionato. Controlla l'anteprima tradotta prima di scegliere **Crea**; numerazione e livelli vengono mantenuti.
 
 Per le cartelle esistenti consigliamo **Qwen3.5 4B**. Anche **Gemma 1.1 7B** e i modelli utilizzati tramite API sono opzioni adatte. Gli altri modelli locali mostrano un avviso; puoi mantenere il modello o cambiarlo in **Settings -> Select LLM**.
 
@@ -79,7 +87,7 @@ In modalità **Create category folders**, scegli uno stile di categorizzazione:
 - **More refined** per uso generale e raggruppamenti piu dettagliati
 - **More consistent** se vuoi maggiore coerenza delle etichette tra file simili
 
-Puoi anche abilitare whitelist di categorie se vuoi che l'app resti entro un insieme piu ristretto di nomi categoria.
+Le liste consentite limitano i nomi di categorie e sottocategorie proposti nella modalità **Crea cartelle di categoria**. Sono disattivate e ignorate nella modalità **Usa struttura di cartelle esistente**, che usa la struttura di destinazione. La preferenza della lista viene mantenuta quando cambi modalità.
 
 ## 4. Avviare l'analisi
 

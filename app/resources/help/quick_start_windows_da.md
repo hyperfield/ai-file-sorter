@@ -4,6 +4,6 @@
 
 Den valgfrie Windows Explorer Extension lader dig starte AI File Sorter fra File Explorers hojreklikmenu. Brug **Extensions -> Install Windows Explorer Extension...** for at hente den, hvis den ikke er installeret endnu.
 
-Efter installation viser File Explorer en **AI File Sorter**-undermenu med handlinger som **Categorize**, **Rename** og **Categorize and Rename**. I AI File Sorter kan du bruge **Extensions -> Windows Explorer Extension** til at abne udvidelsens indstillinger eller aktivitetsvindue.
+Efter installation viser Stifinder undermenuen **AI File Sorter** med **Sorter i eksisterende mapper...**, **Sorter i kategorimapper...**, **Omdøb filer efter indhold** og **Indstillinger...**. Sortering åbner en destinationsdialog før analysen. Brug **Extensions -> Windows Explorer Extension** i AI File Sorter til at åbne udvidelsens indstillinger eller opgavevindue.
 
 Hvis du endnu ikke har valgt eller hentet en LLM, skal du abne AI File Sorter forst og gennemfore modelopsaetningen, for du bruger udvidelsen.

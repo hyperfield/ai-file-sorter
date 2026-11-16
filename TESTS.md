@@ -4489,6 +4489,19 @@ Purpose: Verify recursive Rename discovers supported files in subfolders, rename
 
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand recursive Rename changes files and leaves folder names intact"`
 
+### Localization text validation
+
+`localization_validation` is registered when the private localization helper is
+available in the workspace. It runs `tests/test_localization_validation.py`
+without network access; direct execution skips cleanly when the helper is absent. It accepts valid circumflex letters in Turkish and French UI
+text and Markdown while rejecting replacement characters and known UTF-8
+mojibake. Run `ctest --test-dir build-tests -C Release -R "^localization_validation$" --output-on-failure`.
+
+The `[release-notes]` native test loads the current release and releases 1.9.2
+and 1.9.1 for all 14 non-English languages, requiring translated bundled
+content rather than English fallback. `[help]` checks bundled Quick Start
+content in the selected interface language.
+
 ### Windows build test options
 
 `windows_build_options` executes the build script's configure-argument function for

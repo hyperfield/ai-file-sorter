@@ -26,9 +26,11 @@ Abra **Settings -> Select LLM**. Elija un modelo en la lista desplegable **Local
 
 Para un modelo local ofrecido por la aplicación, despliegue **Downloads**, pulse **Download** y espere a **Model ready** antes de confirmar con **OK**. **Model storage** permite elegir la carpeta de descarga. **See details** muestra la URL de descarga, la ruta local y la información técnica.
 
-Para analizar imágenes, elija también un **Visual model** en **Image analysis models** y descargue todos sus archivos necesarios. Esta selección es independiente del modelo de texto.
+Para analizar imágenes localmente, elija un **Modelo visual** en **Modelos de análisis de imágenes** y descargue sus archivos necesarios. El modelo visual se selecciona por separado del modelo de texto.
 
 En **API connections**, elija Gemini, ChatGPT (OpenAI) o un punto de conexión personalizado compatible con OpenAI e introduzca los datos de conexión necesarios y el nombre del modelo. Las API en la nube requieren Internet y envían los datos de análisis al servicio configurado. Los puntos de conexión personalizados también pueden ejecutarse localmente.
+
+Para analizar imágenes mediante una conexión API compatible con OpenAI, active **Modelo con capacidad de visión** para esa conexión y selecciónela en **Modelos de análisis de imágenes** → **Modelo visual**. No necesita descargar un modelo ni un proyector local. Al activar la visión, se le pide confirmar el envío del contenido de las imágenes al servidor configurado.
 
 ## Comprobar el rendimiento local (opcional)
 
@@ -63,14 +65,20 @@ Use las opciones principales para decidir si la aplicacion debe:
 - analizar documentos
 - ofrecer sugerencias de cambio de nombre para archivos compatibles
 
-Si solo quiere sugerencias de cambio de nombre, active el modo correspondiente de solo cambio de nombre.
+Si solo quiere sugerencias de nombres, active **Ofrecer renombrar archivos de imagen** u **Ofrecer renombrar archivos de documentos** y después **Renombrar imágenes sin moverlas** o **Renombrar documentos sin moverlos** para el tipo de archivo correspondiente.
+
+**Ordenar carpetas** mueve carpetas completas con su contenido y desactiva **Escanear subcarpetas**. Para analizar los archivos dentro de subcarpetas, desactive **Ordenar carpetas** y active **Escanear subcarpetas**.
 
 ## 3. Elegir cómo ordenar
+
+Los perfiles nuevos usan **Usar estructura de carpetas existente** de forma predeterminada. Se conservan las opciones de ordenación guardadas. Elija un **Destino** que contenga las carpetas que desea usar, o seleccione **Crear carpetas de categoría** para crearlas.
 
 Elija un modo de ordenación:
 
 - **Create category folders** crea carpetas a partir de los nombres de categoría sugeridos.
 - **Use existing folder structure** elige carpetas dentro del árbol de **Destination**. Active **Suggest new folders when needed** para permitir nuevos destinos cuando ninguno encaje bien; déjelo desactivado para usar solo carpetas existentes.
+
+Use **Crear estructura de carpetas...** para añadir una estructura inicial al destino. **Folder language** empieza con el idioma de las categorías y puede cambiarse solo para esa estructura. El LLM seleccionado traduce los nombres de carpetas que no estén en inglés. Revise la vista previa traducida antes de pulsar **Crear**; se conservan la numeración y los niveles.
 
 Para carpetas existentes, recomendamos **Qwen3.5 4B**. **Gemma 1.1 7B** y los modelos utilizados mediante API también son opciones adecuadas. Los demás modelos locales muestran un aviso; puede conservar su modelo o cambiarlo en **Settings -> Select LLM**.
 
@@ -79,7 +87,7 @@ En el modo **Create category folders**, elija un estilo de categorización:
 - **More refined** para uso general y agrupacion mas detallada
 - **More consistent** si desea mayor coherencia de etiquetas entre archivos similares
 
-Tambien puede activar listas blancas de categorias si quiere que la aplicacion se mantenga dentro de un conjunto mas limitado de nombres de categorias.
+Las listas permitidas limitan los nombres de categorías y subcategorías sugeridos en el modo **Crear carpetas de categoría**. Se desactivan y se ignoran en el modo **Usar estructura de carpetas existente**, que usa la estructura de destino. La preferencia de lista se conserva al cambiar de modo.
 
 ## 4. Iniciar el analisis
 

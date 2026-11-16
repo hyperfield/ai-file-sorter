@@ -192,7 +192,7 @@ the main entry page, use these technical references:
 - Fixed bundled Windows local-LLM runtime builds so the packaged GGML libraries run on generic SSE4.2-capable x64 CPUs instead of requiring AVX2.
 - Fixed embedded CA bundle staging for packaged and Microsoft Store builds by writing the certificate bundle under writable app data instead of the read-only install directory.
 
-## [1.9.0] - 2026-07-03
+## [1.9.0] - 2026-08-05
 
 - Added smart branching whitelists so categories can have their own allowed subcategories, with an improved whitelist editor that keeps global and category-specific subcategory modes mutually exclusive.
 - Added structured project-folder protection for recursive scans, covering Unity, Unreal, Godot, Blender, Git repositories, and common source-code project layouts.
@@ -321,14 +321,14 @@ More consistent
 
 ### Category whitelists
 
-- Enable **Use a whitelist** to apply the selected category list during categorization; disable it to let the model choose more freely.
+- In **Create category folders** mode, enable **Use a whitelist** to limit suggested category and subcategory names. Whitelists are disabled and ignored in **Use existing folder structure** mode; switching modes preserves your saved whitelist preference.
 - Manage lists (add, edit, remove) under **Settings → Manage category whitelists…**. Built-in `Default` and `Documents` lists are auto-created only when no lists exist, and multiple named lists can be kept for different projects.
 - The whitelist editor has three sections. **Main categories / top-level folders** defines the destination category folders. **Global subcategories** defines subcategories that may be used under any main category. **Category-specific subcategories** defines smart branching rows where each main category has its own allowed subcategories.
 - **Global subcategories** and **Category-specific subcategories** are alternatives. If you enter values in one section, the other section is disabled/ignored for that whitelist so the app does not mix two incompatible constraint styles.
 - Smart branching is useful when the same broad top-level folders should contain different allowed subfolders. For example, `Documents -> Invoices, Receipts, Taxes` and `Images -> Screenshots, Photos` tells the app that `Screenshots` is valid under `Images`, but not under `Documents`.
 - The built-in `Documents` whitelist uses smart branching: the only top-level category is `Documents`, while topics such as invoices, receipts, taxes, contracts, reports, and notes are stored as `Documents` subcategories.
 - Narrow whitelists are still easiest for smaller local models, but large whitelists no longer need to dump every label into every prompt. When needed, the app reduces large and smart branching whitelists to relevant candidates plus valid category/subcategory pair guidance.
-- Whitelists apply in either categorization mode; pair them with **More consistent** when you want the strongest adherence to a constrained vocabulary.
+- In category-folder mode, whitelists work with both **More refined** and **More consistent** sorting styles. Pair them with **More consistent** for the strongest adherence to a constrained vocabulary.
 
 ---
 
@@ -366,7 +366,7 @@ The same dialog also includes **Model storage**, which changes where built-in lo
 Image analysis adds six related checkboxes to the main window:
 
 - **Analyze picture files by content**: Runs the visual LLM on supported picture files and reports progress in the analysis dialog.
-- **Process picture files only (ignore any other files)**: Restricts the run to supported picture files and disables the categorization controls while active.
+- **Process picture files only (ignore any other files)**: Restricts the run to supported picture files. File sorting remains available; folder sorting and options for other file types are disabled.
 - **Add image creation date (if available) to category name**: Appends `YYYY-MM-DD` from image metadata to the category label when available. Disabled when rename-only is enabled.
 - **Add photo date and place to filename (if available)**: Adds date/place prefixes when available. Dates are read locally; online place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service. Leave this option off to keep photo locations local, including when adding dates to category names.
 - **Offer to rename picture files**: Shows a **Suggested filename** column in the Review dialog with the visual LLM proposal. You can edit it before confirming.
@@ -392,7 +392,7 @@ Source builds: embedded extractors are used by default. If the vendored PDFium a
 ### Main window options (documents)
 
 - **Analyze document files by content**: Extracts document text and feeds it into the LLM for summary + rename suggestion.
-- **Process document files only (ignore any other files)**: Restricts the run to supported document files and disables the categorization controls while active.
+- **Process document files only (ignore any other files)**: Restricts the run to supported document files. File sorting remains available; folder sorting and options for other file types are disabled.
 - **Offer to rename document files**: Shows a **Suggested filename** column in the Review dialog with the LLM proposal. You can edit it before confirming.
 - **Rename documents without moving**: Skips text categorization for documents and keeps them in place while applying (optional) renames.
 - **Add document creation date (if available) to category name**: Appends `YYYY-MM` from metadata when available. Disabled when rename-only is enabled.
@@ -1459,12 +1459,12 @@ If you want a guided walkthrough first, open **Help → Quick Start Guide**. For
 - After a real sort, the app saves a persistent undo plan. You can revert later via **Edit → "Undo last run"** (best-effort; skips conflicts/changes).
 
 3. Tick off the checkboxes on the main window according to your preferences.
-4. Click the **"Analyze"** button. The app will scan each file and/or directory based on your selected options.
+4. Click **Analyze folder**. The app will scan each file and/or directory based on your selected options.
 
 Recursive scans intentionally skip recognized structured project roots, including Unity, Unreal, Godot, conservative Blender project folders, Git repositories, and common source-code project layouts. This protects folders where moving individual files can break project-relative links, imports, metadata, or build files.
 
 5. A review dialog will appear. Verify the assigned categories (and subcategories, if enabled in step 3).
-6. Click **"Confirm & Sort!"** to move the files, or **"Continue Later"** to postpone. You can always resume where you left off since categorization results are saved.
+6. Click **Apply changes** to apply the selected moves and renames, or **Continue Later** to postpone. You can always resume where you left off since categorization results are saved.
 
 ---
 

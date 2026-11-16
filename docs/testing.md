@@ -51,6 +51,12 @@ and packages install `libwebp7` for the fallback when Qt's WebP plugin is absent
 
 ## When to run what
 
+- Localization tooling changes: when the private localization helper is available,
+  run CTest's `localization_validation` and
+  `python app/scripts/localize_ai_file_sorter.py --check --parts all`. For
+  bundled Help or release notes, rebuild the native test target and run
+  `ai_file_sorter_tests "[help],[release-notes]"`.
+
 - Windows build-script changes: run CTest's `windows_build_options` to verify
   explicit test ON/OFF flags across Ninja and Visual Studio builds.
 

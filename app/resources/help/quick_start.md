@@ -26,9 +26,11 @@ Open **Settings -> Select LLM**. Choose a model from the **Local LLMs** drop-dow
 
 For a built-in local model, expand **Downloads**, click **Download**, and wait for **Model ready** before confirming with **OK**. **Model storage** lets you choose the download folder. **See details** reveals the download URL, local path, and technical information.
 
-For image analysis, also choose a **Visual model** under **Image analysis models** and download all of its required files. This selection is separate from the text model.
+For local image analysis, choose a **Visual model** under **Image analysis models** and download its required files. The visual model is selected separately from the text model.
 
 Under **API connections**, choose Gemini, ChatGPT (OpenAI), or a custom OpenAI-compatible endpoint, then enter the required connection details and model name. Cloud APIs require internet access and send analysis inputs to the configured service. Custom endpoints can also run locally.
+
+To analyze images through an OpenAI-compatible API connection, enable **Vision-capable model** for that connection, then select it under **Image analysis models → Visual model**. No local model or projector download is needed. Enabling vision support asks you to confirm that image contents will be sent to the configured server.
 
 ## Check Local Performance (Optional)
 
@@ -63,7 +65,9 @@ Use the main options to decide whether the app should:
 - analyze documents
 - offer rename suggestions for supported files
 
-If you only want rename suggestions, enable the relevant rename-only mode.
+If you only want rename suggestions, turn on **Offer to rename picture files** or **Offer to rename document files**, then enable **Rename pictures without moving** or **Rename documents without moving** for that file type.
+
+**Sort folders** moves whole folders with their contents and turns off **Scan subfolders**. To scan files inside subfolders instead, turn off **Sort folders** and enable **Scan subfolders**.
 
 ## 3. Choose How to Sort
 
@@ -89,7 +93,7 @@ In **Create category folders** mode, choose a categorization style:
 - **More refined** for general use and finer grouping
 - **More consistent** if you want stronger label consistency across similar files
 
-You can also enable category whitelists if you want the app to stay within a narrower set of category names.
+Category whitelists limit suggested category and subcategory names in **Create category folders** mode. They are disabled and ignored in **Use existing folder structure** mode, which uses your destination tree instead. Your whitelist preference is preserved when switching modes.
 
 ## 4. Start the Analysis
 

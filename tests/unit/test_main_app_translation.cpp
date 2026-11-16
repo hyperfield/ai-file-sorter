@@ -713,7 +713,7 @@ TEST_CASE("Updater strings are translated for all supported UI languages") {
     }
 }
 
-TEST_CASE("Quick Start guide content follows the selected app language")
+TEST_CASE("Quick Start guide content follows the selected app language", "[help]")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
@@ -798,7 +798,7 @@ TEST_CASE("Quick Start guide content follows the selected app language")
 #endif
 }
 
-TEST_CASE("What's New content is packaged for the current app version")
+TEST_CASE("What's New content is packaged for the current app version", "[release-notes]")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
@@ -848,9 +848,12 @@ TEST_CASE("What's New content is packaged for the current app version")
 
     for (const Language language : localized_languages) {
         INFO("Language enum value: " << static_cast<int>(language));
-        const QString localized = WhatsNewContent::markdown_for_version(localized_version, language);
-        REQUIRE_FALSE(localized.isEmpty());
-        REQUIRE(localized != localized_english);
+        for (const QString& release : {version, QStringLiteral("1.9.2"), localized_version}) {
+            CAPTURE(release);
+            const QString localized = WhatsNewContent::markdown_for_version(release, language);
+            REQUIRE_FALSE(localized.isEmpty());
+            REQUIRE(localized != WhatsNewContent::markdown_for_version(release, Language::English));
+        }
     }
 
     REQUIRE(WhatsNewContent::markdown_for_version(QStringLiteral("bad/version")).isEmpty());

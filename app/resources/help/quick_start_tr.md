@@ -26,9 +26,11 @@ Bu, ilk calistirmayi incelemeyi kolaylastirir. Yerel modeller kullandiginizda do
 
 Uygulamanın sunduğu bir yerel model için **Downloads** bölümünü genişletin, **Download** düğmesine tıklayın ve **OK** ile onaylamadan önce **Model ready** durumunu bekleyin. **Model storage**, indirme klasörünü seçmenizi sağlar. **See details**, indirme URL'sini, yerel yolu ve teknik bilgileri gösterir.
 
-Görüntü analizi için ayrıca **Image analysis models** altında bir **Visual model** seçin ve gerekli tüm dosyalarını indirin. Bu seçim, metin modelinden ayrıdır.
+Yerel görüntü analizi için **Görüntü analizi modelleri** bölümünden bir **Görsel model** seçin ve gerekli dosyaları indirin. Görsel model, metin modelinden ayrı seçilir.
 
 **API connections** altında Gemini, ChatGPT (OpenAI) veya özel bir OpenAI uyumlu uç nokta seçip gerekli bağlantı bilgilerini ve model adını girin. Bulut API'leri internet gerektirir ve analiz girdilerini yapılandırılmış hizmete gönderir. Özel uç noktalar yerel olarak da çalışabilir.
+
+Görüntüleri OpenAI uyumlu bir API bağlantısıyla analiz etmek için bağlantıda **Görüntü destekleyen model** seçeneğini etkinleştirin ve bağlantıyı **Görüntü analizi modelleri** → **Görsel model** bölümünden seçin. Yerel model veya projektör indirmeniz gerekmez. Görüntü desteğini etkinleştirdiğinizde, görüntü içeriklerinin yapılandırılmış sunucuya gönderilmesini onaylamanız istenir.
 
 ## Yerel performansı kontrol edin (isteğe bağlı)
 
@@ -63,14 +65,20 @@ Ana secenekleri kullanarak uygulamanin sunlari yapip yapmayacagina karar verin:
 - belgeleri analiz etme
 - desteklenen dosyalar icin yeniden adlandirma onerileri sunma
 
-Yalnizca yeniden adlandirma onerileri istiyorsaniz, ilgili yalnizca-yeniden-adlandirma modunu etkinlestirin.
+Yalnızca ad önerileri istiyorsanız ilgili dosya türü için **Resim dosyalarını yeniden adlandırmayı öner** veya **Belge dosyalarını yeniden adlandırmayı öner** seçeneğini, ardından **Resimleri taşımadan yeniden adlandır** veya **Belgeleri taşımadan yeniden adlandır** seçeneğini etkinleştirin.
+
+**Klasörleri sırala**, klasörleri içerikleriyle birlikte taşır ve **Alt klasörleri tara** seçeneğini kapatır. Bunun yerine alt klasörlerdeki dosyaları taramak için **Klasörleri sırala** seçeneğini kapatıp **Alt klasörleri tara** seçeneğini açın.
 
 ## 3. Nasıl sıralanacağını seçin
+
+Yeni profiller varsayılan olarak **Mevcut klasör yapısını kullan** seçeneğini kullanır. Kayıtlı sıralama tercihleriniz korunur. Kullanacağınız klasörleri içeren bir **Hedef** seçin veya yeni klasörler oluşturmak için **Kategori klasörleri oluştur** seçeneğini kullanın.
 
 Bir sıralama modu seçin:
 
 - **Create category folders**, önerilen kategori adlarından klasörler oluşturur.
 - **Use existing folder structure**, **Destination** altındaki klasör ağacından klasörler seçer. Hiçbiri uygun değilse yeni hedeflere izin vermek için **Suggest new folders when needed** seçeneğini açın; yalnızca mevcut klasörleri kullanmak için kapalı bırakın.
+
+Hedefe başlangıç yapısı eklemek için **Klasör yapısı oluştur...** seçeneğini kullanın. **Folder language**, başlangıçta kategori diliyle aynıdır ve yalnızca bu yapı için değiştirilebilir. İngilizce olmayan klasör adları seçili LLM ile çevrilir. **Oluştur** seçeneğine basmadan önce çevrilmiş önizlemeyi inceleyin; numaralandırma ve iç içe yapı korunur.
 
 Mevcut klasörler için **Qwen3.5 4B** öneriyoruz. **Gemma 1.1 7B** ve API üzerinden kullanılan modeller de uygun seçeneklerdir. Diğer yerel modeller bir öneri penceresi gösterir; modelinizi koruyabilir veya **Settings -> Select LLM** bölümünden değiştirebilirsiniz.
 
@@ -79,7 +87,7 @@ Mevcut klasörler için **Qwen3.5 4B** öneriyoruz. **Gemma 1.1 7B** ve API üze
 - **More refined** genel kullanim ve daha ayrintili gruplama icin
 - **More consistent** benzer dosyalar arasinda daha guclu etiket tutarliligi istiyorsaniz
 
-Uygulamanin daha dar bir kategori adi kumesi icinde kalmasini istiyorsaniz kategori beyaz listelerini de etkinlestirebilirsiniz.
+İzin listeleri, **Kategori klasörleri oluştur** modunda önerilen kategori ve alt kategori adlarını sınırlar. Hedef klasör ağacını kullanan **Mevcut klasör yapısını kullan** modunda devre dışıdır ve dikkate alınmaz. Mod değiştirdiğinizde liste tercihiniz korunur.
 
 ## 4. Analizi baslatin
 

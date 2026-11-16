@@ -26,9 +26,11 @@ Die optionale Online-Ortssuche sendet die auf drei Dezimalstellen gerundeten GPS
 
 Für ein von der App angebotenes lokales Modell klappen Sie **Downloads** auf, klicken auf **Download** und warten auf **Model ready**, bevor Sie mit **OK** bestätigen. Unter **Model storage** wählen Sie den Download-Ordner. **See details** zeigt die Download-URL, den lokalen Pfad und technische Informationen.
 
-Wählen Sie für die Bildanalyse außerdem ein **Visual model** unter **Image analysis models** und laden Sie alle benötigten Dateien herunter. Diese Auswahl ist unabhängig vom Textmodell.
+Wählen Sie für die lokale Bildanalyse unter **Bildanalyse-Modelle** ein **Visuelles Modell** aus und laden Sie die benötigten Dateien herunter. Das visuelle Modell wird unabhängig vom Textmodell ausgewählt.
 
 Wählen Sie unter **API connections** Gemini, ChatGPT (OpenAI) oder einen eigenen OpenAI-kompatiblen Endpunkt und geben Sie die erforderlichen Verbindungsdaten und den Modellnamen ein. Cloud-APIs benötigen Internet und senden die Analyseeingaben an den eingerichteten Dienst. Eigene Endpunkte können auch lokal laufen.
+
+Um Bilder über eine OpenAI-kompatible API-Verbindung zu analysieren, aktivieren Sie für diese Verbindung **Modell mit Bildverständnis** und wählen Sie sie unter **Bildanalyse-Modelle** → **Visuelles Modell** aus. Ein lokaler Download eines Modells oder Projektors ist nicht nötig. Beim Aktivieren der Bildunterstützung bestätigen Sie, dass Bildinhalte an den eingerichteten Server gesendet werden.
 
 ## Lokale Leistung prüfen (optional)
 
@@ -63,14 +65,20 @@ Mit den Hauptoptionen legen Sie fest, ob die App:
 - Dokumente analysieren soll
 - Umbenennungsvorschlaege fuer unterstuetzte Dateien anbieten soll
 
-Wenn Sie nur Umbenennungsvorschlaege moechten, aktivieren Sie den entsprechenden Nur-Umbenennen-Modus.
+Wenn Sie nur Namensvorschläge möchten, aktivieren Sie **Umbenennen von Bilddateien anbieten** oder **Umbenennen von Dokumentdateien anbieten** und anschließend **Bilder umbenennen, ohne sie zu verschieben** oder **Dokumente umbenennen, ohne sie zu verschieben** für den jeweiligen Dateityp.
+
+**Ordner sortieren** verschiebt ganze Ordner samt Inhalt und schaltet **Unterordner scannen** aus. Um stattdessen Dateien in Unterordnern zu durchsuchen, schalten Sie **Ordner sortieren** aus und **Unterordner scannen** ein.
 
 ## 3. Die Sortierung wählen
+
+Neue Profile verwenden standardmäßig **Vorhandene Ordnerstruktur verwenden**. Gespeicherte Sortiereinstellungen bleiben erhalten. Wählen Sie ein **Ziel** mit den gewünschten Ordnern oder **Kategorieordner erstellen**, um neue Kategorieordner anzulegen.
 
 Wählen Sie einen Sortiermodus:
 
 - **Create category folders** erstellt Ordner aus vorgeschlagenen Kategorienamen.
 - **Use existing folder structure** wählt Ordner innerhalb des Verzeichnisbaums von **Destination**. Aktivieren Sie **Suggest new folders when needed**, um neue Ziele zuzulassen, wenn keines gut passt; lassen Sie es deaktiviert, um nur vorhandene Ordner zu verwenden.
+
+Mit **Ordnerstruktur erstellen...** fügen Sie am Ziel eine Ausgangsstruktur hinzu. **Folder language** entspricht anfangs der Kategoriesprache und lässt sich nur für diese Struktur ändern. Nicht englische Ordnernamen werden mit dem ausgewählten LLM übersetzt. Prüfen Sie die übersetzte Vorschau vor **Erstellen**; Nummerierung und Verschachtelung bleiben erhalten.
 
 Für vorhandene Ordner empfehlen wir **Qwen3.5 4B**. **Gemma 1.1 7B** und über eine API verwendete Modelle sind ebenfalls geeignet. Andere lokale Modelle zeigen einen Hinweis; Sie können Ihr Modell beibehalten oder unter **Settings -> Select LLM** ändern.
 
@@ -79,7 +87,7 @@ Wählen Sie im Modus **Create category folders** einen Kategorisierungsstil:
 - **More refined** fuer den allgemeinen Einsatz und feinere Gruppierungen
 - **More consistent**, wenn Sie eine staerkere Konsistenz bei aehnlichen Dateien wollen
 
-Sie koennen auch Kategorie-Whitelists aktivieren, wenn die App nur innerhalb einer engeren Menge von Kategorienamen bleiben soll.
+Positivlisten beschränken vorgeschlagene Kategorie- und Unterkategorienamen im Modus **Kategorieordner erstellen**. Im Modus **Vorhandene Ordnerstruktur verwenden** sind sie deaktiviert und werden ignoriert, da dieser den Zielordnerbaum verwendet. Ihre Listeneinstellung bleibt beim Moduswechsel erhalten.
 
 ## 4. Analyse starten
 

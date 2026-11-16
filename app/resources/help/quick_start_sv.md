@@ -26,9 +26,11 @@ Den valfria platssökningen online skickar bildernas GPS-koordinater, avrundade 
 
 För en lokal modell som appen erbjuder, fäll ut **Downloads**, klicka på **Download** och vänta på **Model ready** innan du bekräftar med **OK**. Med **Model storage** väljer du nedladdningsmapp. **See details** visar nedladdningsadressen, den lokala sökvägen och teknisk information.
 
-För bildanalys väljer du också en **Visual model** under **Image analysis models** och laddar ned alla filer som krävs. Detta val är separat från textmodellen.
+För lokal bildanalys väljer du en **Visuell modell** under **Bildanalysmodeller** och hämtar filerna som behövs. Bildmodellen väljs separat från textmodellen.
 
 Under **API connections** väljer du Gemini, ChatGPT (OpenAI) eller en egen OpenAI-kompatibel ändpunkt och anger nödvändiga anslutningsuppgifter och modellnamn. Moln-API:er kräver internet och skickar analysunderlaget till den konfigurerade tjänsten. Egna ändpunkter kan också köras lokalt.
+
+För att analysera bilder via en OpenAI-kompatibel API-anslutning aktiverar du **Modell med bildstöd** för anslutningen och väljer den under **Bildanalysmodeller** → **Visuell modell**. Ingen lokal modell eller projektor behöver hämtas. När bildstödet aktiveras får du bekräfta att bildernas innehåll skickas till den inställda servern.
 
 ## Kontrollera lokal prestanda (valfritt)
 
@@ -63,14 +65,20 @@ Anvand huvudalternativen for att bestamma om appen ska:
 - analysera dokument
 - erbjuda namnbytesforslag for filer som stods
 
-Om du bara vill ha namnbytesforslag, aktivera relevant endast-byta-namn-lage.
+Om du bara vill ha namnförslag aktiverar du **Erbjud dig att byta namn på bildfiler** eller **Erbjud dig att byta namn på dokumentfiler** och sedan **Byt namn på bilder utan att flytta dem** eller **Byt namn på dokument utan att flytta dem** för den aktuella filtypen.
+
+**Sortera mappar** flyttar hela mappar med deras innehåll och stänger av **Skanna undermappar**. För att i stället söka igenom filer i undermappar stänger du av **Sortera mappar** och aktiverar **Skanna undermappar**.
 
 ## 3. Välj hur filerna ska sorteras
+
+Nya profiler börjar med **Använd befintlig mappstruktur**. Sparade sorteringsval behålls. Välj en **Destination** som innehåller mapparna du vill använda, eller välj **Skapa kategorimappar** för att skapa dem.
 
 Välj ett sorteringsläge:
 
 - **Create category folders** skapar mappar från föreslagna kategorinamn.
 - **Use existing folder structure** väljer mappar i mappträdet under **Destination**. Aktivera **Suggest new folders when needed** för att tillåta nya målmappar när ingen passar bra; låt det vara av för att bara använda befintliga mappar.
+
+Använd **Skapa mappstruktur...** för att lägga till en startstruktur i målet. **Folder language** utgår från kategorispråket och kan ändras enbart för den strukturen. Icke-engelska mappnamn översätts med vald LLM. Granska den översatta förhandsvisningen innan du väljer **Skapa**; numrering och nivåer behålls.
 
 För befintliga mappar rekommenderar vi **Qwen3.5 4B**. **Gemma 1.1 7B** och modeller som används via API är också lämpliga alternativ. Andra lokala modeller visar ett råd; du kan behålla modellen eller ändra den i **Settings -> Select LLM**.
 
@@ -79,7 +87,7 @@ I läget **Create category folders** väljer du en kategoriseringsstil:
 - **More refined** for allman anvandning och finare gruppering
 - **More consistent** om du vill ha starkare etikettkonsekvens mellan liknande filer
 
-Du kan ocksa aktivera kategorivitlistor om du vill att appen ska halla sig inom en smalare uppsattning kategorinamn.
+Tillåtelselistor begränsar föreslagna kategori- och underkategorinamn i läget **Skapa kategorimappar**. De är avstängda och ignoreras i **Använd befintlig mappstruktur**, som använder målets mappstruktur. Din listinställning behålls när du byter läge.
 
 ## 4. Starta analysen
 

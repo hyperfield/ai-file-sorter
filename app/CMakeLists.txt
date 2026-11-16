@@ -1062,7 +1062,35 @@ set(AIFS_HELP_RESOURCE_FILES
 
 set(AIFS_WHATS_NEW_RESOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/2.0.0_zh_cn.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_da.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_de.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_es.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_fi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_fr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_hi.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_is.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_it.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_ko.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_nb.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_nl.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_sv.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_tr.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.2_zh_cn.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_da.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/whats_new/1.9.1_de.md"
@@ -2313,6 +2341,12 @@ if(AI_FILE_SORTER_BUILD_TESTS)
     endif()
     add_dependencies(ai_file_sorter_tests aifs_curl_tls_probe)
     if(Python3_Interpreter_FOUND)
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/localize_ai_file_sorter.py")
+            add_test(NAME localization_validation
+                COMMAND ${Python3_EXECUTABLE} -B
+                    ${CMAKE_SOURCE_DIR}/../tests/test_localization_validation.py -v)
+            set_tests_properties(localization_validation PROPERTIES LABELS "localization" TIMEOUT 30)
+        endif()
         add_test(NAME curl_tls_trust
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_SOURCE_DIR}/../tests/integration/test_curl_tls.py

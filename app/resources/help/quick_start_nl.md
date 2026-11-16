@@ -26,9 +26,11 @@ Open **Settings -> Select LLM**. Kies een model uit de vervolgkeuzelijst **Local
 
 Voor een lokaal model dat de app aanbiedt, vouwt u **Downloads** uit, klikt u op **Download** en wacht u op **Model ready** voordat u bevestigt met **OK**. Met **Model storage** kiest u de downloadmap. **See details** toont de download-URL, het lokale pad en technische informatie.
 
-Kies voor beeldanalyse ook een **Visual model** onder **Image analysis models** en download alle benodigde bestanden. Deze keuze staat los van het tekstmodel.
+Kies voor lokale beeldanalyse een **Visueel model** onder **Beeldanalysemodellen** en download de benodigde bestanden. Het visuele model wordt los van het tekstmodel gekozen.
 
 Kies onder **API connections** Gemini, ChatGPT (OpenAI) of een eigen OpenAI-compatibel eindpunt en voer de vereiste verbindingsgegevens en modelnaam in. Cloud-API's vereisen internet en sturen analysegegevens naar de ingestelde dienst. Eigen eindpunten kunnen ook lokaal draaien.
+
+Schakel **Model met beeldherkenning** voor een OpenAI-compatibele API-verbinding in om er afbeeldingen mee te analyseren en selecteer die verbinding onder **Beeldanalysemodellen** → **Visueel model**. U hoeft geen lokaal model of projector te downloaden. Bij het inschakelen van beeldondersteuning bevestigt u dat afbeeldingsinhoud naar de ingestelde server wordt gestuurd.
 
 ## Lokale prestaties controleren (optioneel)
 
@@ -63,14 +65,20 @@ Gebruik de hoofdopties om te bepalen of de app moet:
 - documenten analyseren
 - hernoemsuggesties geven voor ondersteunde bestanden
 
-Als u alleen hernoemsuggesties wilt, schakel dan de relevante alleen-hernoemenmodus in.
+Wilt u alleen naamvoorstellen, schakel dan **Aanbieden om afbeeldingsbestanden te hernoemen** of **Aanbieden om documentbestanden te hernoemen** in en daarna **Afbeeldingen hernoemen zonder te verplaatsen** of **Documenten hernoemen zonder te verplaatsen** voor het betreffende bestandstype.
+
+**Mappen sorteren** verplaatst hele mappen met hun inhoud en schakelt **Submappen scannen** uit. Wilt u in plaats daarvan bestanden in submappen doorzoeken, schakel dan **Mappen sorteren** uit en **Submappen scannen** in.
 
 ## 3. Kiezen hoe u wilt sorteren
+
+Nieuwe profielen beginnen met **Bestaande mapstructuur gebruiken**. Eerder opgeslagen sorteerkeuzes blijven behouden. Kies een **Bestemming** met de mappen die u wilt gebruiken, of selecteer **Categoriemappen maken** om ze aan te maken.
 
 Kies een sorteermodus:
 
 - **Create category folders** maakt mappen op basis van voorgestelde categorienamen.
 - **Use existing folder structure** kiest mappen binnen de mappenstructuur van **Destination**. Schakel **Suggest new folders when needed** in om nieuwe bestemmingen toe te staan als geen bestaande map goed past; laat het uit om alleen bestaande mappen te gebruiken.
+
+Gebruik **Mapstructuur maken...** om een beginstructuur aan de bestemming toe te voegen. **Folder language** begint met de categorietaal en kan alleen voor die structuur worden gewijzigd. Niet-Engelse mapnamen worden vertaald met het gekozen LLM. Controleer het vertaalde voorbeeld voordat u **Maken** kiest; nummering en niveaus blijven behouden.
 
 Voor bestaande mappen bevelen we **Qwen3.5 4B** aan. **Gemma 1.1 7B** en modellen die via een API worden gebruikt, zijn ook geschikte opties. Andere lokale modellen tonen een advies; u kunt uw model behouden of wijzigen in **Settings -> Select LLM**.
 
@@ -79,7 +87,7 @@ Kies in de modus **Create category folders** een categorisatiestijl:
 - **More refined** voor algemeen gebruik en fijnere groepering
 - **More consistent** als u sterkere labelconsistentie wilt tussen vergelijkbare bestanden
 
-U kunt ook categorie-whitelists inschakelen als u wilt dat de app binnen een smallere set categorienamen blijft.
+Toegestane lijsten beperken voorgestelde categorie- en subcategorienamen in de modus **Categoriemappen maken**. Ze zijn uitgeschakeld en worden genegeerd in **Bestaande mapstructuur gebruiken**, dat de doelmappenstructuur gebruikt. Uw lijstvoorkeur blijft behouden wanneer u van modus wisselt.
 
 ## 4. Start de analyse
 
