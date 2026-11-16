@@ -1567,12 +1567,12 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>Verkkosijainteja ei l?ytynyt</translation>
+            <translation>Verkkosijainteja ei löytynyt</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>Verkkosijainti ei ole k?ytett?viss?: %1</translation>
+            <translation>Verkkosijainti ei ole käytettävissä: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>

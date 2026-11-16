@@ -1756,17 +1756,17 @@ Støtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Kunne ikke ?pne nedlastingssiden for Windows Explorer-utvidelsen.</translation>
+            <translation>Kunne ikke åpne nedlastingssiden for Windows Explorer-utvidelsen.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Kunne ikke ?pne innstillingene for Windows Explorer-utvidelsen.</translation>
+            <translation>Kunne ikke åpne innstillingene for Windows Explorer-utvidelsen.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Kunne ikke ?pne aktivitetsvinduet for Windows Explorer-utvidelsen.</translation>
+            <translation>Kunne ikke åpne aktivitetsvinduet for Windows Explorer-utvidelsen.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>

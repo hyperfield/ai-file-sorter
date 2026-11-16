@@ -1562,17 +1562,17 @@ Stöder: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="862"></location>
             <source>Network Locations</source>
-            <translation>N?tverksplatser</translation>
+            <translation>Nätverksplatser</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>Inga n?tverksplatser hittades</translation>
+            <translation>Inga nätverksplatser hittades</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>N?tverksplatsen ?r inte tillg?nglig: %1</translation>
+            <translation>Nätverksplatsen är inte tillgänglig: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1751,32 +1751,32 @@ Stöder: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/MainApp.cpp" line="2527"></location>
             <location filename="../../lib/MainApp.cpp" line="2541"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer-till?gg</translation>
+            <translation>Windows Explorer-tillägg</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Det gick inte att ?ppna nedladdningssidan f?r Windows Explorer-till?gget.</translation>
+            <translation>Det gick inte att öppna nedladdningssidan för Windows Explorer-tillägget.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Det gick inte att ?ppna inst?llningarna f?r Windows Explorer-till?gget.</translation>
+            <translation>Det gick inte att öppna inställningarna för Windows Explorer-tillägget.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Det gick inte att ?ppna aktivitetsf?nstret f?r Windows Explorer-till?gget.</translation>
+            <translation>Det gick inte att öppna aktivitetsfönstret för Windows Explorer-tillägget.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
-            <translation>Installera eller reparera Windows Explorer-till?gg...</translation>
+            <translation>Installera eller reparera Windows Explorer-tillägg...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2564"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Installera Windows Explorer-till?gg...</translation>
+            <translation>Installera Windows Explorer-tillägg...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2601"></location>
@@ -3339,12 +3339,12 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="37"></location>
             <source>E&amp;xtensions</source>
-            <translation>T&amp;ill?gg</translation>
+            <translation>T&amp;illägg</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="39"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer-till?gg</translation>
+            <translation>Windows Explorer-tillägg</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="40"></location>
@@ -3434,17 +3434,17 @@ Uppdatera för att fortsätta. Om du väljer att avsluta stängs applikationen.<
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="68"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Installera Windows Explorer-till?gg...</translation>
+            <translation>Installera Windows Explorer-tillägg...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70"></location>
             <source>Settings...</source>
-            <translation>Inst?llningar...</translation>
+            <translation>Inställningar...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72"></location>
             <source>Activity Window</source>
-            <translation>Aktivitetsf?nster</translation>
+            <translation>Aktivitetsfönster</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="74"></location>

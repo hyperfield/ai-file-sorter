@@ -1562,17 +1562,17 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <message>
             <location filename="../../lib/MainApp.cpp" line="862"></location>
             <source>Network Locations</source>
-            <translation>???? ??</translation>
+            <translation>네트워크 위치</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>???? ??? ?? ? ????</translation>
+            <translation>네트워크 위치를 찾을 수 없습니다</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>???? ??? ??? ? ????: %1</translation>
+            <translation>네트워크 위치를 사용할 수 없습니다: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1753,32 +1753,32 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <location filename="../../lib/MainApp.cpp" line="2527"></location>
             <location filename="../../lib/MainApp.cpp" line="2541"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer ??</translation>
+            <translation>Windows Explorer 확장</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Windows Explorer ?? ???? ???? ? ? ????.</translation>
+            <translation>Windows Explorer 확장의 다운로드 페이지를 열 수 없습니다.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Windows Explorer ?? ??? ? ? ????.</translation>
+            <translation>Windows Explorer 확장 설정을 열 수 없습니다.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Windows Explorer ?? ?? ?? ? ? ????.</translation>
+            <translation>Windows Explorer 확장의 활동 창을 열 수 없습니다.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
-            <translation>Windows Explorer ?? ?? ?? ??...</translation>
+            <translation>Windows Explorer 확장 설치 또는 복구...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2564"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Windows Explorer ?? ??...</translation>
+            <translation>Windows Explorer 확장 설치...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2601"></location>
@@ -3341,12 +3341,12 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="37"></location>
             <source>E&amp;xtensions</source>
-            <translation>??(&amp;X)</translation>
+            <translation>확장(&amp;X)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="39"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer ??</translation>
+            <translation>Windows Explorer 확장</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="40"></location>
@@ -3436,17 +3436,17 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="68"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Windows Explorer ?? ??...</translation>
+            <translation>Windows Explorer 확장 설치...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70"></location>
             <source>Settings...</source>
-            <translation>??...</translation>
+            <translation>설정...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72"></location>
             <source>Activity Window</source>
-            <translation>?? ?</translation>
+            <translation>활동 창</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="74"></location>

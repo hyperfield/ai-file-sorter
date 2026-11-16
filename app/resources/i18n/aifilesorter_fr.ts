@@ -1562,17 +1562,17 @@ Compatible avec : Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="862"></location>
             <source>Network Locations</source>
-            <translation>Emplacements r?seau</translation>
+            <translation>Emplacements réseau</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>Aucun emplacement r?seau trouv?</translation>
+            <translation>Aucun emplacement réseau trouvé</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>Emplacement r?seau indisponible : %1</translation>
+            <translation>Emplacement réseau indisponible : %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1758,22 +1758,22 @@ Compatible avec : Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Impossible d'ouvrir la page de t?l?chargement de l'extension Windows Explorer.</translation>
+            <translation>Impossible d'ouvrir la page de téléchargement de l'extension Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Impossible d'ouvrir les param?tres de l'extension Windows Explorer.</translation>
+            <translation>Impossible d'ouvrir les paramètres de l'extension Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Impossible d'ouvrir la fen?tre d'activit? de l'extension Windows Explorer.</translation>
+            <translation>Impossible d'ouvrir la fenêtre d'activité de l'extension Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
-            <translation>Installer ou r?parer l'extension Windows Explorer...</translation>
+            <translation>Installer ou réparer l'extension Windows Explorer...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2564"></location>
@@ -3441,12 +3441,12 @@ Veuillez mettre à jour pour continuer. Si vous choisissez de quitter, l'applica
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70"></location>
             <source>Settings...</source>
-            <translation>Param?tres...</translation>
+            <translation>Paramètres...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72"></location>
             <source>Activity Window</source>
-            <translation>Fen?tre d'activit?</translation>
+            <translation>Fenêtre d'activité</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="74"></location>

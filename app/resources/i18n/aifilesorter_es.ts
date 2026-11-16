@@ -1572,7 +1572,7 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>Ubicaci?n de red no disponible: %1</translation>
+            <translation>Ubicación de red no disponible: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1753,32 +1753,32 @@ Compatible con: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/MainApp.cpp" line="2527"></location>
             <location filename="../../lib/MainApp.cpp" line="2541"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Extensi?n de Windows Explorer</translation>
+            <translation>Extensión de Windows Explorer</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>No se pudo abrir la p?gina de descarga de la extensi?n de Windows Explorer.</translation>
+            <translation>No se pudo abrir la página de descarga de la extensión de Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>No se pudo abrir la configuraci?n de la extensi?n de Windows Explorer.</translation>
+            <translation>No se pudo abrir la configuración de la extensión de Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>No se pudo abrir la ventana de actividad de la extensi?n de Windows Explorer.</translation>
+            <translation>No se pudo abrir la ventana de actividad de la extensión de Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
-            <translation>Instalar o reparar la extensi?n de Windows Explorer...</translation>
+            <translation>Instalar o reparar la extensión de Windows Explorer...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2564"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Instalar la extensi?n de Windows Explorer...</translation>
+            <translation>Instalar la extensión de Windows Explorer...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2601"></location>
@@ -3346,7 +3346,7 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="39"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Extensi?n de Windows Explorer</translation>
+            <translation>Extensión de Windows Explorer</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="40"></location>
@@ -3436,12 +3436,12 @@ Actualiza para continuar. Si eliges salir, la aplicación se cerrará.</translat
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="68"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Instalar la extensi?n de Windows Explorer...</translation>
+            <translation>Instalar la extensión de Windows Explorer...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70"></location>
             <source>Settings...</source>
-            <translation>Configuraci?n...</translation>
+            <translation>Configuración...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72"></location>

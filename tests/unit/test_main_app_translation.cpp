@@ -1166,3 +1166,51 @@ TEST_CASE("Quick Start and FAQ help labels are translated for all supported UI l
         REQUIRE(quick_start_title == entry.quick_start_title);
     }
 }
+
+TEST_CASE("Bundled network and Explorer translations preserve Unicode", "[ui-translations]")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    auto& manager = TranslationManager::instance();
+    manager.initialize(qApp);
+    REQUIRE(manager.available_languages().size() > 1);
+    struct Message { const char* context; const char* source; };
+    const Message messages[] = {
+        {"MainApp", "Network Locations"},
+        {"MainApp", "No network locations found"},
+        {"MainApp", "Network location unavailable: %1"},
+        {"MainApp", "Windows Explorer Extension"},
+        {"MainApp", "Install or Repair Windows Explorer Extension..."},
+        {"MainApp", "Install Windows Explorer Extension..."},
+        {"MainApp", "Could not open the Windows Explorer Extension download page."},
+        {"MainApp", "Could not open the Windows Explorer Extension settings."},
+        {"MainApp", "Could not open the Windows Explorer Extension activity window."},
+        {"UiTranslator", "E&xtensions"},
+        {"UiTranslator", "Windows Explorer Extension"},
+        {"UiTranslator", "Install Windows Explorer Extension..."},
+        {"UiTranslator", "Settings..."},
+        {"UiTranslator", "Activity Window"},
+        {"UiTranslator", "&About AI File Sorter"},
+    };
+    for (const auto& language : manager.available_languages()) {
+        if (language.id == Language::English) {
+            continue;
+        }
+        CAPTURE(language.code.toStdString());
+        QTranslator translator;
+        REQUIRE(translator.load(language.resource_path));
+        for (const auto& message : messages) {
+            const auto translated = translator.translate(message.context, message.source);
+            const auto source = QString::fromUtf8(message.source);
+            CAPTURE(message.context, source.toStdString(), translated.toStdString());
+            REQUIRE_FALSE(translated.isEmpty());
+            CHECK_FALSE(translated.contains(QChar('?')));
+            CHECK_FALSE(translated.contains(QChar(QChar::ReplacementCharacter)));
+            CHECK(translated.count(QStringLiteral("%1")) == source.count(QStringLiteral("%1")));
+            CHECK(translated.count(QChar('&')) == source.count(QChar('&')));
+            if (source.contains(QStringLiteral("AI File Sorter"))) {
+                CHECK(translated.contains(QStringLiteral("AI File Sorter")));
+            }
+        }
+    }
+}

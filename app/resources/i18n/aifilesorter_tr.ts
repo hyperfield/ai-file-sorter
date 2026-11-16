@@ -1562,17 +1562,17 @@ Desteklenenler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="862"></location>
             <source>Network Locations</source>
-            <translation>A? konumlar?</translation>
+            <translation>Ağ konumları</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>A? konumu bulunamad?</translation>
+            <translation>Ağ konumu bulunamadı</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>A? konumu kullan?lam?yor: %1</translation>
+            <translation>Ağ konumu kullanılamıyor: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1753,32 +1753,32 @@ Desteklenenler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/MainApp.cpp" line="2527"></location>
             <location filename="../../lib/MainApp.cpp" line="2541"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer Uzant?s?</translation>
+            <translation>Windows Explorer Uzantısı</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Windows Explorer Uzant?s? indirme sayfas? a??lamad?.</translation>
+            <translation>Windows Explorer Uzantısı indirme sayfası açılamadı.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Windows Explorer Uzant?s? ayarlar? a??lamad?.</translation>
+            <translation>Windows Explorer Uzantısı ayarları açılamadı.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Windows Explorer Uzant?s? etkinlik penceresi a??lamad?.</translation>
+            <translation>Windows Explorer Uzantısı etkinlik penceresi açılamadı.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
-            <translation>Windows Explorer Uzant?s?n? y?kle veya onar...</translation>
+            <translation>Windows Explorer Uzantısını yükle veya onar...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2564"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Windows Explorer Uzant?s?n? y?kle...</translation>
+            <translation>Windows Explorer Uzantısını yükle...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2601"></location>
@@ -3341,12 +3341,12 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="37"></location>
             <source>E&amp;xtensions</source>
-            <translation>U&amp;zant?lar</translation>
+            <translation>U&amp;zantılar</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="39"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer Uzant?s?</translation>
+            <translation>Windows Explorer Uzantısı</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="40"></location>
@@ -3436,7 +3436,7 @@ Devam etmek için lütfen güncelleyin. Çıkmayı seçerseniz uygulama kapanaca
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="68"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Windows Explorer Uzant?s?n? y?kle...</translation>
+            <translation>Windows Explorer Uzantısını yükle...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70"></location>

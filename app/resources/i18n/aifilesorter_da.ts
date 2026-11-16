@@ -1562,17 +1562,17 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="862"></location>
             <source>Network Locations</source>
-            <translation>Netv?rksplaceringer</translation>
+            <translation>Netværksplaceringer</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>Ingen netv?rksplaceringer fundet</translation>
+            <translation>Ingen netværksplaceringer fundet</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>Netv?rksplacering utilg?ngelig: %1</translation>
+            <translation>Netværksplacering utilgængelig: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1756,17 +1756,17 @@ Understøtter: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Kunne ikke ?bne downloadsiden for Windows Explorer-udvidelsen.</translation>
+            <translation>Kunne ikke åbne downloadsiden for Windows Explorer-udvidelsen.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Kunne ikke ?bne indstillingerne for Windows Explorer-udvidelsen.</translation>
+            <translation>Kunne ikke åbne indstillingerne for Windows Explorer-udvidelsen.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Kunne ikke ?bne aktivitetsvinduet for Windows Explorer-udvidelsen.</translation>
+            <translation>Kunne ikke åbne aktivitetsvinduet for Windows Explorer-udvidelsen.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>

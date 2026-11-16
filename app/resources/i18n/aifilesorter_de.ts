@@ -1572,7 +1572,7 @@ Unterstützt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>Netzwerkort nicht verf?gbar: %1</translation>
+            <translation>Netzwerkort nicht verfügbar: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1758,17 +1758,17 @@ Unterstützt: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Die Downloadseite der Windows-Explorer-Erweiterung konnte nicht ge?ffnet werden.</translation>
+            <translation>Die Downloadseite der Windows-Explorer-Erweiterung konnte nicht geöffnet werden.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Die Einstellungen der Windows-Explorer-Erweiterung konnten nicht ge?ffnet werden.</translation>
+            <translation>Die Einstellungen der Windows-Explorer-Erweiterung konnten nicht geöffnet werden.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Das Aktivit?tsfenster der Windows-Explorer-Erweiterung konnte nicht ge?ffnet werden.</translation>
+            <translation>Das Aktivitätsfenster der Windows-Explorer-Erweiterung konnte nicht geöffnet werden.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
@@ -3446,7 +3446,7 @@ Bitte aktualisieren Sie, um fortzufahren. Wenn Sie Beenden wählen, wird die Anw
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72"></location>
             <source>Activity Window</source>
-            <translation>Aktivit?tsfenster</translation>
+            <translation>Aktivitätsfenster</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="74"></location>

@@ -3678,6 +3678,13 @@ Run: `./build-tests/ai_file_sorter_tests "ReviewFileNaming uses the destination 
 
 ### `tests/unit/test_main_app_translation.cpp`
 
+#### Test case: Bundled network and Explorer translations preserve Unicode
+Purpose: Catch replacement question marks and missing text in the compiled UI catalogs, including completely damaged non-Latin translations.
+Setup: Load each shipped non-English QM resource directly through QTranslator, without English fallback.
+Procedure: Translate network-location labels and Explorer-extension actions in both MainApp and UiTranslator contexts.
+Expected outcome: Every inspected message exists for each locale, contains neither replacement question marks nor U+FFFD, and preserves Qt placeholders, accelerator markers, and the AI File Sorter product name.
+Run: `./build-tests/ai_file_sorter_tests "[ui-translations]"`
+
 #### Test case: MainApp loads default settings without registered application loggers
 Purpose: Prevent a null logger crash when constructing the main window before application loggers have been registered.
 Setup: Use a fresh isolated configuration directory and temporarily remove the named application loggers.

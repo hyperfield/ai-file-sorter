@@ -1758,17 +1758,17 @@ Supporta: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Impossibile aprire la pagina di download dell?estensione Windows Explorer.</translation>
+            <translation>Impossibile aprire la pagina di download dell’estensione Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Impossibile aprire le impostazioni dell?estensione Windows Explorer.</translation>
+            <translation>Impossibile aprire le impostazioni dell’estensione Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Impossibile aprire la finestra attivit? dell?estensione Windows Explorer.</translation>
+            <translation>Impossibile aprire la finestra attività dell’estensione Windows Explorer.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
@@ -3446,7 +3446,7 @@ Aggiorna per continuare. Se scegli di uscire, l'applicazione verrà chiusa.</tra
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72"></location>
             <source>Activity Window</source>
-            <translation>Finestra attivit?</translation>
+            <translation>Finestra attività</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="74"></location>

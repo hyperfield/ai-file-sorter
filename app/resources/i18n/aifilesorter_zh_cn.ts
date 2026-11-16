@@ -1562,17 +1562,17 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <message>
             <location filename="../../lib/MainApp.cpp" line="862"></location>
             <source>Network Locations</source>
-            <translation>????</translation>
+            <translation>网络位置</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>???????</translation>
+            <translation>未找到网络位置</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>????????%1</translation>
+            <translation>网络位置不可用：%1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1751,32 +1751,32 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <location filename="../../lib/MainApp.cpp" line="2527"></location>
             <location filename="../../lib/MainApp.cpp" line="2541"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer ??</translation>
+            <translation>Windows Explorer 扩展</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>???? Windows Explorer ???????</translation>
+            <translation>无法打开 Windows Explorer 扩展的下载页面。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>???? Windows Explorer ?????</translation>
+            <translation>无法打开 Windows Explorer 扩展的设置。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>???? Windows Explorer ???????</translation>
+            <translation>无法打开 Windows Explorer 扩展的活动窗口。</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
-            <translation>????? Windows Explorer ??...</translation>
+            <translation>安装或修复 Windows Explorer 扩展...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2564"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>?? Windows Explorer ??...</translation>
+            <translation>安装 Windows Explorer 扩展...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2601"></location>
@@ -2302,7 +2302,7 @@ Gemma 1.1 7B 和通过 API 访问的 LLM 也是合适的选择。
         <message>
             <location filename="../../lib/MainAppHelpActions.cpp" line="257"></location>
             <source>AI File Sorter is distributed under the GNU Affero General Public License v3.0.&lt;br&gt;&lt;br&gt;You can access the full source code at &lt;a href="https://github.com/hyperfield/ai-file-sorter"&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt;.&lt;br&gt;&lt;br&gt;A full copy of the license is provided with this application and available online at &lt;a href="https://www.gnu.org/licenses/agpl-3.0.html"&gt;gnu.org&lt;/a&gt;.</source>
-            <translation>AI 文件排序器根据 GNU Affero 通用公共许可证 v3.0 分发。&lt;br&gt;&lt;br&gt;您可以在 &lt;a href="https://github.com/hyperfield/ai-file-sorter"&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt; 访问完整的源代码。&lt;br&gt;&lt;br&gt;此应用程序提供了许可证的完整副本，可在线获取： &lt;a href="https://www.gnu.org/licenses/agpl-3.0.html"&gt;gnu.org&lt;/a&gt;。</translation>
+            <translation>AI File Sorter根据 GNU Affero 通用公共许可证 v3.0 分发。&lt;br&gt;&lt;br&gt;您可以在 &lt;a href="https://github.com/hyperfield/ai-file-sorter"&gt;github.com/hyperfield/ai-file-sorter&lt;/a&gt; 访问完整的源代码。&lt;br&gt;&lt;br&gt;此应用程序提供了许可证的完整副本，可在线获取： &lt;a href="https://www.gnu.org/licenses/agpl-3.0.html"&gt;gnu.org&lt;/a&gt;。</translation>
         </message>
         <message>
             <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="446"></location>
@@ -3339,12 +3339,12 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="37"></location>
             <source>E&amp;xtensions</source>
-            <translation>??(&amp;X)</translation>
+            <translation>扩展(&amp;X)</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="39"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer ??</translation>
+            <translation>Windows Explorer 扩展</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="40"></location>
@@ -3434,17 +3434,17 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="68"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>?? Windows Explorer ??...</translation>
+            <translation>安装 Windows Explorer 扩展...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70"></location>
             <source>Settings...</source>
-            <translation>??...</translation>
+            <translation>设置...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="72"></location>
             <source>Activity Window</source>
-            <translation>????</translation>
+            <translation>活动窗口</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="74"></location>
@@ -3514,7 +3514,7 @@ Please update to continue. If you choose to quit, the application will close.</s
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="99"></location>
             <source>&amp;About AI File Sorter</source>
-            <translation>&amp;关于 AI 文件分类器</translation>
+            <translation>&amp;关于 AI File Sorter</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="103"></location>

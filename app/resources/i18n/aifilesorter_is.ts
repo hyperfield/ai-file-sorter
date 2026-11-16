@@ -1562,17 +1562,17 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <message>
             <location filename="../../lib/MainApp.cpp" line="862"></location>
             <source>Network Locations</source>
-            <translation>Netsta?ir</translation>
+            <translation>Netstaðir</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="868"></location>
             <source>No network locations found</source>
-            <translation>Engir netsta?ir fundust</translation>
+            <translation>Engir netstaðir fundust</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="908"></location>
             <source>Network location unavailable: %1</source>
-            <translation>Netsta?ur er ekki tilt?kur: %1</translation>
+            <translation>Netstaður er ekki tiltækur: %1</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="973"></location>
@@ -1751,32 +1751,32 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
             <location filename="../../lib/MainApp.cpp" line="2527"></location>
             <location filename="../../lib/MainApp.cpp" line="2541"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer-vi?b?t</translation>
+            <translation>Windows Explorer-viðbót</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2515"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
-            <translation>Gat ekki opna? ni?urhalss??u Windows Explorer-vi?b?tarinnar.</translation>
+            <translation>Gat ekki opnað niðurhalssíðu Windows Explorer-viðbótarinnar.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2529"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
-            <translation>Gat ekki opna? stillingar Windows Explorer-vi?b?tarinnar.</translation>
+            <translation>Gat ekki opnað stillingar Windows Explorer-viðbótarinnar.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2543"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
-            <translation>Gat ekki opna? virkni glugga Windows Explorer-vi?b?tarinnar.</translation>
+            <translation>Gat ekki opnað virkni glugga Windows Explorer-viðbótarinnar.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2563"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
-            <translation>Setja upp e?a gera vi? Windows Explorer-vi?b?t...</translation>
+            <translation>Setja upp eða gera við Windows Explorer-viðbót...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2564"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Setja upp Windows Explorer-vi?b?t...</translation>
+            <translation>Setja upp Windows Explorer-viðbót...</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2601"></location>
@@ -3339,12 +3339,12 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="37"></location>
             <source>E&amp;xtensions</source>
-            <translation>Vi?&amp;b?tur</translation>
+            <translation>Við&amp;bætur</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="39"></location>
             <source>Windows Explorer Extension</source>
-            <translation>Windows Explorer-vi?b?t</translation>
+            <translation>Windows Explorer-viðbót</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="40"></location>
@@ -3434,7 +3434,7 @@ Vinsamlegast uppfærðu til að halda áfram. Ef þú velur að hætta mun forri
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="68"></location>
             <source>Install Windows Explorer Extension...</source>
-            <translation>Setja upp Windows Explorer-vi?b?t...</translation>
+            <translation>Setja upp Windows Explorer-viðbót...</translation>
         </message>
         <message>
             <location filename="../../lib/UiTranslator.cpp" line="70"></location>
