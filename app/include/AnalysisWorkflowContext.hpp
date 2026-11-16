@@ -76,4 +76,6 @@ struct AnalysisWorkflowContext {
     std::function<void(const CategorizedFile&, const std::string&)> notify_recategorization_reset;
     /** @brief Applies headless file-type scope independently of optional content analysis. */
     bool independent_file_type_filters{false};
+    /** @brief Allows legacy combined-operation hosts to reuse cached names with content analysis off. */
+    bool reuse_cached_content_renames_without_analysis{false};
 };

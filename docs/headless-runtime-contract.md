@@ -182,9 +182,12 @@ still apply. Uncached media gets filename suggestions directly from embedded
 metadata without classification or a text-model request. Missing usable metadata
 leaves the filename unchanged. These overlays never rewrite saved preferences.
 
-Omitting `respectRenamePreferences` preserves the legacy operation defaults, including
-for existing queued tasks. The strict `categorize` and `rename` operations continue
-enforcing their single action.
+Omitting `respectRenamePreferences` or setting it to false preserves legacy operation defaults, including
+for existing queued tasks. Legacy combined requests may reuse cached picture/document
+names with content analysis off; this compatibility policy does not apply to normal GUI
+runs or opted-in combined requests. Normal GUI runs suppress cached rename suggestions
+when the matching content analysis is disabled, while retaining the cached suggestion.
+The strict `categorize` and `rename` operations continue enforcing their single action.
 
 **Destination initialization is deliberately different from other preferences.** The host
 loads app preferences, sets the analyzed folder, and clears the persisted destination

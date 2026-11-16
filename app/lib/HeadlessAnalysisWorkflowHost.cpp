@@ -341,7 +341,9 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
         [this](const CategorizedFile& entry, const std::string& reason) {
             notify_recategorization_reset(entry, reason);
         },
-        true};
+        true,
+        options_.operation_mode == OperationMode::CategorizeAndRename &&
+            !options_.settings_overrides.respect_rename_preferences.value_or(false)};
 }
 
 FileScanOptions HeadlessAnalysisWorkflowHost::effective_scan_options() const

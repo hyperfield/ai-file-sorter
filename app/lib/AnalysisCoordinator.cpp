@@ -495,16 +495,17 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                             app_.settings.get_process_documents_only();
         const bool rename_images_only = analyze_images && app_.settings.get_rename_images_only();
         const bool rename_documents_only = analyze_documents && app_.settings.get_rename_documents_only();
-        const bool allow_image_renames = app_.settings.get_offer_rename_images();
-        const bool allow_document_renames = app_.settings.get_offer_rename_documents();
-        const bool offer_image_renames = analyze_images && allow_image_renames;
-        const bool offer_document_renames = analyze_documents && allow_document_renames;
-        const bool wants_visual_rename = analyze_images && allow_image_renames && !rename_images_only;
+        const bool offer_image_renames = analyze_images && app_.settings.get_offer_rename_images();
+        const bool offer_document_renames = analyze_documents && app_.settings.get_offer_rename_documents();
+        const bool allow_cached_image_renames = app_.settings.get_offer_rename_images() &&
+            (analyze_images || app_.reuse_cached_content_renames_without_analysis);
+        const bool allow_cached_document_renames = app_.settings.get_offer_rename_documents() &&
+            (analyze_documents || app_.reuse_cached_content_renames_without_analysis);
+        const bool wants_visual_rename = offer_image_renames && !rename_images_only;
         const bool wants_document_rename =
-            analyze_documents && allow_document_renames && !rename_documents_only;
+            offer_document_renames && !rename_documents_only;
         const bool add_image_date_place_prefixes =
-            analyze_images &&
-            allow_image_renames &&
+            offer_image_renames &&
             app_.settings.get_add_image_date_place_to_filename();
         const bool add_image_date_to_category =
             analyze_images &&
@@ -828,8 +829,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
                 persist_cached_date_category_cleanup(entry);
             }
             const bool allow_entry_renames =
-                (is_image_entry && allow_image_renames) ||
-                (is_document_entry && allow_document_renames) ||
+                (is_image_entry && allow_cached_image_renames) ||
+                (is_document_entry && allow_cached_document_renames) ||
                 (add_audio_video_metadata_to_filename && cached_entry_is_supported_media(entry));
             const bool suggested_matches =
                 !entry.suggested_name.empty() && to_lower(entry.suggested_name) == to_lower(entry.file_name);
@@ -1926,8 +1927,8 @@ AnalysisRunResult AnalysisCoordinator::execute()
             return *info.localized_suggested_name;
         };
 
-        auto suggested_name_provider = [allow_image_renames,
-                                        allow_document_renames,
+        auto suggested_name_provider = [offer_image_renames,
+                                        offer_document_renames,
                                         &resolve_image_display_name,
                                         &resolve_document_display_name,
                                         &resolve_localized_suggested_name,
@@ -1938,12 +1939,12 @@ AnalysisRunResult AnalysisCoordinator::execute()
                                         &media_rename_suggestions,
                                         &entry_key](const FileEntry& entry) -> std::string {
             const std::string key = entry_key(entry);
-            if (allow_image_renames) {
+            if (offer_image_renames) {
                 if (auto it = image_info.find(key); it != image_info.end()) {
                     return resolve_image_display_name(entry, it->second);
                 }
             }
-            if (allow_document_renames) {
+            if (offer_document_renames) {
                 if (auto it = document_info.find(key); it != document_info.end()) {
                     return resolve_document_display_name(entry, it->second);
                 }

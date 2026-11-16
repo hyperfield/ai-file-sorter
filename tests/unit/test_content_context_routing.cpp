@@ -130,6 +130,55 @@ WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& da
 }
 } // namespace
 
+TEST_CASE("AnalysisCoordinator suppresses cached renames when content analysis is off", "[content-routing][cached-renames]")
+{
+    const bool image = GENERATE(false, true);
+    const bool remembered_rename_only = GENERATE(false, true);
+    CAPTURE(image, remembered_rename_only);
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_categorize_files(true);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(true);
+    settings.set_offer_rename_documents(true);
+    settings.set_rename_images_only(remembered_rename_only);
+    settings.set_rename_documents_only(remembered_rename_only);
+    settings.set_add_audio_video_metadata_to_filename(false);
+    settings.set_use_consistency_hints(false);
+    const std::string extension = image ? ".png" : ".txt";
+    const auto cached_name = "cached" + extension;
+    const auto fresh_name = "fresh" + extension;
+    const auto suggestion = "clearer_record" + extension;
+    for (const auto& name : {cached_name, fresh_name}) {
+        std::ofstream(source.path() / name) << "Synthetic content for filename-only sorting";
+    }
+    DatabaseManager database(settings.get_config_dir());
+    REQUIRE(database.insert_or_update_file_with_categorization(
+        cached_name, "F", source.path().string(), database.resolve_category("Legal", "Data Protection"),
+        false, suggestion, remembered_rename_only));
+    const auto requests = std::make_shared<std::vector<Request>>();
+    const auto run = run_cached_image_workflow(settings, database, source.path(), requests);
+    INFO(run.result.error_message);
+    REQUIRE(run.result.status == AnalysisRunStatus::Completed);
+    REQUIRE(run.review.size() == 2);
+    for (const auto& entry : run.review) {
+        CAPTURE(entry.file_name);
+        CHECK(entry.suggested_name.empty());
+        CHECK_FALSE(entry.rename_only);
+        CHECK_FALSE(entry.category.empty());
+        CHECK(std::filesystem::exists(source.path() / entry.file_name));
+    }
+    REQUIRE(requests->size() == 1);
+    CHECK(requests->front().name == fresh_name);
+    const auto cached = database.get_categorized_file(source.path().string(), cached_name, FileType::File);
+    REQUIRE(cached);
+    CHECK(cached->suggested_name == suggestion);
+    CHECK(cached->rename_only == remembered_rename_only);
+}
+
 TEST_CASE("Image date-only and disabled place settings never geocode or prefix filenames", "[geolocation][content-routing]")
 {
     const bool date_category = GENERATE(false, true);

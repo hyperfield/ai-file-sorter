@@ -476,6 +476,7 @@ These deterministic tests use temporary files and injected LLMs, not live infere
 - `ContentAnalysisCache shares native Unicode identity across lookup upsert and clear`: equivalent macOS source paths share evidence and directory cleanup; literal filesystem names remain distinct on other platforms.
 
 `tests/unit/test_content_context_routing.cpp` covers:
+- `AnalysisCoordinator suppresses cached renames when content analysis is off`: cached and fresh pictures/documents are sorted without rename suggestions when their content analysis is disabled, even with remembered rename-only preferences. Cached suggestions remain available for later reuse.
 - `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip and reaches both LLM stages separately from the path, including when preliminary labels differ from the model-selected destination.
 - `Source directories do not affect classification or routing requests`: identical image/document evidence and filenames in unrelated source directories produce identical classification and routing requests. Source paths remain distinct in review/cache records, content evidence is preserved, and destination choices remain available.
 - `Review plan reserves new numbers across batches and reuses proposed destinations`: deferred batches allocate distinct numbers for distinct labels, reuse an equivalent pending folder, preserve true on-disk existence flags, and do not create directories during analysis.
@@ -1008,8 +1009,8 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand skips rename w
 #### Test case: HeadlessAnalysisCommand applies cached categorize and rename for a folder
 Purpose: Verify the combined headless operation moves categorized files while applying cached suggested names.
 Setup: Create a temporary target folder containing a document, enable document rename suggestions, and insert a cached `Documents / Reports` categorization with a suggested filename.
-Procedure: Run the headless categorize-and-rename command, inspect the destination file, and read the final status JSON.
-Expected outcome: The command exits successfully, moves the file into the category/subcategory folder using the suggested filename, saves an undo plan, and reports one moved and renamed entry.
+Procedure: Run the headless categorize-and-rename command, inspect the destination file, and read the final status JSON. Cover omitted and explicitly false `respectRenamePreferences` values, independent per-type preferences, disabled document renaming, and rename-without-moving.
+Expected outcome: Legacy combined requests retain cached renaming even with content analysis off. Opted-in requests follow their per-type choices, including keeping renamed documents in place. Apply counts and destinations match each case, and an undo plan is saved.
 Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand applies cached categorize and rename for a folder"`
 
 #### Test case: HeadlessAnalysisCommand applies same-folder multi-select only

@@ -1485,6 +1485,9 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
     int expected_moves = 1;
     int expected_renames = 1;
     SECTION("legacy combined operation retains cached renaming") {}
+    SECTION("explicit legacy preferences retain cached renaming") {
+        options.settings_overrides.respect_rename_preferences = false;
+    }
     SECTION("disabled document renaming ignores its cached filename suggestion") {
         options.settings_overrides.respect_rename_preferences = true;
         options.settings_overrides.offer_rename_images = true;
