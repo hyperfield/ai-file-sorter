@@ -1207,6 +1207,13 @@ Procedure: Enable "Process picture files only", inspect dependent controls, then
 Expected outcome: Document analysis controls and audio/video metadata are disabled while image-only mode is active, but the underlying saved settings are preserved and controls re-enable afterward.
 Run: `./build-tests/ai_file_sorter_tests "Processing images only disables document analysis controls and audio-video metadata"`
 
+#### Test case: Saved picture and document filters remain editable
+Purpose: Prevent saved picture-only and document-only scope filters from locking both analysis groups.
+Setup: Save both analysis switches and both scope filters enabled, then reload them into the real main window with offscreen Qt and a configured vision API.
+Procedure: Clear either filter or either analysis switch first, then clear the remaining active filter and restore unrestricted scanning. Save and reload the resulting preferences.
+Expected outcome: Both included groups and their disclosure controls are initially enabled, neither saved filter is discarded, and each path permits editing the selection without getting stuck. A single active filter still disables the excluded group. The final filter and analysis choices survive reload.
+Run: `./build-tests/ai_file_sorter_tests "[file-type-controls]"`
+
 #### Test case: Processing documents only disables image analysis controls
 Purpose: Confirm document-only processing temporarily disables controls that would analyze picture content.
 Setup: Enable image analysis, image rename options, and document analysis in settings, then build `MainApp` with the preferred Qt test platform.

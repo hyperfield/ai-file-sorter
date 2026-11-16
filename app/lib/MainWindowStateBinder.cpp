@@ -729,9 +729,9 @@ void MainWindowStateBinder::update_image_only_controls()
     const bool allow_other_files = !restrict_types;
     const bool images_rename_only = allow_images ? rename_images_active : true;
     const bool documents_rename_only = allow_documents ? rename_documents_active : true;
-    const bool image_group_locked = documents_only_active;
+    const bool image_group_locked = !allow_images;
     const bool image_analysis_enabled = analyze_images && !image_group_locked;
-    const bool document_group_locked = images_only_active;
+    const bool document_group_locked = !allow_documents;
     const bool document_analysis_enabled = analyze_documents && !document_group_locked;
     const bool disable_files_categorization =
         !allow_other_files && images_rename_only && documents_rename_only;

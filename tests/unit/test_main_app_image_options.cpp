@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include "CategorizationProgressDialog.hpp"
 #include "MainApp.hpp"
@@ -43,6 +44,84 @@ TEST_CASE("A configured vision API enables image analysis without a model downlo
     checkbox->setChecked(true);
     CHECK(checkbox->isChecked());
     CHECK(settings.get_analyze_images_by_content());
+}
+
+TEST_CASE("Saved picture and document filters remain editable", "[file-type-controls]")
+{
+    const bool pictures_first = GENERATE(false, true);
+    const bool analysis_first = GENERATE(false, true);
+    CAPTURE(pictures_first, analysis_first);
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings stored;
+    CustomApiEndpoint vision{"filters", "Filter test vision", "", "http://127.0.0.1:1/v1", "", "filter-model", true};
+    const auto id = stored.upsert_custom_api_endpoint(vision);
+    stored.set_visual_model_id(http_visual_model_id(id));
+    stored.set_categorize_files(true);
+    stored.set_categorize_directories(false);
+    stored.set_analyze_images_by_content(true);
+    stored.set_analyze_documents_by_content(true);
+    stored.set_process_images_only(true);
+    stored.set_process_documents_only(true);
+    REQUIRE(stored.save());
+    Settings settings;
+    REQUIRE(settings.load());
+    MainApp window(settings, false);
+    auto* pictures = MainAppTestAccess::process_images_only_checkbox(window);
+    auto* documents = MainAppTestAccess::process_documents_only_checkbox(window);
+    auto* analyze_pictures = MainAppTestAccess::analyze_images_checkbox(window);
+    auto* analyze_documents = MainAppTestAccess::analyze_documents_checkbox(window);
+    for (auto* control : {pictures, documents, analyze_pictures, analyze_documents}) {
+        REQUIRE(control);
+        REQUIRE(control->isChecked());
+        REQUIRE(control->isEnabled());
+    }
+    CHECK(settings.get_process_images_only());
+    CHECK(settings.get_process_documents_only());
+    CHECK(MainAppTestAccess::image_options_toggle_button(window)->isEnabled());
+    CHECK(MainAppTestAccess::document_options_toggle_button(window)->isEnabled());
+    const auto scan = MainAppTestAccess::effective_scan_options(window);
+    CHECK(has_flag(scan, FileScanOptions::Files));
+    CHECK_FALSE(has_flag(scan, FileScanOptions::Directories));
+
+    auto* first_filter = pictures_first ? pictures : documents;
+    auto* remaining_filter = pictures_first ? documents : pictures;
+    auto* first_analysis = pictures_first ? analyze_pictures : analyze_documents;
+    auto* remaining_analysis = pictures_first ? analyze_documents : analyze_pictures;
+    auto* first_control = analysis_first ? first_analysis : first_filter;
+    first_control->click();
+    CHECK_FALSE(first_control->isChecked());
+    CHECK_FALSE(first_filter->isEnabled());
+    CHECK_FALSE(first_analysis->isEnabled());
+    REQUIRE(remaining_filter->isChecked());
+    REQUIRE(remaining_filter->isEnabled());
+    REQUIRE(remaining_analysis->isEnabled());
+    remaining_filter->click();
+    CHECK_FALSE(remaining_filter->isChecked());
+    REQUIRE(first_analysis->isEnabled());
+    REQUIRE(remaining_analysis->isEnabled());
+    if (analysis_first) {
+        first_analysis->click();
+        REQUIRE(first_filter->isChecked());
+        REQUIRE(first_filter->isEnabled());
+        first_filter->click();
+    }
+    for (auto* control : {pictures, documents, analyze_pictures, analyze_documents}) {
+        CHECK(control->isEnabled());
+    }
+    CHECK_FALSE(pictures->isChecked());
+    CHECK_FALSE(documents->isChecked());
+    CHECK(analyze_pictures->isChecked());
+    CHECK(analyze_documents->isChecked());
+    REQUIRE(settings.save());
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    CHECK_FALSE(reloaded.get_process_images_only());
+    CHECK_FALSE(reloaded.get_process_documents_only());
+    CHECK(reloaded.get_analyze_images_by_content());
+    CHECK(reloaded.get_analyze_documents_by_content());
 }
 
 TEST_CASE("Processing documents only disables image analysis controls") {
