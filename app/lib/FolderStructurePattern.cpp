@@ -501,7 +501,8 @@ std::optional<std::string> make_child_segment(const PathInfo& parent,
     if (!parent.patterns.empty() && parent.patterns.back().kind == PrefixKind::Range) {
         const auto& pattern = parent.patterns.back();
         if (auto number = next_numbered_prefix(children, std::pair{pattern.range_start, pattern.range_end})) {
-            return format_number(number->value, number->width) + " " + child_label;
+            const int width = std::max(number->width, pattern.width);
+            return format_number(number->value, width) + " " + child_label;
         }
         return std::nullopt;
     }

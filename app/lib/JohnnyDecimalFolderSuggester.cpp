@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -15,6 +16,8 @@
 #include "Utils.hpp"
 
 namespace {
+
+constexpr int kAreaCategoryScanDepth = 2;
 
 void assign_error(std::string* error, std::string message) {
     if (error) {
@@ -142,7 +145,9 @@ std::optional<JohnnyDecimalFolderSuggester::Suggestion> build_suggestion(
         return std::nullopt;
     }
 
-    const auto catalog = FolderTreeCatalog::Catalog::scan(root);
+    // Read every area and category so large item subtrees cannot hide occupied IDs.
+    const auto catalog = FolderTreeCatalog::Catalog::scan(
+        root, kAreaCategoryScanDepth, std::numeric_limits<std::size_t>::max());
     const auto profile = FolderStructurePattern::infer_profile(catalog, plugin_profiles);
     if (!profile.has_johnny_decimal_like_ranges) {
         assign_error(error, "The destination does not contain a recognizable Johnny.Decimal-like folder structure.");

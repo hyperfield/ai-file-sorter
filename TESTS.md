@@ -2899,6 +2899,13 @@ Procedure: Ask for a `Work / Proposals` new-folder suggestion.
 Expected outcome: The suggestion uses the matching parent and the first available child number in the range.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern suggests missing child inside numbered parent"`
 
+#### Test case: FolderStructurePattern preserves range width when allocating the first child
+Purpose: Preserve numeric padding from an empty parent range when no numbered siblings establish the child width.
+Setup: Build catalogs with empty `00-09 System`, `000-009 System`, and `0-9 System` ranges.
+Procedure: Suggest a `System / Notes` folder and allocate an explicit `System/Notes` child proposal.
+Expected outcome: Both paths preserve the parent range's width, producing `01 Notes`, `001 Notes`, or `1 Notes` respectively.
+Run: `./build-tests/ai_file_sorter_tests "FolderStructurePattern preserves range width when allocating the first child"`
+
 #### Test case: FolderStructurePattern suggests new Johnny Decimal-like area
 Purpose: Verify deterministic recognition can continue a Johnny.Decimal-like top-level range scheme.
 Setup: Build a catalog with multiple numbered top-level ranges and child numeric folders.
@@ -2913,6 +2920,20 @@ Procedure: Preview a `Work / Proposals` folder.
 Expected outcome: The preview returns `20-29 Work/22 Proposals` and resolves the absolute target path without creating it.
 Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester previews the next child number"`
 
+#### Test case: JohnnyDecimalFolderSuggester preserves two-digit IDs in an empty System area
+Purpose: Ensure the first category created inside an empty System area has a valid two-digit Johnny.Decimal ID.
+Setup: Create an empty `00-09 System` area alongside populated `10-19 Admin` and `20-29 Work` areas.
+Procedure: Preview and create `System / Notes`, validate the archive, then preview `System / Templates`.
+Expected outcome: The first folder is `00-09 System/01 Notes`, validation reports no errors, and the next preview is `00-09 System/02 Templates`.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester preserves two-digit IDs in an empty System area"`
+
+#### Test case: JohnnyDecimalFolderSuggester preserves occupied IDs in large archives
+Purpose: Prevent the routing catalog's entry budget from hiding category IDs during manual folder allocation.
+Setup: Create a Johnny.Decimal-like archive with `22 Existing` and more than 500 folders, covering both a large item subtree and many direct area children.
+Procedure: Preview and create a `Work / Proposals` folder.
+Expected outcome: Both operations select `23 Proposals`, preserve `22 Existing`, and never create a second category numbered `22`.
+Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester preserves occupied IDs in large archives"`
+
 #### Test case: JohnnyDecimalFolderSuggester creates a new area and first child folder
 Purpose: Ensure the manual Johnny.Decimal folder creator can extend the top-level area range.
 Setup: Create a temporary archive with `10-19`, `20-29`, and `30-39` areas.
@@ -2922,7 +2943,7 @@ Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester creates a
 
 #### Test case: JohnnyDecimalFolderSuggester rejects duplicate sibling labels
 Purpose: Prevent the manual creator from assigning a fresh number to a label that already exists in the target area.
-Setup: Create a temporary archive where `20-29 Work/22 Proposals` already exists.
+Setup: Create a temporary archive where `20-29 Work/22 Proposals` already exists, with and without an item subtree containing more than 500 folders.
 Procedure: Preview another `Work / Proposals` folder.
 Expected outcome: The preview is rejected with a message that names the existing duplicate path.
 Run: `./build-tests/ai_file_sorter_tests "JohnnyDecimalFolderSuggester rejects duplicate sibling labels"`

@@ -233,6 +233,31 @@ TEST_CASE("FolderStructurePattern suggests missing child inside numbered parent"
     CHECK(suggestion->high_confidence);
 }
 
+TEST_CASE("FolderStructurePattern preserves range width when allocating the first child")
+{
+    std::string area = "00-09 System";
+    std::string child = "01 Notes";
+    SECTION("Two-digit range") {}
+    SECTION("Wider padded range") {
+        area = "000-009 System";
+        child = "001 Notes";
+    }
+    SECTION("Unpadded range") {
+        area = "0-9 System";
+        child = "1 Notes";
+    }
+    const FolderTreeCatalog::Catalog catalog({{area, 1}});
+    const std::string expected = area + "/" + child;
+
+    const auto suggestion = FolderStructurePattern::suggest_new_folder(catalog, "System", "Notes");
+    REQUIRE(suggestion.has_value());
+    CHECK(suggestion->relative_path == expected);
+
+    const auto allocated = FolderStructurePattern::allocate_proposed_path(catalog, area + "/Notes");
+    REQUIRE(allocated.has_value());
+    CHECK(*allocated == expected);
+}
+
 TEST_CASE("FolderStructurePattern suggests new Johnny Decimal-like area")
 {
     FolderTreeCatalog::Catalog catalog({
@@ -269,6 +294,75 @@ TEST_CASE("JohnnyDecimalFolderSuggester previews the next child number")
     CHECK(error.empty());
 }
 
+TEST_CASE("JohnnyDecimalFolderSuggester preserves two-digit IDs in an empty System area")
+{
+    TempDir temp_dir;
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "00-09 System"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "10-19 Admin/11 Finance"));
+    REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work/21 Projects"));
+
+    std::string error;
+    const auto preview =
+        JohnnyDecimalFolderSuggester::preview_next_folder(temp_dir.path(), "System", "Notes", {}, &error);
+    INFO(error);
+    REQUIRE(preview.has_value());
+    CHECK(preview->relative_path == "00-09 System/01 Notes");
+    CHECK_FALSE(std::filesystem::exists(preview->absolute_path));
+
+    const auto result = JohnnyDecimalFolderSuggester::create_next_folder(temp_dir.path(), "System", "Notes");
+    INFO(result.error);
+    REQUIRE(result.success);
+    CHECK(result.suggestion.relative_path == "00-09 System/01 Notes");
+    CHECK(result.created_directories.size() == 1);
+    CHECK(std::filesystem::is_directory(temp_dir.path() / "00-09 System/01 Notes"));
+    CHECK_FALSE(std::filesystem::exists(temp_dir.path() / "00-09 System/1 Notes"));
+
+    const auto report = JohnnyDecimalValidator::validate_archive(temp_dir.path());
+    INFO(JohnnyDecimalValidator::format_report(report));
+    CHECK_FALSE(report.has_errors());
+
+    const auto next =
+        JohnnyDecimalFolderSuggester::preview_next_folder(temp_dir.path(), "System", "Templates", {}, &error);
+    REQUIRE(next.has_value());
+    CHECK(next->relative_path == "00-09 System/02 Templates");
+}
+
+TEST_CASE("JohnnyDecimalFolderSuggester preserves occupied IDs in large archives")
+{
+    TempDir temp_dir;
+    std::filesystem::create_directories(temp_dir.path() / "00-09 System/01 Index");
+    std::filesystem::create_directories(temp_dir.path() / "10-19 Admin/11 Finance");
+    std::filesystem::create_directories(temp_dir.path() / "20-29 Work/21 Projects/21.01 Current");
+
+    auto populated_parent = temp_dir.path() / "20-29 Work/21 Projects/21.01 Current";
+    SECTION("Large item subtree") {}
+    SECTION("Large set of direct area children") {
+        populated_parent = temp_dir.path() / "10-19 Admin";
+    }
+    constexpr int kLargeArchiveFolderCount = 510;
+    for (int i = 0; i < kLargeArchiveFolderCount; ++i) {
+        std::filesystem::create_directories(populated_parent / ("Notes " + std::to_string(i)));
+    }
+    std::filesystem::create_directories(temp_dir.path() / "20-29 Work/22 Existing");
+
+    std::string error;
+    const auto suggestion =
+        JohnnyDecimalFolderSuggester::preview_next_folder(temp_dir.path(), "Work", "Proposals", {}, &error);
+    INFO(error);
+    REQUIRE(suggestion.has_value());
+    CHECK(suggestion->relative_path == "20-29 Work/23 Proposals");
+    CHECK_FALSE(std::filesystem::exists(suggestion->absolute_path));
+
+    const auto result = JohnnyDecimalFolderSuggester::create_next_folder(temp_dir.path(), "Work", "Proposals");
+    INFO(result.error);
+    REQUIRE(result.success);
+    CHECK(result.suggestion.relative_path == "20-29 Work/23 Proposals");
+    CHECK(result.created_directories.size() == 1);
+    CHECK(std::filesystem::is_directory(temp_dir.path() / "20-29 Work/22 Existing"));
+    CHECK(std::filesystem::is_directory(temp_dir.path() / "20-29 Work/23 Proposals"));
+    CHECK_FALSE(std::filesystem::exists(temp_dir.path() / "20-29 Work/22 Proposals"));
+}
+
 TEST_CASE("JohnnyDecimalFolderSuggester creates a new area and first child folder")
 {
     TempDir temp_dir;
@@ -292,6 +386,15 @@ TEST_CASE("JohnnyDecimalFolderSuggester rejects duplicate sibling labels")
     REQUIRE(std::filesystem::create_directories(temp_dir.path() / "10-19 Admin" / "11 Reports"));
     REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "21 Clients"));
     REQUIRE(std::filesystem::create_directories(temp_dir.path() / "20-29 Work" / "22 Proposals"));
+
+    SECTION("Small archive") {}
+    SECTION("Large item subtree") {
+        constexpr int kLargeArchiveFolderCount = 510;
+        const auto item = temp_dir.path() / "20-29 Work/21 Clients/21.01 Current";
+        for (int i = 0; i < kLargeArchiveFolderCount; ++i) {
+            std::filesystem::create_directories(item / ("Notes " + std::to_string(i)));
+        }
+    }
 
     std::string error;
     const auto suggestion =
