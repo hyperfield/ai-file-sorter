@@ -1459,6 +1459,11 @@ bool Settings::get_use_whitelist() const
     return use_whitelist;
 }
 
+bool Settings::get_effective_use_whitelist() const
+{
+    return use_whitelist && sorting_mode == SortingMode::GeneratedCategories;
+}
+
 void Settings::set_use_whitelist(bool value)
 {
     use_whitelist = value;

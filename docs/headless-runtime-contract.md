@@ -228,7 +228,7 @@ without a settings file, and saved-plan apply retain their existing behavior.
 | `destinationFolder` | String destination root; whitespace is trimmed. Empty explicitly selects the analyzed root. |
 | `suggestNewFolders` | Boolean allowing missing folder-tree proposals, subject to review/apply validation. |
 | `useSubcategories`, `useConsistencyHints` | Booleans controlling generated category layout and consistency. Subcategories do not alter literal folder-tree targets. |
-| `useWhitelist`, `activeWhitelist` | Boolean activation and string whitelist name. |
+| `useWhitelist`, `activeWhitelist` | Saved boolean activation and string whitelist name. Whitelist constraints apply only to generated category-folder sorting; existing-folder sorting ignores them. |
 | `allowedCategories`, `allowedSubcategories` | Arrays of direct whitelist strings; non-string and empty items are ignored and valid items are trimmed. |
 | `categorizeFiles`, `categorizeDirectories`, `includeSubdirectories` | Boolean target-processing preferences. |
 | `analyzeImagesByContent`, `processImagesOnly`, `addImageDateToCategory`, `addImageDatePlaceToFilename`, `offerRenameImages`, `renameImagesOnly` | Boolean image-workflow preferences. |

@@ -71,9 +71,14 @@ TEST_CASE("Consistency pass maps opaque IDs back to same-named files without exp
 
 TEST_CASE("Unconstrained consistency harmonization preserves active whitelist assignments", "[prompt-contract][consistency]")
 {
+    bool existing_folders = false;
+    SECTION("category-folder sorting preserves active whitelist assignments") {}
+    SECTION("existing-folder sorting ignores the saved whitelist") { existing_folders = true; }
     TempDir directory;
     EnvVarGuard guard("AI_FILE_SORTER_CONFIG_DIR", directory.path().string());
     Settings settings;
+    settings.set_sorting_mode(existing_folders
+        ? SortingMode::ExistingFolderTree : SortingMode::GeneratedCategories);
     settings.set_use_whitelist(true);
     settings.set_allowed_categories({"Documents"});
     DatabaseManager database(settings.get_config_dir());
@@ -88,7 +93,7 @@ TEST_CASE("Unconstrained consistency harmonization preserves active whitelist as
         ++requests;
         return std::make_unique<ConsistencyReply>([](const auto&) { return "END"; });
     }, stop, CategoryLanguage::English, {});
-    CHECK(requests == 0);
+    CHECK(requests == (existing_folders ? 1 : 0));
     CHECK(rows[0].category == "Documents");
     CHECK(rows[0].subcategory == "Other");
 }

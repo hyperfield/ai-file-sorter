@@ -130,6 +130,80 @@ WorkflowResult run_cached_image_workflow(Settings& settings, DatabaseManager& da
 }
 } // namespace
 
+TEST_CASE("Existing-folder sorting ignores saved category whitelists", "[content-routing][whitelist-mode]")
+{
+    const bool cached = GENERATE(false, true);
+    const bool large = GENERATE(false, true);
+    const std::string name = GENERATE("input.bin", "policy.pdf", "IMG_0001.png");
+    CAPTURE(cached, large, name);
+    TempDir config, source, destination;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    std::filesystem::create_directories(destination.path() / "Legal" / "Data Protection");
+    std::ofstream(source.path() / name) << "Synthetic privacy policy";
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_destination_folder(destination.path().string());
+    settings.set_suggest_new_folders(false);
+    settings.set_use_consistency_hints(false);
+    settings.set_use_whitelist(true);
+    settings.set_active_whitelist("Saved category list");
+    constexpr int kLargeWhitelistCategoryCount = 40;
+    std::vector<std::string> allowed;
+    for (int index = 0; index < (large ? kLargeWhitelistCategoryCount : 1); ++index) {
+        allowed.push_back("WhitelistOnly" + std::to_string(index));
+    }
+    settings.set_allowed_categories(allowed);
+    settings.set_allowed_subcategories({"WhitelistOnlyChild"});
+    settings.set_allowed_subcategories_by_category({{allowed.front(), {"WhitelistOnlyChild"}}});
+    REQUIRE(settings.save());
+    REQUIRE(settings.load());
+    DatabaseManager database(settings.get_config_dir());
+    if (cached) {
+        REQUIRE(database.insert_or_update_file_with_categorization(
+            name, "F", source.path().string(), database.resolve_category("Legal", "Data Protection"), false));
+    }
+    const auto requests = std::make_shared<std::vector<Request>>();
+    auto factory = [requests] {
+        return std::make_unique<RoutingLLM>(requests, [](const Request& request) {
+            return request.context.find(FolderTreeCatalog::kPromptMarker) == std::string::npos
+                ? std::string("Legal : Data Protection")
+                : std::string(R"({"targetFolder":"Legal/Data Protection","createFolder":false})");
+        });
+    };
+    CategorizationService service(settings, database, nullptr);
+    std::atomic<bool> stop{false};
+    const auto result = service.categorize_entries(
+        {{(source.path() / name).string(), name, FileType::File}}, true, stop, {}, {}, {}, {}, factory);
+    REQUIRE(result.size() == 1);
+    CHECK(result.front().category == "Legal");
+    CHECK(result.front().subcategory == "Data Protection");
+    CHECK(result.front().target_folder_relative_path == "Legal/Data Protection");
+    CHECK(result.front().target_folder_exists);
+    CHECK(requests->size() == (cached ? 1 : 2));
+    for (const auto& request : *requests) {
+        CHECK(request.context.find("WhitelistOnly") == std::string::npos);
+    }
+    CHECK(database.get_categorization_policy(source.path().string(), name, FileType::File).empty());
+    CHECK(settings.get_use_whitelist());
+    CHECK(settings.get_active_whitelist() == "Saved category list");
+    CHECK(settings.get_allowed_categories() == allowed);
+
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    requests->clear();
+    const std::string category_name = "WhitelistOnly0.bin";
+    std::ofstream(source.path() / category_name) << "Synthetic privacy policy";
+    const auto restricted = service.categorize_entries(
+        {{(source.path() / category_name).string(), category_name, FileType::File}},
+        true, stop, {}, {}, {}, {}, factory);
+    REQUIRE(restricted.size() == 1);
+    CHECK(restricted.front().category.empty());
+    CHECK(restricted.front().subcategory.empty());
+    REQUIRE_FALSE(requests->empty());
+    CHECK(requests->front().context.find("WhitelistOnly") != std::string::npos);
+    CHECK(settings.get_use_whitelist());
+    CHECK(settings.get_allowed_categories() == allowed);
+}
+
 TEST_CASE("AnalysisCoordinator suppresses cached renames when content analysis is off", "[content-routing][cached-renames]")
 {
     const bool image = GENERATE(false, true);

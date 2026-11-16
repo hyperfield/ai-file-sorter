@@ -468,6 +468,7 @@ live inference. A live audit validates the boundary at application calls to
 Build with `cmake --build build-tests --target ai_file_sorter_tests -j4`.
 Run the focused group with `QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[content-cache],[content-routing]"`.
 These deterministic tests use temporary files and injected LLMs, not live inference.
+The `[consistency]` group also verifies that harmonization preserves active category-folder whitelist assignments while ignoring the saved whitelist in existing-folder mode.
 
 `tests/unit/test_content_analysis_cache.cpp` covers:
 - `ContentAnalysisCache preserves full evidence across database reopen`: full multiline descriptions survive restart and remain scoped to the analyzer/model version.
@@ -476,6 +477,7 @@ These deterministic tests use temporary files and injected LLMs, not live infere
 - `ContentAnalysisCache shares native Unicode identity across lookup upsert and clear`: equivalent macOS source paths share evidence and directory cleanup; literal filesystem names remain distinct on other platforms.
 
 `tests/unit/test_content_context_routing.cpp` covers:
+- `Existing-folder sorting ignores saved category whitelists`: fresh and cached general files, pictures, and documents ignore small and large saved whitelist constraints in classification, routing, and cache validation. Switching back to category-folder sorting restores the unchanged whitelist and rejects answers outside it. Run `[whitelist-mode]` for this regression.
 - `AnalysisCoordinator suppresses cached renames when content analysis is off`: cached and fresh pictures/documents are sorted without rename suggestions when their content analysis is disabled, even with remembered rename-only preferences. Cached suggestions remain available for later reuse.
 - `Content evidence reaches classification and routing independently of renaming`: image/document evidence survives a cache round trip and reaches both LLM stages separately from the path, including when preliminary labels differ from the model-selected destination.
 - `Source directories do not affect classification or routing requests`: identical image/document evidence and filenames in unrelated source directories produce identical classification and routing requests. Source paths remain distinct in review/cache records, content evidence is preserved, and destination choices remain available.

@@ -534,7 +534,7 @@ bool is_allowed_subcategory_for_category(
 // Preserve user spelling; never replace an invalid answer with an arbitrary list entry.
 bool match_whitelist_labels(std::string& category, std::string& subcategory, const Settings& settings)
 {
-    if (!settings.get_use_whitelist()) return true;
+    if (!settings.get_effective_use_whitelist()) return true;
     const auto mapped = settings.get_allowed_subcategories_by_category();
     const auto categories = allowed_categories_for_whitelist(settings.get_allowed_categories(), mapped);
     const auto match = [](std::string& value, const std::vector<std::string>& allowed) {
@@ -818,7 +818,7 @@ std::string CategorizationService::build_whitelist_context() const
 std::string CategorizationService::build_main_category_candidate_context(const std::string& prompt_name,
                                                                          FileType file_type) const
 {
-    if (settings.get_use_whitelist()) {
+    if (settings.get_effective_use_whitelist()) {
         return std::string();
     }
 
@@ -990,7 +990,7 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
     const auto candidates = user_learning_store_->retrieve_taxonomy_candidates(query, 5);
     std::ostringstream oss;
     const auto family_selection =
-        (settings.get_use_whitelist() || !prefer_stable_taxonomy)
+        (settings.get_effective_use_whitelist() || !prefer_stable_taxonomy)
             ? FileCategoryPolicy::MainCategorySelection{}
             : FileCategoryPolicy::determine_main_category_selection(prompt_name, file_type);
     const auto whitelist_subcategories_by_category = settings.get_allowed_subcategories_by_category();
@@ -1001,20 +1001,20 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
                                                                           file_type,
                                                                           category,
                                                                           subcategory,
-                                                                          settings.get_use_whitelist(),
+                                                                          settings.get_effective_use_whitelist(),
                                                                           whitelist_categories,
                                                                           prefer_stable_taxonomy);
         std::tie(category, subcategory) = normalize_document_category_labels(prompt_name,
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist(),
+                                                                             settings.get_effective_use_whitelist(),
                                                                              prefer_stable_taxonomy);
         std::tie(category, subcategory) = normalize_artifact_category_labels(prompt_name,
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist());
+                                                                             settings.get_effective_use_whitelist());
         return CategoryPair{std::move(category), std::move(subcategory)};
     };
 
@@ -1051,7 +1051,7 @@ std::string CategorizationService::build_learned_candidate_context(const std::st
     }
 
     oss << "Prefer these examples when they fit, subject to the allowed labels. ";
-    if (settings.get_use_whitelist() && whitelist_constraint_count(settings.get_allowed_categories(),
+    if (settings.get_effective_use_whitelist() && whitelist_constraint_count(settings.get_allowed_categories(),
             settings.get_allowed_subcategories(), settings.get_allowed_subcategories_by_category()) > 0) {
         oss << "If none fits, use another permitted pair or reply NO_MATCH.";
     } else {
@@ -1067,7 +1067,7 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
     FileType file_type) const
 {
     // The model already compared the filtered examples with the explicit allowed labels.
-    if (settings.get_use_whitelist()) return resolved;
+    if (settings.get_effective_use_whitelist()) return resolved;
     if (!user_learning_store_ || !user_learning_store_->is_open()) {
         return resolved;
     }
@@ -1094,22 +1094,22 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
                                                                                           file_type,
                                                                                           candidate.category,
                                                                                           candidate.subcategory,
-                                                                                          settings.get_use_whitelist(),
+                                                                                          settings.get_effective_use_whitelist(),
                                                                                           allowed_categories,
                                                                                           prefer_stable_taxonomy);
     std::tie(candidate.category, candidate.subcategory) = normalize_document_category_labels(prompt_name,
                                                                                              file_type,
                                                                                              candidate.category,
                                                                                              candidate.subcategory,
-                                                                                             settings.get_use_whitelist(),
+                                                                                             settings.get_effective_use_whitelist(),
                                                                                              prefer_stable_taxonomy);
     std::tie(candidate.category, candidate.subcategory) = normalize_artifact_category_labels(prompt_name,
                                                                                              file_type,
                                                                                              candidate.category,
                                                                                              candidate.subcategory,
-                                                                                             settings.get_use_whitelist());
+                                                                                             settings.get_effective_use_whitelist());
     const auto allowed_subcategories = settings.get_allowed_subcategories();
-    if (!settings.get_use_whitelist() && prefer_stable_taxonomy) {
+    if (!settings.get_effective_use_whitelist() && prefer_stable_taxonomy) {
         const auto family_selection =
             FileCategoryPolicy::determine_main_category_selection(prompt_name, file_type);
         if (!family_selection.categories.empty() &&
@@ -1117,10 +1117,10 @@ DatabaseManager::ResolvedCategory CategorizationService::prefer_learned_candidat
             return resolved;
         }
     }
-    if (settings.get_use_whitelist() && !is_allowed(candidate.category, allowed_categories)) {
+    if (settings.get_effective_use_whitelist() && !is_allowed(candidate.category, allowed_categories)) {
         return resolved;
     }
-    if (settings.get_use_whitelist() &&
+    if (settings.get_effective_use_whitelist() &&
         !candidate.subcategory.empty() &&
         !is_allowed_subcategory_for_category(candidate.category,
                                              candidate.subcategory,
@@ -1188,7 +1188,7 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     if (!cached) {
         return std::nullopt;
     }
-    if (settings.get_use_whitelist() &&
+    if (settings.get_effective_use_whitelist() &&
         db_manager.get_categorization_policy(dir_path, item_name, file_type) != whitelist_cache_policy()) {
         return std::nullopt;
     }
@@ -1222,7 +1222,7 @@ std::optional<DatabaseManager::ResolvedCategory> CategorizationService::try_cach
     (void)current_path;
     (void)categorization_path;
     (void)progress_callback;
-    return settings.get_use_whitelist()
+    return settings.get_effective_use_whitelist()
         ? db_manager.resolve_literal_category(category, subcategory)
         : db_manager.resolve_category(category, subcategory);
 }
@@ -1470,7 +1470,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                                                                           file_type,
                                                                           category,
                                                                           subcategory,
-                                                                          settings.get_use_whitelist(),
+                                                                          settings.get_effective_use_whitelist(),
                                                                           effective_allowed_categories,
                                                                           prefer_stable_taxonomy);
         if (core_logger &&
@@ -1488,7 +1488,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist(),
+                                                                             settings.get_effective_use_whitelist(),
                                                                              prefer_stable_taxonomy);
         if (core_logger &&
             (category != pre_document_category || subcategory != pre_document_subcategory)) {
@@ -1505,7 +1505,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                                                                              file_type,
                                                                              category,
                                                                              subcategory,
-                                                                             settings.get_use_whitelist());
+                                                                             settings.get_effective_use_whitelist());
         if (core_logger &&
             (category != pre_artifact_category || subcategory != pre_artifact_subcategory)) {
             core_logger->info("Normalized artifact category for '{}' from '{}'/'{}' to '{}'/'{}'",
@@ -1520,7 +1520,7 @@ DatabaseManager::ResolvedCategory CategorizationService::categorize_via_llm(
                 "[LLM-ERROR] {} (answer outside the active whitelist; left unassigned)", display_name));
             return DatabaseManager::ResolvedCategory{-1, "", ""};
         }
-        auto resolved = settings.get_use_whitelist()
+        auto resolved = settings.get_effective_use_whitelist()
             ? db_manager.resolve_literal_category(category, subcategory)
             : db_manager.resolve_category(category, subcategory);
         resolved = prefer_learned_candidate_for_generic_result(resolved, prompt_name, prompt_path, file_type);
@@ -1805,12 +1805,12 @@ std::string CategorizationService::build_combined_context(const std::string& hin
     const bool document_context = is_document_prompt_context(prompt_name, file_type);
     const bool use_specialized_prompt_context = image_context || document_context;
     const bool large_whitelist =
-        settings.get_use_whitelist() &&
+        settings.get_effective_use_whitelist() &&
         whitelist_constraint_count(allowed_categories,
                                    allowed_subcategories,
                                    allowed_subcategories_by_category) > kLargeWhitelistPromptThreshold;
     std::string sorting_style_block;
-    const std::string whitelist_block = settings.get_use_whitelist()
+    const std::string whitelist_block = settings.get_effective_use_whitelist()
         ? build_whitelist_context_for_prompt(prompt_name, prompt_path)
         : std::string();
     const std::string learned_candidate_block = (!use_specialized_prompt_context || large_whitelist)
@@ -1830,7 +1830,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         style_guidance << (prefer_stable_taxonomy ? kConsistentSortingStyleMarker
                                                   : kRefinedSortingStyleMarker)
                        << "\n";
-        if (settings.get_use_whitelist()) {
+        if (settings.get_effective_use_whitelist()) {
             style_guidance << "- Apply this sorting style only to unrestricted labels; copy allowed labels literally.\n";
         } else if (prefer_stable_taxonomy) {
             style_guidance
@@ -1851,7 +1851,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         sorting_style_block = style_guidance.str();
     }
 
-    if (image_context && !settings.get_use_whitelist()) {
+    if (image_context && !settings.get_effective_use_whitelist()) {
         std::ostringstream image_guidance;
         image_guidance
             << "Image categorization guidance:\n"
@@ -1887,7 +1887,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         image_block = image_guidance.str();
     }
 
-    if (document_context && !settings.get_use_whitelist()) {
+    if (document_context && !settings.get_effective_use_whitelist()) {
         std::ostringstream document_guidance;
         document_guidance
             << "Document categorization guidance:\n"
@@ -1940,7 +1940,7 @@ std::string CategorizationService::build_combined_context(const std::string& hin
         }
         combined_context += family_candidate_block;
     }
-    if (settings.get_use_whitelist() && !whitelist_block.empty()) {
+    if (settings.get_effective_use_whitelist() && !whitelist_block.empty()) {
         if (core_logger) {
             core_logger->debug("Applying category whitelist ({} cats, {} flat subs, {} mapped cats)",
                                allowed_categories.size(),
@@ -2137,7 +2137,7 @@ void CategorizationService::update_storage_with_result(const FileEntry& entry,
         resolved,
         used_consistency_hints,
         suggested_name);
-    if (stored && settings.get_use_whitelist()) {
+    if (stored && settings.get_effective_use_whitelist()) {
         db_manager.set_categorization_policy(dir_path, entry.file_name, entry.type, whitelist_cache_policy());
     }
 

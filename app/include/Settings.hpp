@@ -482,10 +482,15 @@ public:
     void set_consistency_pass_enabled(bool value);
 
     /**
-     * @brief Returns whether category whitelists are enabled.
-     * @return True when whitelist filtering is active.
+     * @brief Returns the saved category-whitelist preference, independently of sorting mode.
+     * @return True when the saved whitelist checkbox is selected.
      */
     bool get_use_whitelist() const;
+    /**
+     * @brief Returns whether the whitelist applies to the current sorting mode.
+     * @return True when category-folder sorting and the saved whitelist preference are enabled.
+     */
+    bool get_effective_use_whitelist() const;
     /**
      * @brief Enables or disables category whitelist filtering.
      * @param value True to enable whitelist filtering.

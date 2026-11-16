@@ -661,7 +661,7 @@ void ConsistencyPassService::run(std::vector<CategorizedFile>& categorized_files
     }
     // This pass has no per-item whitelist contract. Preserve the constrained decisions
     // rather than letting unconstrained taxonomy harmonization rewrite them.
-    if (settings_ && settings_->get_use_whitelist() &&
+    if (settings_ && settings_->get_effective_use_whitelist() &&
         (!settings_->get_allowed_categories().empty() || !settings_->get_allowed_subcategories().empty() ||
          !settings_->get_allowed_subcategories_by_category().empty())) {
         if (progress_callback) progress_callback("[CONSISTENCY] Whitelist assignments preserved.");
