@@ -1,6 +1,7 @@
 #include "FolderStructureInitializerDialog.hpp"
 #include "FolderStructureLocalizationService.hpp"
 #include "FolderStructureTemplates.hpp"
+#include "FolderStructureUiText.hpp"
 #include "ILLMClient.hpp"
 #include "MainApp.hpp"
 #include "MainAppTestAccess.hpp"
@@ -13,10 +14,13 @@
 #include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QThread>
+#include <QTabWidget>
 #include <QTimer>
 #include <catch2/catch_test_macros.hpp>
 #include <atomic>
@@ -68,6 +72,60 @@ FolderStructureInitializerDialog::LanguageOptions french_options()
     return options;
 }
 } // namespace
+
+TEST_CASE("French starter metadata is localized without changing folder data", "[folder-language][localization-gaps]")
+{
+    QtAppContext qt;
+    TempDir destination;
+    TranslationManager::instance().set_language(Language::French);
+    FolderStructureInitializerDialog dialog(destination.path());
+    auto* templates = dialog.findChild<QListWidget*>("folderStructureTemplateList");
+    auto* description = dialog.findChild<QLabel*>("folderStructureDescriptionLabel");
+    auto* language = dialog.findChild<QComboBox*>("folderStructureLanguageSelector");
+    auto* preview = dialog.findChild<QListWidget*>("folderStructurePreviewList");
+    auto* tabs = dialog.findChild<QTabWidget*>("folderStructureTabWidget");
+    REQUIRE(templates);
+    REQUIRE(description);
+    REQUIRE(language);
+    REQUIRE(preview);
+    REQUIRE(tabs);
+    const auto& canonical = *FolderStructureTemplates::find(FolderStructureTemplates::Id::MediaType);
+    CHECK(canonical.name == "Media type folders");
+    CHECK(templates->item(0)->text() == QString::fromUtf8("Dossiers par type de fichier"));
+    CHECK(description->text() == FolderStructureUiText::template_description(canonical));
+    CHECK(description->text() != QString::fromStdString(canonical.description));
+    CHECK(language->currentData().toInt() == static_cast<int>(CategoryLanguage::English));
+    CHECK(language->currentText() == "Anglais");
+    REQUIRE(preview->count() == static_cast<int>(canonical.relative_directories.size()));
+    for (int index = 0; index < preview->count(); ++index) {
+        CHECK(preview->item(index)->text() == QString::fromStdString(canonical.relative_directories[index]));
+    }
+    CHECK(tabs->tabText(2) == "Index de l'archive");
+    CHECK(tabs->tabText(3) == "Rapport de validation");
+    CHECK(dialog.findChild<QLineEdit*>("johnnyDecimalNextAreaEdit")->placeholderText() == "Travail");
+    CHECK(dialog.findChild<QLineEdit*>("johnnyDecimalNextFolderEdit")->placeholderText() == "Propositions");
+    TranslationManager::instance().set_language(Language::English);
+}
+
+TEST_CASE("UI translations preserve external and signed plugin metadata", "[folder-language][localization-gaps]")
+{
+    QtAppContext qt;
+    TranslationManager::instance().set_language(Language::French);
+    auto external = *FolderStructureTemplates::find(FolderStructureTemplates::Id::MediaType);
+    external.plugin_profile_id = "third-party-profile";
+    CHECK(FolderStructureUiText::template_name(external) == QString::fromStdString(external.name));
+    CHECK(FolderStructureUiText::template_description(external) == QString::fromStdString(external.description));
+    const std::string id = "johnny_decimal_support";
+    const std::string name = "Johnny.Decimal Support";
+    const std::string description = "Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.";
+    CHECK(FolderStructureUiText::plugin_name(id, name) == "Prise en charge de Johnny.Decimal");
+    CHECK(FolderStructureUiText::plugin_description(id, description) != QString::fromStdString(description));
+    CHECK(FolderStructureUiText::plugin_name("other-plugin", name) == QString::fromStdString(name));
+    CHECK(FolderStructureUiText::plugin_name(id, "Custom name") == "Custom name");
+    CHECK(FolderStructureUiText::plugin_description(id, "Custom description") == "Custom description");
+    CHECK(name == "Johnny.Decimal Support");
+    TranslationManager::instance().set_language(Language::English);
+}
 
 TEST_CASE("Folder language selector fits long names and enlarged fonts", "[folder-language][translated-sizing]")
 {

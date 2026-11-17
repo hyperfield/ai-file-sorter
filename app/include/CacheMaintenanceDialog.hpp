@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <QCoreApplication>
 #include <QDialog>
 
 #include <map>
@@ -20,6 +21,8 @@ enum class CacheMaintenanceTarget;
  * @brief Modal dialog that lets users inspect and clear individual cache targets.
  */
 class CacheMaintenanceDialog : public QDialog {
+    Q_DECLARE_TR_FUNCTIONS(CacheMaintenanceDialog)
+
 public:
     /**
      * @brief Constructs the cache maintenance dialog.

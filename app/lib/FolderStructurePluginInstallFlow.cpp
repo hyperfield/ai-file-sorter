@@ -14,13 +14,10 @@
 #include <cstddef>
 
 #include "FolderStructurePluginManager.hpp"
+#include "FolderStructureUiText.hpp"
 #include "PluginBuildConfig.hpp"
 
 namespace {
-
-QString flow_tr(const char* text) {
-    return QCoreApplication::translate("FolderStructurePluginInstallFlow", text);
-}
 
 std::string to_utf8(const QString& value) {
     const QByteArray bytes = value.toUtf8();
@@ -29,12 +26,12 @@ std::string to_utf8(const QString& value) {
 
 QString plugin_display_name(const FolderStructurePluginInstallError& error) {
     if (!error.plugin_name.empty()) {
-        return QString::fromStdString(error.plugin_name);
+        return FolderStructureUiText::plugin_name(error.plugin_id, error.plugin_name);
     }
     if (!error.plugin_id.empty()) {
         return QString::fromStdString(error.plugin_id);
     }
-    return flow_tr("this plugin");
+    return QCoreApplication::translate("FolderStructurePluginInstallFlow", "this plugin");
 }
 
 bool entitlement_is_available(const std::shared_ptr<FolderStructurePluginManager>& plugin_manager,
@@ -44,9 +41,11 @@ bool entitlement_is_available(const std::shared_ptr<FolderStructurePluginManager
 }
 
 void show_install_failed(QWidget* parent, const FolderStructurePluginInstallError& install_error) {
-    QMessageBox::warning(parent, flow_tr("Install failed"),
-                         install_error.message.empty() ? flow_tr("Failed to install folder-structure plugin.")
-                                                       : QString::fromStdString(install_error.message));
+    QMessageBox::warning(parent, QCoreApplication::translate("FolderStructurePluginInstallFlow", "Install failed"),
+                         install_error.message.empty()
+                             ? QCoreApplication::translate("FolderStructurePluginInstallFlow",
+                                                          "Failed to install folder-structure plugin.")
+                             : QString::fromStdString(install_error.message));
 }
 
 }  // namespace
@@ -66,15 +65,15 @@ bool activate_folder_structure_plugin_entitlement(QWidget* parent,
 
     QMessageBox license_required(parent);
     license_required.setIcon(QMessageBox::Warning);
-    license_required.setWindowTitle(flow_tr("License needed"));
+    license_required.setWindowTitle(QCoreApplication::translate("FolderStructurePluginInstallFlow", "License needed"));
     license_required.setText(QString::fromStdString(install_error.message));
     license_required.setInformativeText(
-        flow_tr("Activate your license now and AI File Sorter will continue the installation automatically."));
+        QCoreApplication::translate("FolderStructurePluginInstallFlow", "Activate your license now and AI File Sorter will continue the installation automatically."));
     QPushButton* read_more_button = nullptr;
     if (!install_error.purchase_url.empty()) {
-        read_more_button = license_required.addButton(flow_tr("Read More..."), QMessageBox::ActionRole);
+        read_more_button = license_required.addButton(QCoreApplication::translate("FolderStructurePluginInstallFlow", "Read More..."), QMessageBox::ActionRole);
     }
-    auto* activate_button = license_required.addButton(flow_tr("Activate License..."), QMessageBox::AcceptRole);
+    auto* activate_button = license_required.addButton(QCoreApplication::translate("FolderStructurePluginInstallFlow", "Activate License..."), QMessageBox::AcceptRole);
     license_required.addButton(QMessageBox::Cancel);
     bool entitlement_detected = false;
     QTimer entitlement_refresh_timer(&license_required);
@@ -117,8 +116,8 @@ bool prompt_for_folder_structure_plugin_entitlement(QWidget* parent,
 
     bool accepted = false;
     const QString license_key =
-        QInputDialog::getText(parent, flow_tr("Activate Plugin License"),
-                              flow_tr("Paste the license key for %1:").arg(plugin_display_name(install_error)),
+        QInputDialog::getText(parent, QCoreApplication::translate("FolderStructurePluginInstallFlow", "Activate Plugin License"),
+                              QCoreApplication::translate("FolderStructurePluginInstallFlow", "Paste the license key for %1:").arg(plugin_display_name(install_error)),
                               QLineEdit::Normal, QString(), &accepted);
     if (!accepted || license_key.trimmed().isEmpty()) {
         return false;
@@ -131,8 +130,8 @@ bool prompt_for_folder_structure_plugin_entitlement(QWidget* parent,
     QApplication::restoreOverrideCursor();
 
     if (!activated) {
-        QMessageBox::warning(parent, flow_tr("Activation failed"),
-                             activation_error.empty() ? flow_tr("Failed to activate the plugin license.")
+        QMessageBox::warning(parent, QCoreApplication::translate("FolderStructurePluginInstallFlow", "Activation failed"),
+                             activation_error.empty() ? QCoreApplication::translate("FolderStructurePluginInstallFlow", "Failed to activate the plugin license.")
                                                       : QString::fromStdString(activation_error));
         return false;
     }

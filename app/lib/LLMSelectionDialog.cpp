@@ -1617,8 +1617,9 @@ void LLMSelectionDialog::setup_visual_llm_download_entry(VisualLlmDownloadEntry&
     entry.artifact_descriptor = &artifact;
     entry.env_var = artifact.url_env;
     entry.backend_id = backend.id;
-    entry.display_name = artifact.display_name;
-    auto* group = new QGroupBox(QString::fromUtf8(artifact.display_name), parent);
+    const QString display_name = QCoreApplication::translate("VisualModelCatalog", artifact.display_name);
+    entry.display_name = display_name.toStdString();
+    auto* group = new QGroupBox(display_name, parent);
     entry.container = group;
 
     auto* entry_layout = new QVBoxLayout(group);

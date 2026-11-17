@@ -1374,6 +1374,34 @@ TEST_CASE("Bundled network and Explorer translations preserve Unicode", "[ui-tra
 }
 
 
+TEST_CASE("Bundled catalogs translate previously hidden dialogs and metadata", "[ui-translations][localization-gaps]")
+{
+    QtAppContext qt;
+    struct Message { const char* context; const char* source; };
+    const Message messages[] = {
+        {"FolderStructureTemplates", "Media type folders"},
+        {"FolderStructureUiText", "Johnny.Decimal Support"},
+        {"FolderStructurePluginDialog", "Check for Updates"},
+        {"FolderStructurePluginInstallFlow", "Activate Plugin License"},
+        {"CacheMaintenanceDialog", "Clear cache"},
+        {"StoragePluginDialog", "Manage Storage Plugins"},
+        {"VisualModelCatalog", "Qwen3.5 4B (text model)"},
+        {"ReviewHistoryDialog", "Rename and Categorization History"},
+    };
+    for (const auto& language : TranslationManager::instance().available_languages()) {
+        if (language.id == Language::English) continue;
+        QTranslator translator;
+        REQUIRE(translator.load(language.resource_path));
+        for (const auto& message : messages) {
+            const auto translated = translator.translate(message.context, message.source);
+            CAPTURE(language.code.toStdString(), message.context, message.source, translated.toStdString());
+            CHECK_FALSE(translated.isEmpty());
+            CHECK(translated != QString::fromUtf8(message.source));
+            CHECK_FALSE(translated.contains(QChar(QChar::ReplacementCharacter)));
+        }
+    }
+}
+
 TEST_CASE("New European UI locales persist and load their bundled resources", "[ui-locales]")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());

@@ -33,6 +33,7 @@
 #include "Utils.hpp"
 #include "CategoryLanguageSupport.hpp"
 #include "FolderStructureLocalizationService.hpp"
+#include "FolderStructureUiText.hpp"
 #include "ILLMClient.hpp"
 
 namespace {
@@ -106,7 +107,7 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
         languages.push_back(language_options_.initial_language);
     }
     for (const auto language : languages) {
-        language_selector_->addItem(categoryLanguageToString(language), static_cast<int>(language));
+        language_selector_->addItem(FolderStructureUiText::language_name(language), static_cast<int>(language));
     }
     language_selector_->setCurrentIndex(language_selector_->findData(static_cast<int>(language_options_.initial_language)));
     language_layout->addRow(tr("Folder language:"), language_selector_);
@@ -152,10 +153,10 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     auto* next_form_layout = new QFormLayout();
     next_area_edit_ = new QLineEdit(this);
     next_area_edit_->setObjectName(QStringLiteral("johnnyDecimalNextAreaEdit"));
-    next_area_edit_->setPlaceholderText(QStringLiteral("Work"));
+    next_area_edit_->setPlaceholderText(tr("Work"));
     next_folder_edit_ = new QLineEdit(this);
     next_folder_edit_->setObjectName(QStringLiteral("johnnyDecimalNextFolderEdit"));
-    next_folder_edit_->setPlaceholderText(QStringLiteral("Proposals"));
+    next_folder_edit_->setPlaceholderText(tr("Proposals"));
     next_preview_edit_ = new QLineEdit(this);
     next_preview_edit_->setObjectName(QStringLiteral("johnnyDecimalNextPreviewEdit"));
     next_preview_edit_->setReadOnly(true);
@@ -348,7 +349,7 @@ void FolderStructureInitializerDialog::populate_templates() {
     QListWidgetItem* first_available_item = nullptr;
     for (std::size_t index = 0; index < descriptors_.size(); ++index) {
         const auto& descriptor = descriptors_[index];
-        QString label = from_utf8(descriptor.name);
+        QString label = FolderStructureUiText::template_name(descriptor);
         if (!descriptor.plugin_profile_id.empty()) {
             label += tr(" (plugin)");
         }
@@ -358,7 +359,7 @@ void FolderStructureInitializerDialog::populate_templates() {
 
         auto* item = new QListWidgetItem(label, template_list_);
         item->setData(Qt::UserRole, static_cast<int>(index));
-        item->setToolTip(from_utf8(descriptor.description));
+        item->setToolTip(FolderStructureUiText::template_description(descriptor));
         if (!descriptor.available) {
             item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
             item->setForeground(palette().brush(QPalette::Disabled, QPalette::Text));
@@ -399,7 +400,7 @@ void FolderStructureInitializerDialog::update_selection() {
     }
 
     if (description_label_) {
-        description_label_->setText(descriptor ? from_utf8(descriptor->description) : QString());
+        description_label_->setText(descriptor ? FolderStructureUiText::template_description(*descriptor) : QString());
     }
     if (preview_list_) {
         preview_list_->clear();

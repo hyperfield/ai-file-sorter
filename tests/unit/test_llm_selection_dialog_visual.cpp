@@ -12,6 +12,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QGroupBox>
 #include <QLabel>
 #include <QPushButton>
 #include <QToolButton>
@@ -21,6 +22,28 @@
 #include <filesystem>
 #include <fstream>
 #include <thread>
+
+TEST_CASE("French visual model artifact titles preserve backend identities", "[ui-translations][localization-gaps]")
+{
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    TranslationManager::instance().set_language(Language::French);
+    Settings settings;
+    settings.set_visual_model_id("qwen3.5-4b");
+    LLMSelectionDialog dialog(settings);
+    QStringList titles;
+    for (auto* group : dialog.findChildren<QGroupBox*>()) titles << group->title();
+    CHECK(titles.contains(QString::fromUtf8("Qwen3.5 4B (modèle de texte)")));
+    CHECK(titles.contains(QString::fromUtf8("Qwen3.5 4B mmproj (encodeur visuel)")));
+    CHECK_FALSE(titles.contains("Qwen3.5 4B (text model)"));
+    CHECK(dialog.get_selected_visual_model_id() == "qwen3.5-4b");
+    const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+    REQUIRE(descriptor);
+    CHECK(std::string(descriptor->artifacts[0].display_name) == "Qwen3.5 4B (text model)");
+    CHECK(std::string(descriptor->artifacts[0].local_storage_name) == "model.gguf");
+    TranslationManager::instance().set_language(Language::English);
+}
 
 TEST_CASE("API visual selection stays independent of the text model and hides local downloads", "[http-vision]")
 {

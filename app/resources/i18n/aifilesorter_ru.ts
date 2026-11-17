@@ -9,103 +9,103 @@
             <translation>[SCAN] Исследование %1</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="961"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="972"></location>
             <source>[PROCESS] Letting the AI do its magic...</source>
             <translation>[PROCESS] Даем ИИ творить своё волшебство...</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1292"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1303"></location>
             <source>[VISION] Decoding image batch %1/%2 (%3%)</source>
             <translation>[VISION] Декодирование партии изображений %1/%2 (%3%)</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1332"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1343"></location>
             <source>Unknown</source>
             <translation>Неизвестно</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1337"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1348"></location>
             <source>[VISION] Runtime: backend=%1 | text=%2 | mmproj=%3 | batch_size=%4</source>
             <translation>[VISION] Время выполнения: backend=%1 | text=%2 | mmproj=%3 | batch_size=%4</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1347"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1358"></location>
             <source>[VISION] Timing %1: load %2 | describe %3 | filename %4 | total %5</source>
             <translation>[VISION] Тайминг %1: загрузка %2 | описание %3 | имя файла %4 | всего %5</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1389"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1400"></location>
             <source>[VISION-ERROR] %1 (%2)</source>
             <translation>[VISION-ERROR] %1 (%2)</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1453"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1464"></location>
             <source>[VISION] Switching visual analysis to CPU.</source>
             <translation>[VISION] Переключение визуального анализа на CPU.</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1489"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1500"></location>
             <source>[VISION-ERROR] %1</source>
             <translation>[VISION-ERROR] %1</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1493"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1504"></location>
             <source>[VISION] Visual analysis disabled; falling back to filenames.</source>
             <translation>[VISION] Визуальный анализ отключён; используется только анализ по именам файлов.</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1226"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1237"></location>
             <source>[VISION] Using cached suggestion for %1</source>
             <translation>[VISION] Использую кэшированное предложение для %1</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1531"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1542"></location>
             <source>[VISION] Analyzing %1</source>
             <translation>[VISION] Анализ %1</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1596"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1607"></location>
             <source>[VISION] GPU memory issue detected. Switching to CPU.</source>
             <translation>[VISION] Обнаружена проблема с памятью GPU. Переключение на CPU.</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1627"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1638"></location>
             <source>[VISION] Visual analysis disabled for remaining images.</source>
             <translation>[VISION] Визуальный анализ отключён для оставшихся изображений.</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1711"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1722"></location>
             <source>[DOC-ERROR] %1 (%2)</source>
             <translation>[DOC-ERROR] %1 (%2)</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1790"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1801"></location>
             <source>[DOC] Using cached suggestion for %1</source>
             <translation>[DOC] Использую кэшированное предложение для %1</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="1816"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="1827"></location>
             <source>[DOC] Analyzing %1</source>
             <translation>[DOC] Анализ %1</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2095"></location>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2162"></location>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2232"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2106"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2173"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2243"></location>
             <source>Directory</source>
             <translation>Папка</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2095"></location>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2162"></location>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2232"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2106"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2173"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2243"></location>
             <source>File</source>
             <translation>Файл</translation>
         </message>
         <message>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2096"></location>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2164"></location>
-            <location filename="../../lib/AnalysisCoordinator.cpp" line="2234"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2107"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2175"></location>
+            <location filename="../../lib/AnalysisCoordinator.cpp" line="2245"></location>
             <source>[SORT] %1 (%2)</source>
             <translation>[SORT] %1 (%2)</translation>
         </message>
@@ -113,14 +113,107 @@
     <context>
         <name>CacheMaintenanceDialog</name>
         <message>
-            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="311"></location>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="22"></location>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="30"></location>
+            <source>None</source>
+            <translation>Нет</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="109"></location>
+            <source>Clear cache</source>
+            <translation>Очистить кэш</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="118"></location>
+            <source>Remove cached categorization results, image place lookups, or log files. Downloaded models are managed separately in the LLM dialog.</source>
+            <translation>Удалить кешированные результаты категоризации, данные о расположении изображений или файлы журналов. Загруженные модели управляются отдельно в диалоге LLM.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="127"></location>
+            <source>Cache cleanup is unavailable while analysis is running.</source>
+            <translation>Очистка кэша недоступна во время выполнения анализа.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="184"></location>
+            <source>Path:</source>
+            <translation>Путь:</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="196"></location>
+            <source>Estimated size:</source>
+            <translation>Примерный размер:</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="209"></location>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="264"></location>
+            <source>Clear</source>
+            <translation>Очистить</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="251"></location>
+            <source>This cache is already empty.</source>
+            <translation>Этот кэш уже пуст.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="258"></location>
+            <source>Confirm cache clear</source>
+            <translation>Подтвердите очистку кэша</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="259"></location>
+            <source>Clear %1?</source>
+            <translation>Очистить %1?</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="261"></location>
+            <source>Path: %1
+Estimated reclaimed space: %2
+
+This cannot be undone.</source>
+            <translation>Путь: %1
+Ожидаемое освобождаемое пространство: %2
+
+Это действие нельзя отменить.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="277"></location>
+            <source>The selected cache could not be removed.</source>
+            <translation>Не удалось удалить выбранный кэш.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="286"></location>
+            <source>Cleared %1.</source>
+            <translation>Очищено %1.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="293"></location>
+            <source>Categorization cache</source>
+            <translation>Кэш категоризации</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="295"></location>
+            <source>Image location cache</source>
+            <translation>Кэш местоположения изображений</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="297"></location>
+            <source>Logs</source>
+            <translation>Логи</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="306"></location>
             <source>Saves earlier sorting suggestions so files and folders can be analyzed faster next time.</source>
             <translation>Сохраняет ранее предложенные варианты сортировки, чтобы файлы и папки можно было анализировать быстрее в следующий раз.</translation>
         </message>
         <message>
-            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="315"></location>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="310"></location>
             <source>Saves place names found for photo locations so the app can reuse them without another online lookup.</source>
             <translation>Сохраняет найденные названия мест для фотографий, чтобы приложение могло повторно использовать их без обращения в сеть.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/CacheMaintenanceDialog.cpp" line="314"></location>
+            <source>Stores application log files used for troubleshooting and error reporting.</source>
+            <translation>Хранит журналы приложения, используемые для устранения неполадок и отчётов об ошибках.</translation>
         </message>
     </context>
     <context>
@@ -601,182 +694,192 @@ Click OK to enable this setting or Cancel to leave it disabled.</source>
     <context>
         <name>FolderStructureInitializerDialog</name>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="72"></location>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="477"></location>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="484"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="73"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="479"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="486"></location>
             <source>Create folder structure</source>
             <translation>Создать структуру папок</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="81"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="82"></location>
             <source>Browse...</source>
             <translation>Обзор...</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="87"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="88"></location>
             <source>Destination:</source>
             <translation>Папка назначения:</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="139"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="141"></location>
             <source>Folders to create:</source>
             <translation>Папки, которые будут созданы:</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="146"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="148"></location>
             <source>Starter structure</source>
             <translation>Стартовая структура</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="161"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="156"></location>
+            <source>Work</source>
+            <translation>Работа</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="159"></location>
+            <source>Proposals</source>
+            <translation>Предложения</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="163"></location>
             <source>Area:</source>
             <translation>Область:</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="162"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="164"></location>
             <source>Folder:</source>
             <translation>Папка:</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="163"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="165"></location>
             <source>Preview:</source>
             <translation>Предпросмотр:</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="171"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="173"></location>
             <source>Next folder</source>
             <translation>Следующая папка</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="180"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="182"></location>
             <source>View a readable map of Johnny.Decimal areas, categories, and item folders in the selected archive.</source>
             <translation>Просмотрите читаемую карту областей, категорий и папок элементов Johnny.Decimal в выбранном архиве.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="190"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="192"></location>
             <source>Archive index</source>
             <translation>Индекс архива</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="195"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="197"></location>
             <source>Check an existing Johnny.Decimal archive for duplicate IDs, malformed numbers, folders outside ranges, and missing area/category structure.</source>
             <translation>Проверить существующий архив Johnny.Decimal на предмет дублирующихся идентификаторов, неверно сформированных номеров, папок вне диапазонов и отсутствующей структуры областей/категорий.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="206"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="208"></location>
             <source>Validation report</source>
             <translation>Отчёт проверки</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="209"></location>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="397"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="211"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="399"></location>
             <source>Create</source>
             <translation>Создать</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="352"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="354"></location>
             <source> (plugin)</source>
             <translation> (плагин)</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="355"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="357"></location>
             <source> (coming later)</source>
             <translation> (появится позже)</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="394"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="396"></location>
             <source>Refresh index</source>
             <translation>Обновить индекс</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="396"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="398"></location>
             <source>Refresh report</source>
             <translation>Обновить отчёт</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="397"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="399"></location>
             <source>Create folder</source>
             <translation>Создать папку</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="416"></location>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="531"></location>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="552"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="418"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="533"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="554"></location>
             <source>Choose a destination folder.</source>
             <translation>Выберите папку назначения.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="418"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="420"></location>
             <source>Enter an area name.</source>
             <translation>Введите название области.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="420"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="422"></location>
             <source>Enter a folder name.</source>
             <translation>Введите название папки.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="428"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="430"></location>
             <source>Ready to create.</source>
             <translation>Готово к созданию.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="468"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="470"></location>
             <source>Choose destination folder</source>
             <translation>Выберите папку назначения</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="477"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="479"></location>
             <source>Choose an available folder structure.</source>
             <translation>Выберите доступную структуру папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="490"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="492"></location>
             <source>Folder structure created</source>
             <translation>Структура папок создана</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="491"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="493"></location>
             <source>Created %1 folders. %2 folders already existed.</source>
             <translation>Создано %1 папок. %2 папок уже существовало.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="513"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="515"></location>
             <source>Create Johnny.Decimal folder</source>
             <translation>Создать папку Johnny.Decimal</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="520"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="522"></location>
             <source>Johnny.Decimal folder created</source>
             <translation>Папка Johnny.Decimal создана</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="521"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="523"></location>
             <source>Created %1.</source>
             <translation>Создано %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="100"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="102"></location>
             <source>Choose the language for starter folder names. Translation uses the selected LLM and does not change your category language.</source>
             <translation>Выберите язык для названий стартовых папок. Перевод выполняется с помощью выбранной LLM и не меняет язык ваших категорий.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="111"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="113"></location>
             <source>Folder language:</source>
             <translation>Язык папок:</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="118"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="120"></location>
             <source>Retry translation</source>
             <translation>Повторить перевод</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="272"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="274"></location>
             <source>Finishing the current translation request…</source>
             <translation>Завершение текущего запроса на перевод…</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="385"></location>
+            <location filename="../../lib/FolderStructureInitializerDialog.cpp" line="387"></location>
             <source>Translating folder names…</source>
             <translation>Перевод названий папок…</translation>
         </message>
@@ -784,195 +887,210 @@ Click OK to enable this setting or Cancel to leave it disabled.</source>
     <context>
         <name>FolderStructurePluginDialog</name>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="166"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="163"></location>
             <source>Manage Folder Structure Plugins</source>
             <translation>Управление плагинами структуры папок</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="179"></location>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="345"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="176"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="342"></location>
             <source>Enabled</source>
             <translation>Включено</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="179"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="176"></location>
             <source>Plugin</source>
             <translation>Плагин</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="179"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="176"></location>
             <source>Version</source>
             <translation>Версия</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="223"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="220"></location>
             <source>Install from File...</source>
             <translation>Установить из файла...</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="225"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="222"></location>
             <source>Uninstall</source>
             <translation>Удалить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="345"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="342"></location>
             <source>Disabled</source>
             <translation>Отключено</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="403"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="400"></location>
             <source>Update failed</source>
             <translation>Не удалось обновить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="404"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="401"></location>
             <source>Failed to update folder-structure plugin state.</source>
             <translation>Не удалось обновить состояние плагина структуры папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="459"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="456"></location>
             <source>Install Folder Structure Plugin</source>
             <translation>Установить плагин структуры папок</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="460"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="457"></location>
             <source>AI File Sorter plugins (*.aifsplugin *.zip);;All files (*)</source>
             <translation>Плагины AI File Sorter (*.aifsplugin *.zip);;Все файлы (*)</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="490"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="487"></location>
             <source>Install failed</source>
             <translation>Не удалось установить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="491"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="488"></location>
             <source>Failed to install folder-structure plugin.</source>
             <translation>Не удалось установить плагин структуры папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="212"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="209"></location>
             <source>Activate License...</source>
             <translation>Активировать лицензию...</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="564"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="561"></location>
             <source>Uninstall failed</source>
             <translation>Не удалось удалить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="565"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="562"></location>
             <source>Failed to uninstall folder-structure plugin.</source>
             <translation>Не удалось удалить плагин структуры папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="222"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="219"></location>
             <source>Check for Updates</source>
             <translation>Проверить обновления</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="224"></location>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="371"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="221"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="368"></location>
             <source>Install</source>
             <translation>Установить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="204"></location>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="380"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="201"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="377"></location>
             <source>Get It</source>
             <translation>Получить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="380"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="377"></location>
             <source>Read more</source>
             <translation>Подробнее</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="270"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="267"></location>
             <source>Available</source>
             <translation>Доступно</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="328"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="325"></location>
             <source>No verified folder-structure plugins are installed or listed. Check for updates or install a signed plugin package from file.</source>
             <translation>Не установлено и не перечислено проверенных плагинов структуры папок. Проверьте обновления или установите подписанный пакет плагина из файла.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="337"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="334"></location>
             <source>Unknown folder-structure plugin.</source>
             <translation>Неизвестный плагин структуры папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="359"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="356"></location>
             <source>This plugin is listed by the server catalog, but the downloadable package is not available from the catalog yet.</source>
             <translation>Этот плагин указан в каталоге сервера, но загружаемый пакет ещё недоступен в каталоге.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="371"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="368"></location>
             <source>Update</source>
             <translation>Обновить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="446"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="443"></location>
             <source>Update check failed</source>
             <translation>Не удалось проверить обновления.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="447"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="444"></location>
             <source>Failed to check for folder-structure plugin updates.</source>
             <translation>Не удалось проверить обновления плагинов структуры папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="171"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="168"></location>
             <source>Install signed folder-structure packs for templates and smarter sorting guidance. AI File Sorter verifies each pack before enabling it.</source>
             <translation>Установите подписанные пакеты структуры папок для шаблонов и более умного руководства по сортировке. AI File Sorter проверяет каждый пакет перед его включением.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="179"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="77"></location>
+            <source>Verified publisher</source>
+            <translation>Проверенный издатель</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="79"></location>
+            <source>Verified package</source>
+            <translation>Проверенный пакет</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="89"></location>
+            <source>AI File Sorter catalog</source>
+            <translation>Каталог AI File Sorter</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="176"></location>
             <source>Publisher</source>
             <translation>Издатель</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="282"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="279"></location>
             <source>Signature verified with trusted key %1.</source>
             <translation>Подпись проверена доверенным ключом %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="285"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="282"></location>
             <source>Listed in the AI File Sorter plugin catalog.</source>
             <translation>Указано в каталоге плагинов AI File Sorter.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="346"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="343"></location>
             <source>Available to install</source>
             <translation>Доступно для установки</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="353"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="350"></location>
             <source>License: %1</source>
             <translation>Лицензия: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="353"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="350"></location>
             <source>Active</source>
             <translation>Активна</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="353"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="350"></location>
             <source>Activation needed</source>
             <translation>Требуется активация</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="363"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="360"></location>
             <source>Verified publisher: %1</source>
             <translation>Проверенный издатель: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="364"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="361"></location>
             <source>Publisher: %1</source>
             <translation>Издатель: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="365"></location>
+            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="362"></location>
             <source>%1 %2
 %3
 Status: %4%5
@@ -984,97 +1102,204 @@ Status: %4%5
 
 %6</translation>
         </message>
+    </context>
+    <context>
+        <name>FolderStructurePluginInstallFlow</name>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="40"></location>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="34"></location>
             <source>this plugin</source>
             <translation>этот плагин</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="53"></location>
-            <source>Add trusted folder-structure packs for templates and smarter sorting guidance. Enabled packs are used automatically.</source>
-            <translation>Добавьте проверенные пакеты структуры папок для шаблонов и более умного руководства по сортировке. Включённые пакеты используются автоматически.</translation>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="44"></location>
+            <source>Install failed</source>
+            <translation>Не удалось установить</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="61"></location>
-            <source>Signer</source>
-            <translation>Подписант</translation>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="46"></location>
+            <source>Failed to install folder-structure plugin.</source>
+            <translation>Не удалось установить плагин структуры папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="143"></location>
-            <source>No verified folder-structure plugins are installed. Use the Enabled checkbox to choose which installed plugins are loaded.</source>
-            <translation>Нет установленных проверенных плагинов структуры папок. Используйте флажок «Включено», чтобы выбрать, какие установленные плагины загружать.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="152"></location>
-            <source>Enabled (loaded automatically)</source>
-            <translation>Включено (загружается автоматически)</translation>
-        </message>
-        <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="155"></location>
-            <source>%1 %2
-Verified signer: %3
-Status: %4
-
-%5</source>
-            <translation>%1 %2
-Проверенный подписант: %3
-Статус: %4
-
-%5</translation>
-        </message>
-        <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="238"></location>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="68"></location>
             <source>License needed</source>
             <translation>Требуется лицензия</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="241"></location>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="71"></location>
             <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
-            <translation>Активируйте лицензию сейчас, и AI File Sorter продолжит установку автоматически.</translation>
+            <translation>Активируйте лицензию сейчас, и AI File Sorter автоматически продолжит установку.</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="252"></location>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="74"></location>
+            <source>Read More...</source>
+            <translation>Подробнее...</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="76"></location>
+            <source>Activate License...</source>
+            <translation>Активировать лицензию...</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="119"></location>
             <source>Activate Plugin License</source>
             <translation>Активировать лицензию плагина</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="253"></location>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="120"></location>
             <source>Paste the license key for %1:</source>
             <translation>Вставьте ключ лицензии для %1:</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="266"></location>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="133"></location>
             <source>Activation failed</source>
             <translation>Активация не удалась</translation>
         </message>
         <message>
-            <location filename="../../lib/FolderStructurePluginDialog.cpp" line="267"></location>
+            <location filename="../../lib/FolderStructurePluginInstallFlow.cpp" line="134"></location>
             <source>Failed to activate the plugin license.</source>
             <translation>Не удалось активировать лицензию плагина.</translation>
         </message>
+    </context>
+    <context>
+        <name>FolderStructureTemplates</name>
         <message>
-            <source>Catalog</source>
-            <translation>Каталог</translation>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="33"></location>
+            <source>Media type folders</source>
+            <translation>Папки по типу медиа</translation>
         </message>
         <message>
-            <source>Available from catalog</source>
-            <translation>Доступно в каталоге</translation>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="34"></location>
+            <source>General-purpose folders for Downloads, grouped by file type and common use.</source>
+            <translation>Универсальные папки для загрузок, сгруппированные по типу файлов и служебному назначению.</translation>
         </message>
         <message>
-            <source>; license required</source>
-            <translation>; требуется лицензия</translation>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="83"></location>
+            <source>Johnny.Decimal starter</source>
+            <translation>Стартовый набор Johnny.Decimal</translation>
         </message>
         <message>
-            <source>%1 %2
-Source: %3
-Status: %4
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="84"></location>
+            <source>Numbered areas and categories for a Johnny.Decimal-like archive.</source>
+            <translation>Нумерованные области и категории для архива в стиле Johnny.Decimal.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="115"></location>
+            <source>PARA</source>
+            <translation>PARA</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="116"></location>
+            <source>Projects, Areas, Resources, and Archives for personal knowledge work.</source>
+            <translation>Проекты, области, ресурсы и архивы для личной работы с знаниями.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="122"></location>
+            <source>GTD workflow</source>
+            <translation>Рабочий процесс GTD</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="123"></location>
+            <source>Getting Things Done style folders for inboxes, actions, projects, and reference.</source>
+            <translation>Папки в стиле Getting Things Done для входящих, действий, проектов и справочных материалов.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="128"></location>
+            <source>Chronological folders</source>
+            <translation>Хронологические папки</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="129"></location>
+            <source>Date-based folders. Planned for a later version.</source>
+            <translation>Папки по дате. Планируется в будущей версии.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="133"></location>
+            <source>Client, project, deliverable</source>
+            <translation>Клиент, проект, результат</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="134"></location>
+            <source>Client and project workspaces. Planned for a later version.</source>
+            <translation>Рабочие пространства для клиентов и проектов. Планируется в будущей версии.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="138"></location>
+            <source>Department folders</source>
+            <translation>Папки по отделам</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="139"></location>
+            <source>Business-oriented folders grouped by department or function.</source>
+            <translation>Бизнес-ориентированные папки, сгруппированные по отделам или функциям.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="144"></location>
+            <source>Status lifecycle</source>
+            <translation>Жизненный цикл статуса</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="145"></location>
+            <source>Workflow folders grouped by review, progress, approval, and archive status.</source>
+            <translation>Папки рабочего процесса, сгруппированные по статусам: проверка, прогресс, утверждение и архив.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="150"></location>
+            <source>Knowledge base</source>
+            <translation>База знаний</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="151"></location>
+            <source>Zettelkasten-adjacent folders for notes, references, topics, and maps of content.</source>
+            <translation>Папки, близкие к Zettelkasten, для заметок, ссылок, тем и карт содержимого.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="156"></location>
+            <source>Numbered prefix folders</source>
+            <translation>Папки с числовым префиксом</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderStructureTemplates.cpp" line="157"></location>
+            <source>Simple numeric prefixes for predictable ordering in any file manager.</source>
+            <translation>Простые числовые префиксы для предсказуемого порядка отображения в любом файловом менеджере.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderStructureUiText</name>
+        <message>
+            <location filename="../../include/FolderStructureUiText.hpp" line="64"></location>
+            <source>Johnny.Decimal Support</source>
+            <translation>Поддержка Johnny.Decimal</translation>
+        </message>
+        <message>
+            <location filename="../../include/FolderStructureUiText.hpp" line="77"></location>
+            <source>Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.</source>
+            <translation>Добавляет стартовые папки Johnny.Decimal, распознавание архива, проверку, представления индекса, создание следующей папки и рекомендации по маршрутизации.</translation>
+        </message>
+    </context>
+    <context>
+        <name>FolderTreeCatalog</name>
+        <message>
+            <location filename="../../lib/FolderTreeCatalog.cpp" line="639"></location>
+            <source>The destination contains folders deeper than %1 levels:
+%2
 
-%5</source>
-            <translation>%1 %2
-Источник: %3
-Статус: %4
+Select a more specific destination folder or reorganize this branch.</source>
+            <translation>В папке назначения есть папки глубже %1 уровней:
+%2
 
-%5</translation>
+Выберите более конкретную папку назначения или измените структуру этой ветви.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/FolderTreeCatalog.cpp" line="645"></location>
+            <source>Could not validate the destination folder structure:
+%1
+
+%2</source>
+            <translation>Не удалось проверить структуру папок назначения:
+%1
+
+%2</translation>
         </message>
     </context>
     <context>
@@ -1401,7 +1626,7 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="416"></location>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="437"></location>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="524"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1659"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1660"></location>
             <source>Delete</source>
             <translation>Удалить</translation>
         </message>
@@ -1419,9 +1644,9 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="522"></location>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1141"></location>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1171"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1657"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1851"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1883"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1658"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1852"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1884"></location>
             <source>Download</source>
             <translation>Скачать</translation>
         </message>
@@ -1484,31 +1709,31 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1134"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1841"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1842"></location>
             <source>Model ready.</source>
             <translation>Модель готова.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1155"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1866"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1867"></location>
             <source>Resume download</source>
             <translation>Продолжить загрузку</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1163"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1872"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1873"></location>
             <source>Partial download detected. You can resume.</source>
             <translation>Обнаружена частичная загрузка. Вы можете возобновить.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1149"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1857"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1858"></location>
             <source>Downloaded file is invalid or incomplete. Delete it and download again.</source>
             <translation>Загруженный файл недействителен или неполный. Удалите его и загрузите снова.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1179"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1889"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1890"></location>
             <source>Download required.</source>
             <translation>Требуется загрузка.</translation>
         </message>
@@ -1519,65 +1744,65 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1197"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1718"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1719"></location>
             <source>Missing download URL environment variable (%1).</source>
             <translation>Отсутствует переменная окружения с URL загрузки (%1).</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1243"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2006"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2007"></location>
             <source>Delete downloaded model?</source>
             <translation>Удалить загруженную модель?</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1244"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2007"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2008"></location>
             <source>Delete the downloaded model %1?</source>
             <translation>Удалить загруженную модель %1?</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1269"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2048"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2049"></location>
             <source>Failed to delete downloaded model.</source>
             <translation>Не удалось удалить загруженную модель.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1271"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2050"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2051"></location>
             <source>Deleted downloaded model.</source>
             <translation>Загруженная модель удалена.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1273"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2052"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2053"></location>
             <source>No downloaded model found to delete.</source>
             <translation>Не найдено загруженной модели для удаления.</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1308"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1727"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1786"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1728"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1787"></location>
             <source>Remote URL</source>
             <translation>Удалённый URL</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1312"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1753"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1794"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1754"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1795"></location>
             <source>Local path</source>
             <translation>Локальный путь</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1324"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1816"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1817"></location>
             <source>File size</source>
             <translation>Размер файла</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1304"></location>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1328"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1702"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1820"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1703"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1821"></location>
             <source>File size: unknown</source>
             <translation>Размер файла: неизвестен</translation>
         </message>
@@ -1603,42 +1828,42 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1302"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1696"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1697"></location>
             <source>Remote URL: unknown</source>
             <translation>Удалённый URL: неизвестен</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1303"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1699"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1700"></location>
             <source>Local path: unavailable</source>
             <translation>Локальный путь: недоступен</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1707"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1708"></location>
             <source>Missing download URL environment variable.</source>
             <translation>Отсутствует переменная окружения с URL загрузки.</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1950"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2239"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1951"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2240"></location>
             <source>Downloading…</source>
             <translation>Загрузка…</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1965"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2254"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1966"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2255"></location>
             <source>Download complete.</source>
             <translation>Загрузка завершена.</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1986"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2272"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1987"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2273"></location>
             <source>Download cancelled.</source>
             <translation>Загрузка отменена.</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1988"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="2274"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1989"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="2275"></location>
             <source>Download error: %1</source>
             <translation>Ошибка загрузки: %1</translation>
         </message>
@@ -1727,244 +1952,244 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1289"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1633"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1634"></location>
             <source>File type</source>
             <translation>Тип файла</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1289"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1634"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1635"></location>
             <source>GGUF text model</source>
             <translation>Текстовая модель GGUF</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1291"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1637"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1638"></location>
             <source>Runtime</source>
             <translation>Среда выполнения</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1293"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1640"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1641"></location>
             <source>Download URL setting</source>
             <translation>Настройка URL загрузки</translation>
         </message>
         <message>
             <location filename="../../lib/LLMSelectionDialog.cpp" line="1296"></location>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1630"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1631"></location>
             <source>Model ID</source>
             <translation>ID модели</translation>
         </message>
         <message>
-            <location filename="../../lib/LLMSelectionDialog.cpp" line="1634"></location>
+            <location filename="../../lib/LLMSelectionDialog.cpp" line="1635"></location>
             <source>GGUF vision projector</source>
-            <translation>GGUF vision projector</translation>
+            <translation>Визуальный проектор GGUF</translation>
         </message>
     </context>
     <context>
         <name>MainApp</name>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2791"></location>
+            <location filename="../../lib/MainApp.cpp" line="2800"></location>
             <source>Johnny.Decimal support available</source>
             <translation>Доступна поддержка Johnny.Decimal</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2794"></location>
+            <location filename="../../lib/MainApp.cpp" line="2803"></location>
             <source>This folder looks like a Johnny.Decimal archive.</source>
             <translation>Эта папка похожа на архив Johnny.Decimal.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2809"></location>
+            <location filename="../../lib/MainApp.cpp" line="2818"></location>
             <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
             <translation>Плагин Johnny.Decimal Support может добавить специальные стартовые папки и рекомендации по маршрутизации.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2812"></location>
+            <location filename="../../lib/MainApp.cpp" line="2821"></location>
             <source>Read More</source>
             <translation>Подробнее</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2814"></location>
+            <location filename="../../lib/MainApp.cpp" line="2823"></location>
             <source>Later</source>
             <translation>Позже</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2815"></location>
+            <location filename="../../lib/MainApp.cpp" line="2824"></location>
             <source>Not interested</source>
             <translation>Не заинтересован</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="761"></location>
+            <location filename="../../lib/MainApp.cpp" line="765"></location>
             <source>File Explorer</source>
             <translation>Проводник</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="899"></location>
+            <location filename="../../lib/MainApp.cpp" line="903"></location>
             <source>Network Locations</source>
             <translation>Сетевые расположения</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="905"></location>
+            <location filename="../../lib/MainApp.cpp" line="909"></location>
             <source>No network locations found</source>
             <translation>Сетевые расположения не найдены</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="945"></location>
+            <location filename="../../lib/MainApp.cpp" line="949"></location>
             <source>Network location unavailable: %1</source>
             <translation>Сетевое расположение недоступно: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1010"></location>
+            <location filename="../../lib/MainApp.cpp" line="1014"></location>
             <source>Select Directory</source>
             <translation>Выбрать каталог</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1022"></location>
+            <location filename="../../lib/MainApp.cpp" line="1026"></location>
             <source>Select Destination Directory</source>
             <translation>Выбрать каталог назначения</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1663"></location>
-            <location filename="../../lib/MainApp.cpp" line="3233"></location>
+            <location filename="../../lib/MainApp.cpp" line="1668"></location>
+            <location filename="../../lib/MainApp.cpp" line="3242"></location>
             <source>Analysis cancelled</source>
             <translation>Анализ отменён</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1755"></location>
+            <location filename="../../lib/MainApp.cpp" line="1762"></location>
             <source>Folder selected: %1</source>
             <translation>Папка выбрана: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1782"></location>
+            <location filename="../../lib/MainApp.cpp" line="1789"></location>
             <source>Destination selected: %1</source>
             <translation>Выбран каталог назначения: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1432"></location>
+            <location filename="../../lib/MainApp.cpp" line="1437"></location>
             <source>Checking local backend...</source>
             <translation>Проверка локального бэкенда...</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1946"></location>
+            <location filename="../../lib/MainApp.cpp" line="1954"></location>
             <source>More consistent</source>
             <translation>Более последовательный</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1946"></location>
+            <location filename="../../lib/MainApp.cpp" line="1954"></location>
             <source>More refined</source>
             <translation>Более точный</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1951"></location>
+            <location filename="../../lib/MainApp.cpp" line="1959"></location>
             <source>Recategorize folder?</source>
             <translation>Переклассифицировать папку?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1952"></location>
+            <location filename="../../lib/MainApp.cpp" line="1960"></location>
             <source>This folder was categorized using the %1 mode. Do you want to recategorize it now using the %2 mode?</source>
             <translation>Эта папка была категоризирована в режиме %1. Хотите переклассифицировать её сейчас в режиме %2?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1954"></location>
+            <location filename="../../lib/MainApp.cpp" line="1962"></location>
             <source>Recategorize</source>
             <translation>Переклассифицировать</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1955"></location>
+            <location filename="../../lib/MainApp.cpp" line="1963"></location>
             <source>Keep existing</source>
             <translation>Оставить существующее</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1965"></location>
+            <location filename="../../lib/MainApp.cpp" line="1973"></location>
             <source>Failed to reset cached categorization for this folder.</source>
             <translation>Не удалось сбросить кешированную категоризацию для этой папки.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2025"></location>
+            <location filename="../../lib/MainApp.cpp" line="2033"></location>
             <source>Stop analyzing</source>
             <translation>Остановить анализ</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2026"></location>
-            <location filename="../../lib/MainApp.cpp" line="2037"></location>
-            <location filename="../../lib/MainApp.cpp" line="2083"></location>
+            <location filename="../../lib/MainApp.cpp" line="2034"></location>
+            <location filename="../../lib/MainApp.cpp" line="2046"></location>
+            <location filename="../../lib/MainApp.cpp" line="2092"></location>
             <source>Analyzing…</source>
             <translation>Анализируется…</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2029"></location>
+            <location filename="../../lib/MainApp.cpp" line="2037"></location>
             <source>Analyze folder</source>
             <translation>Анализировать папку</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2030"></location>
-            <location filename="../../lib/MainApp.cpp" line="3267"></location>
+            <location filename="../../lib/MainApp.cpp" line="2038"></location>
+            <location filename="../../lib/MainApp.cpp" line="3278"></location>
             <source>Ready</source>
             <translation>Готово</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2389"></location>
+            <location filename="../../lib/MainApp.cpp" line="2398"></location>
             <source>Install Compatibility Support</source>
             <translation>Установить поддержку совместимости</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2391"></location>
+            <location filename="../../lib/MainApp.cpp" line="2400"></location>
             <source>Detected a %1 folder.</source>
             <translation>Обнаружена папка %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2394"></location>
+            <location filename="../../lib/MainApp.cpp" line="2403"></location>
             <source>Install the "%1" plugin mode now to enable provider-specific compatibility mode for this folder.</source>
             <translation>Установите режим плагина "%1" сейчас, чтобы включить режим совместимости, специфичный для провайдера, для этой папки.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2398"></location>
-            <location filename="../../lib/MainApp.cpp" line="2470"></location>
+            <location filename="../../lib/MainApp.cpp" line="2407"></location>
+            <location filename="../../lib/MainApp.cpp" line="2479"></location>
             <source>Detection source: %1</source>
             <translation>Источник обнаружения: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2403"></location>
+            <location filename="../../lib/MainApp.cpp" line="2412"></location>
             <source>Install the %1 plugin mode</source>
             <translation>Установить режим плагина %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2415"></location>
+            <location filename="../../lib/MainApp.cpp" line="2424"></location>
             <source>Install failed</source>
             <translation>Установка не удалась</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2417"></location>
+            <location filename="../../lib/MainApp.cpp" line="2426"></location>
             <source>Failed to install compatibility support.</source>
             <translation>Не удалось установить поддержку совместимости.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2425"></location>
+            <location filename="../../lib/MainApp.cpp" line="2434"></location>
             <source>Compatibility Support Installed</source>
             <translation>Поддержка совместимости установлена</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2426"></location>
+            <location filename="../../lib/MainApp.cpp" line="2435"></location>
             <source>Installed "%1". The app will now switch to compatibility mode for detected cloud folders.</source>
             <translation>Установлено "%1". Приложение теперь перейдёт в режим совместимости для обнаруженных облачных папок.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2450"></location>
+            <location filename="../../lib/MainApp.cpp" line="2459"></location>
             <source>Native Plugin Support Unavailable</source>
             <translation>Нативная поддержка плагинов недоступна</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2453"></location>
+            <location filename="../../lib/MainApp.cpp" line="2462"></location>
             <source>A %1 folder has been detected, but the "%2" plugin mode is not available on this build. The app will continue in local filesystem mode.</source>
             <translation>Обнаружена папка %1, но режим плагина "%2" недоступен в этой сборке. Приложение продолжит работу в режиме локальной файловой системы.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2456"></location>
+            <location filename="../../lib/MainApp.cpp" line="2465"></location>
             <source>A %1 folder has been detected. Sorting on it is not currently supported in native mode via a plugin. The app will continue in local filesystem mode.</source>
             <translation>Обнаружена папка %1. Сортировка в ней в нативном режиме через плагин в настоящее время не поддерживается. Приложение продолжит работу в режиме локальной файловой системы.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2460"></location>
+            <location filename="../../lib/MainApp.cpp" line="2469"></location>
             <source>
 
 %1</source>
@@ -1973,59 +2198,59 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
 %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2497"></location>
+            <location filename="../../lib/MainApp.cpp" line="2506"></location>
             <source>Compatibility Mode Active</source>
             <translation>Режим совместимости активен</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2499"></location>
+            <location filename="../../lib/MainApp.cpp" line="2508"></location>
             <source>Detected a supported cloud folder. The app switched to %1 compatibility mode.</source>
             <translation>Обнаружена поддерживаемая облачная папка. Приложение переключилось в режим совместимости %1.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2501"></location>
+            <location filename="../../lib/MainApp.cpp" line="2510"></location>
             <source>Detected a supported cloud folder using %1. The app switched to %2 compatibility mode.</source>
             <translation>Обнаружена поддерживаемая облачная папка с использованием %1. Приложение переключилось в режим совместимости %2.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2850"></location>
-            <location filename="../../lib/MainApp.cpp" line="2864"></location>
-            <location filename="../../lib/MainApp.cpp" line="2878"></location>
+            <location filename="../../lib/MainApp.cpp" line="2859"></location>
+            <location filename="../../lib/MainApp.cpp" line="2873"></location>
+            <location filename="../../lib/MainApp.cpp" line="2887"></location>
             <source>Windows Explorer Extension</source>
             <translation>Расширение Проводника Windows</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2852"></location>
+            <location filename="../../lib/MainApp.cpp" line="2861"></location>
             <source>Could not open the Windows Explorer Extension download page.</source>
             <translation>Не удалось открыть страницу загрузки расширения Проводника Windows.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2866"></location>
+            <location filename="../../lib/MainApp.cpp" line="2875"></location>
             <source>Could not open the Windows Explorer Extension settings.</source>
             <translation>Не удалось открыть настройки расширения Проводника Windows.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2880"></location>
+            <location filename="../../lib/MainApp.cpp" line="2889"></location>
             <source>Could not open the Windows Explorer Extension activity window.</source>
             <translation>Не удалось открыть окно активности расширения Проводника Windows.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2900"></location>
+            <location filename="../../lib/MainApp.cpp" line="2909"></location>
             <source>Install or Repair Windows Explorer Extension...</source>
             <translation>Установить или восстановить расширение Проводника Windows...</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2901"></location>
+            <location filename="../../lib/MainApp.cpp" line="2910"></location>
             <source>Install Windows Explorer Extension...</source>
             <translation>Установить расширение Проводника Windows...</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2938"></location>
+            <location filename="../../lib/MainApp.cpp" line="2947"></location>
             <source>Undo last run</source>
             <translation>Отменить последний запуск</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2939"></location>
+            <location filename="../../lib/MainApp.cpp" line="2948"></location>
             <source>This will attempt to move files back to their original locations based on the last run.
 
 Plan file: %1</source>
@@ -2034,59 +2259,59 @@ Plan file: %1</source>
 Файл плана: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2948"></location>
-            <location filename="../../lib/MainApp.cpp" line="2991"></location>
+            <location filename="../../lib/MainApp.cpp" line="2957"></location>
+            <location filename="../../lib/MainApp.cpp" line="3000"></location>
             <source>Restored %1 file(s). Skipped %2.</source>
             <translation>Восстановлено %1 файла(ов). Пропущено %2.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2954"></location>
-            <location filename="../../lib/MainApp.cpp" line="2996"></location>
+            <location filename="../../lib/MainApp.cpp" line="2963"></location>
+            <location filename="../../lib/MainApp.cpp" line="3005"></location>
             <source>Undo complete</source>
             <translation>Откат завершён</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3018"></location>
+            <location filename="../../lib/MainApp.cpp" line="3027"></location>
             <source>Already donated? Click "I have already donated" to enter your donation code and permanently disable this reminder.</source>
             <translation>Уже пожертвовали? Нажмите "Я уже пожертвовал", чтобы ввести код пожертвования и навсегда отключить это напоминание.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3028"></location>
+            <location filename="../../lib/MainApp.cpp" line="3037"></location>
             <source>Donate to permanently hide the donation dialog</source>
             <translation>Пожертвовать, чтобы навсегда скрыть диалог пожертвования</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3030"></location>
+            <location filename="../../lib/MainApp.cpp" line="3039"></location>
             <source>I'm not yet sure</source>
             <translation>Пока не уверен</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3031"></location>
+            <location filename="../../lib/MainApp.cpp" line="3040"></location>
             <source>I have already donated</source>
             <translation>Я уже пожертвовал</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3155"></location>
+            <location filename="../../lib/MainApp.cpp" line="3164"></location>
             <source>Donation code</source>
             <translation>Код пожертвования</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3171"></location>
+            <location filename="../../lib/MainApp.cpp" line="3180"></location>
             <source>Invalid donation code</source>
             <translation>Неверный код пожертвования</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3172"></location>
+            <location filename="../../lib/MainApp.cpp" line="3181"></location>
             <source>The donation code is invalid. Please try again or press Cancel.</source>
             <translation>Код пожертвования неверен. Пожалуйста, попробуйте снова или нажмите Отмена.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3186"></location>
+            <location filename="../../lib/MainApp.cpp" line="3195"></location>
             <source>Open donation page</source>
             <translation>Открыть страницу пожертвования</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3187"></location>
+            <location filename="../../lib/MainApp.cpp" line="3196"></location>
             <source>Could not open your browser automatically.
 Please open this link manually:
 %1</source>
@@ -2095,180 +2320,180 @@ Please open this link manually:
 %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3263"></location>
-            <location filename="../../lib/MainApp.cpp" line="3367"></location>
-            <location filename="../../lib/MainApp.cpp" line="3392"></location>
+            <location filename="../../lib/MainApp.cpp" line="3274"></location>
+            <location filename="../../lib/MainApp.cpp" line="3378"></location>
+            <location filename="../../lib/MainApp.cpp" line="3403"></location>
             <source>Directory</source>
             <translation>Каталог</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3263"></location>
-            <location filename="../../lib/MainApp.cpp" line="3367"></location>
-            <location filename="../../lib/MainApp.cpp" line="3392"></location>
+            <location filename="../../lib/MainApp.cpp" line="3274"></location>
+            <location filename="../../lib/MainApp.cpp" line="3378"></location>
+            <location filename="../../lib/MainApp.cpp" line="3403"></location>
             <source>File</source>
             <translation>Файл</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3365"></location>
+            <location filename="../../lib/MainApp.cpp" line="3376"></location>
             <source>[ARCHIVE] Already categorized highlights:</source>
             <translation>[ARCHIVE] Уже категоризированные выделения:</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3386"></location>
+            <location filename="../../lib/MainApp.cpp" line="3397"></location>
             <source>[DONE] No files to categorize.</source>
             <translation>[DONE] Нет файлов для категоризации.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3390"></location>
+            <location filename="../../lib/MainApp.cpp" line="3401"></location>
             <source>[QUEUE] Items waiting for categorization:</source>
             <translation>[QUEUE] Элементы в очереди на категоризацию:</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3666"></location>
+            <location filename="../../lib/MainApp.cpp" line="3677"></location>
             <source>Switch image analysis to CPU?</source>
             <translation>Переключить анализ изображений на CPU?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3603"></location>
+            <location filename="../../lib/MainApp.cpp" line="3614"></location>
             <source>Cancelling analysis…</source>
             <translation>Отмена анализа…</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3616"></location>
+            <location filename="../../lib/MainApp.cpp" line="3627"></location>
             <source>Switch local AI to CPU?</source>
             <translation>Переключить локальный ИИ на CPU?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3617"></location>
+            <location filename="../../lib/MainApp.cpp" line="3628"></location>
             <source>The local model encountered a GPU error or ran out of memory.</source>
             <translation>Локальная модель столкнулась с ошибкой GPU или исчерпала память.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3618"></location>
-            <location filename="../../lib/MainApp.cpp" line="3668"></location>
+            <location filename="../../lib/MainApp.cpp" line="3629"></location>
+            <location filename="../../lib/MainApp.cpp" line="3679"></location>
             <source>Retry on CPU instead? Cancel will stop this analysis.</source>
             <translation>Повторить на CPU? Отмена остановит этот анализ.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3638"></location>
-            <location filename="../../lib/MainApp.cpp" line="3688"></location>
+            <location filename="../../lib/MainApp.cpp" line="3649"></location>
+            <location filename="../../lib/MainApp.cpp" line="3699"></location>
             <source>[WARN] GPU fallback to CPU declined. Cancelling analysis.</source>
             <translation>[WARN] Отклонён переход с GPU на CPU. Отмена анализа.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3715"></location>
+            <location filename="../../lib/MainApp.cpp" line="3726"></location>
             <source>Continue without visual analysis?</source>
             <translation>Продолжить без визуального анализа?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3716"></location>
+            <location filename="../../lib/MainApp.cpp" line="3727"></location>
             <source>Image analysis is unavailable.</source>
             <translation>Анализ изображений недоступен.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3718"></location>
+            <location filename="../../lib/MainApp.cpp" line="3729"></location>
             <source>Continue this analysis using filenames only? Cancel will stop this analysis.</source>
             <translation>Продолжить этот анализ, используя только имена файлов? Отмена остановит анализ.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3742"></location>
+            <location filename="../../lib/MainApp.cpp" line="3753"></location>
             <source>[WARN] Continue without visual analysis declined. Cancelling analysis.</source>
             <translation>[WARN] Продолжение без визуального анализа отклонено. Отмена анализа.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3907"></location>
+            <location filename="../../lib/MainApp.cpp" line="3918"></location>
             <source>Folder structure created: %1 new, %2 already existed.</source>
             <translation>Создана структура папок: %1 новых, %2 уже существовали.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="4005"></location>
+            <location filename="../../lib/MainApp.cpp" line="4016"></location>
             <source>[WARN] Available GPU memory is too low for GPU acceleration. Continuing on CPU (slower).</source>
             <translation>[WARN] Доступной памяти GPU недостаточно для GPU-ускорения. Продолжаем на CPU (медленнее).</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="4009"></location>
+            <location filename="../../lib/MainApp.cpp" line="4020"></location>
             <source>[WARN] GPU acceleration failed to initialize. Continuing on CPU (slower).</source>
             <translation>[WARN] Не удалось инициализировать GPU-ускорение. Продолжаем на CPU (медленнее).</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="4100"></location>
+            <location filename="../../lib/MainApp.cpp" line="4111"></location>
             <source>[WARN] %1 will be re-categorized: %2</source>
             <translation>[WARN] %1 будет перекатегоризирован: %2</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3830"></location>
-            <location filename="../../lib/MainApp.cpp" line="3845"></location>
-            <location filename="../../lib/MainApp.cpp" line="3853"></location>
+            <location filename="../../lib/MainApp.cpp" line="3841"></location>
+            <location filename="../../lib/MainApp.cpp" line="3856"></location>
+            <location filename="../../lib/MainApp.cpp" line="3864"></location>
             <source>Reset learned behavior?</source>
             <translation>Сбросить изученное поведение?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1418"></location>
+            <location filename="../../lib/MainApp.cpp" line="1423"></location>
             <source>Loaded backend: OpenAI API</source>
             <translation>Загружен бэкенд: OpenAI API</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1420"></location>
+            <location filename="../../lib/MainApp.cpp" line="1425"></location>
             <source>Loaded backend: Gemini API</source>
             <translation>Загружен бэкенд: Gemini API</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1422"></location>
+            <location filename="../../lib/MainApp.cpp" line="1427"></location>
             <source>Loaded backend: Custom API</source>
             <translation>Загружен бэкенд: Пользовательский API</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1428"></location>
+            <location filename="../../lib/MainApp.cpp" line="1433"></location>
             <source>Loaded backend: Remote API</source>
             <translation>Загружен бэкенд: Удалённый API</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1442"></location>
+            <location filename="../../lib/MainApp.cpp" line="1447"></location>
             <source>Loaded GPU backend: %1 with %2</source>
             <translation>Загружен GPU-бэкенд: %1 с %2</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1446"></location>
+            <location filename="../../lib/MainApp.cpp" line="1451"></location>
             <source>Loaded CPU backend: CPU</source>
             <translation>Загружен CPU-бэкенд: CPU</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="1448"></location>
+            <location filename="../../lib/MainApp.cpp" line="1453"></location>
             <source>Loaded CPU backend: CPU with %1</source>
             <translation>Загружен CPU-бэкенд: CPU с %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3014"></location>
+            <location filename="../../lib/MainApp.cpp" line="3023"></location>
             <source>Thank you for using AI File Sorter! You have categorized %1 files thus far. I, the author, really hope this app has been useful for you.</source>
             <translation>Спасибо за использование AI File Sorter! Вы уже категоризировали %1 файлов. Я, как автор, очень надеюсь, что это приложение было полезно для вас.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3016"></location>
+            <location filename="../../lib/MainApp.cpp" line="3025"></location>
             <source>AI File Sorter takes hundreds of hours of development, feature work, support replies, and ongoing costs. If the app saves you time or brings value, please consider supporting it so it can keep improving.</source>
             <translation>AI File Sorter требует сотен часов разработки, работы над функциями, ответов на запросы поддержки и постоянных затрат. Если приложение экономит ваше время или приносит ценность, пожалуйста, подумайте о поддержке, чтобы оно могло продолжать развиваться.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3522"></location>
+            <location filename="../../lib/MainApp.cpp" line="3533"></location>
             <source>Test mode</source>
             <translation>Тестовый режим</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3523"></location>
+            <location filename="../../lib/MainApp.cpp" line="3534"></location>
             <source>An analysis is already running. Stop it before starting a test preset.</source>
             <translation>Анализ уже выполняется. Остановите его перед запуском тестового пресета.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3547"></location>
+            <location filename="../../lib/MainApp.cpp" line="3558"></location>
             <source>Run large whitelist LLM test?</source>
             <translation>Запустить тест LLM с большим белым списком?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3548"></location>
+            <location filename="../../lib/MainApp.cpp" line="3559"></location>
             <source>This will configure a temporary large whitelist, create sample files, and run the normal analysis flow with the currently selected real LLM.</source>
             <translation>Это настроит временный большой белый список, создаст примерные файлы и запустит обычный процесс анализа с выбранным в данный момент реальным LLM.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3550"></location>
+            <location filename="../../lib/MainApp.cpp" line="3561"></location>
             <source>Previous cached results for this sample folder will be cleared so the LLM is called again.
 
 The sample folder is:
@@ -2285,189 +2510,189 @@ Expected broad categories:
 %2</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3554"></location>
+            <location filename="../../lib/MainApp.cpp" line="3565"></location>
             <source>Run test</source>
             <translation>Запустить тест</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3596"></location>
+            <location filename="../../lib/MainApp.cpp" line="3607"></location>
             <source>Running large whitelist LLM test…</source>
             <translation>Запуск теста LLM с большим белым списком…</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3809"></location>
+            <location filename="../../lib/MainApp.cpp" line="3820"></location>
             <source>Failed to clear the categorization cache.</source>
             <translation>Не удалось очистить кэш категоризации.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3831"></location>
+            <location filename="../../lib/MainApp.cpp" line="3842"></location>
             <source>This removes category examples learned from your approved reviews. It does not clear ordinary caches or touch your files.</source>
             <translation>Это удалит примеры категорий, выученные на основе ваших одобренных обзоров. Обычные кэши не очищаются и ваши файлы не затрагиваются.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3833"></location>
+            <location filename="../../lib/MainApp.cpp" line="3844"></location>
             <source>Current whitelists will be re-imported afterwards so selected whitelists still work.</source>
             <translation>Текущие белые списки будут повторно импортированы после этого, чтобы выбранные белые списки продолжали работать.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3834"></location>
+            <location filename="../../lib/MainApp.cpp" line="3845"></location>
             <source>Reset</source>
             <translation>Сброс</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3846"></location>
+            <location filename="../../lib/MainApp.cpp" line="3857"></location>
             <source>Failed to reset learned behavior: %1</source>
             <translation>Не удалось сбросить изученное поведение: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3854"></location>
+            <location filename="../../lib/MainApp.cpp" line="3865"></location>
             <source>Learned behavior reset. Current whitelists remain configured.</source>
             <translation>Изученное поведение сброшено. Текущие белые списки остаются настроенными.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3667"></location>
+            <location filename="../../lib/MainApp.cpp" line="3678"></location>
             <source>Image analysis failed to start with the GPU backend.</source>
             <translation>Запуск анализа изображений с GPU-бэкендом не удался.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3007"></location>
+            <location filename="../../lib/MainApp.cpp" line="3016"></location>
             <source>You have categorized %1 files with AI File Sorter.</source>
             <translation>Вы категоризировали %1 файлов с помощью AI File Sorter.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3009"></location>
+            <location filename="../../lib/MainApp.cpp" line="3018"></location>
             <source>You can support continued development by buying the File Explorer extension, or by making a donation. The extension adds AI File Sorter actions to File Explorer's right-click menu.</source>
             <translation>Вы можете поддержать дальнейшую разработку, купив расширение File Explorer или сделав пожертвование. Расширение добавляет действия AI File Sorter в контекстное меню File Explorer.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3011"></location>
+            <location filename="../../lib/MainApp.cpp" line="3020"></location>
             <source>Already donated? Click "I have already donated" to enter your donation code. This reminder will not be shown again after you donate or while the File Explorer extension is installed.</source>
             <translation>Уже пожертвовали? Нажмите «Я уже пожертвовал(а)», чтобы ввести код пожертвования. Это напоминание больше не будет показано после вашего пожертвования или пока установлено расширение File Explorer.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3025"></location>
+            <location filename="../../lib/MainApp.cpp" line="3034"></location>
             <source>Buy File Explorer Extension</source>
             <translation>Купить расширение File Explorer</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3026"></location>
+            <location filename="../../lib/MainApp.cpp" line="3035"></location>
             <source>Donate instead</source>
             <translation>Пожертвовать</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3156"></location>
+            <location filename="../../lib/MainApp.cpp" line="3165"></location>
             <source>Enter the donation code generated after your donation.
 A valid code will permanently hide this support reminder.</source>
             <translation>Введите код пожертвования, сгенерированный после вашего пожертвования.
 Действительный код навсегда скроет это напоминание о поддержке.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2619"></location>
+            <location filename="../../lib/MainApp.cpp" line="2628"></location>
             <source>Plugin package unavailable</source>
             <translation>Пакет плагина недоступен</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2621"></location>
+            <location filename="../../lib/MainApp.cpp" line="2630"></location>
             <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
-            <translation>Пакет плагина JohnnyDecimal ещё недоступен в каталоге плагинов.</translation>
+            <translation>Пакет плагина Johnny.Decimal ещё недоступен в каталоге плагинов.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2622"></location>
+            <location filename="../../lib/MainApp.cpp" line="2631"></location>
             <source>Open the plugin page instead?</source>
             <translation>Открыть страницу плагина вместо этого?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2623"></location>
+            <location filename="../../lib/MainApp.cpp" line="2632"></location>
             <source>Open Plugin Page</source>
             <translation>Открыть страницу плагина</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2641"></location>
+            <location filename="../../lib/MainApp.cpp" line="2650"></location>
             <source>Plugin installed</source>
             <translation>Плагин установлен</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2642"></location>
+            <location filename="../../lib/MainApp.cpp" line="2651"></location>
             <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
             <translation>Поддержка Johnny.Decimal установлена. Запустите анализ снова, чтобы использовать новое руководство по папкам.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2810"></location>
+            <location filename="../../lib/MainApp.cpp" line="2819"></location>
             <source>Activate / Install...</source>
             <translation>Активировать / Установить...</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2790"></location>
+            <location filename="../../lib/MainApp.cpp" line="2799"></location>
             <source>Johnny.Decimal support disabled</source>
             <translation>Поддержка Johnny.Decimal отключена</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2803"></location>
+            <location filename="../../lib/MainApp.cpp" line="2812"></location>
             <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
             <translation>Поддержка Johnny.Decimal установлена, но отключена. Включите её, чтобы загрузить руководство по папкам.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2804"></location>
+            <location filename="../../lib/MainApp.cpp" line="2813"></location>
             <source>Enable</source>
             <translation>Включить</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2805"></location>
+            <location filename="../../lib/MainApp.cpp" line="2814"></location>
             <source>Ignore</source>
             <translation>Игнорировать</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2806"></location>
+            <location filename="../../lib/MainApp.cpp" line="2815"></location>
             <source>Do not suggest</source>
             <translation>Не предлагать</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2655"></location>
+            <location filename="../../lib/MainApp.cpp" line="2664"></location>
             <source>Enable failed</source>
             <translation>Не удалось включить</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2657"></location>
+            <location filename="../../lib/MainApp.cpp" line="2666"></location>
             <source>Failed to enable Johnny.Decimal Support.</source>
             <translation>Не удалось включить поддержку Johnny.Decimal.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2664"></location>
+            <location filename="../../lib/MainApp.cpp" line="2673"></location>
             <source>Plugin enabled</source>
             <translation>Плагин включён</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2665"></location>
+            <location filename="../../lib/MainApp.cpp" line="2674"></location>
             <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
             <translation>Поддержка Johnny.Decimal включена. Запустите анализ снова, чтобы использовать руководство по папкам.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2250"></location>
+            <location filename="../../lib/MainApp.cpp" line="2259"></location>
             <source>Plugin used: %1</source>
             <translation>Используется плагин: %1</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2252"></location>
+            <location filename="../../lib/MainApp.cpp" line="2261"></location>
             <source>Folder-structure guidance is active for the destination folder.</source>
             <translation>Руководство по структуре папок активно для папки назначения.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2748"></location>
+            <location filename="../../lib/MainApp.cpp" line="2757"></location>
             <source>destination folder</source>
             <translation>папка назначения</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2795"></location>
+            <location filename="../../lib/MainApp.cpp" line="2804"></location>
             <source>The %1 looks like a Johnny.Decimal archive.</source>
             <translation>%1 похоже на архив Johnny.Decimal.</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2712"></location>
+            <location filename="../../lib/MainApp.cpp" line="2721"></location>
             <source>Recommended model for existing folders</source>
             <translation>Рекомендуемая модель для существующих папок</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="2713"></location>
+            <location filename="../../lib/MainApp.cpp" line="2722"></location>
             <source>Not all LLMs handle existing folder structures equally well. We recommend Qwen3.5 4B for the best results when choosing destination folders.
 
 Gemma 1.1 7B and LLMs accessed through an API are also suitable options.
@@ -2480,6 +2705,7 @@ Gemma 1.1 7B и LLM, к которым обращаются через API, та
 Вы можете продолжить с текущей моделью или изменить её в Выбрать LLM.</translation>
         </message>
         <message>
+            <location filename="../../lib/MainAppDestinationValidation.cpp" line="97"></location>
             <source>Checking destination folder depth...</source>
             <translation>Проверка глубины папок назначения...</translation>
         </message>
@@ -2949,7 +3175,7 @@ Gemma 1.1 7B и LLM, к которым обращаются через API, та
             <translation>Локальный LLM</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3004"></location>
+            <location filename="../../lib/MainApp.cpp" line="3013"></location>
             <source>Support %1</source>
             <translation>Поддержать %1</translation>
         </message>
@@ -2980,7 +3206,7 @@ Gemma 1.1 7B и LLM, к которым обращаются через API, та
             <translation>Доступно необязательное обновление. Хотите обновиться сейчас?</translation>
         </message>
         <message>
-            <location filename="../../lib/MainApp.cpp" line="3953"></location>
+            <location filename="../../lib/MainApp.cpp" line="3964"></location>
             <location filename="../../lib/Updater.cpp" line="145"></location>
             <source>What's new in version %1:</source>
             <translation>Что нового в версии %1:</translation>
@@ -3319,64 +3545,6 @@ Please update to continue. If you choose to quit, the application will close.</s
             <source>The GPU attempt failed. Testing this model on CPU as a separate result.</source>
             <translation>Попытка с использованием GPU не удалась. Тестирование этой модели на CPU будет выполнено отдельно.</translation>
         </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="459"></location>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="469"></location>
-            <source>Metal (auto)</source>
-            <translation>Metal (auto)</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="461"></location>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="471"></location>
-            <source>Vulkan (auto)</source>
-            <translation>Vulkan (auto)</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1024"></location>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1026"></location>
-            <source>Default model: %1</source>
-            <translation>Модель по умолчанию: %1</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1621"></location>
-            <source>No downloaded LLM files detected. Download a categorization or visual model to run the benchmark.</source>
-            <translation>Загруженные файлы LLM не обнаружены. Скачайте модель категоризации или визуальную модель, чтобы запустить бенчмарк.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1759"></location>
-            <source>No default models downloaded; skipping categorization and document checks.</source>
-            <translation>Модели по умолчанию не загружены; пропускаются проверки категоризации и документов.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1761"></location>
-            <source>Default models detected: %1</source>
-            <translation>Обнаружены модели по умолчанию: %1</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1780"></location>
-            <source>Running image analysis test...</source>
-            <translation>Выполняется тест анализа изображений...</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1794"></location>
-            <source>unavailable</source>
-            <translation>недоступно</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1796"></location>
-            <source>Image analysis: skipped (%1)</source>
-            <translation>Анализ изображений: пропущен (%1)</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1802"></location>
-            <source>    Time: %1</source>
-            <translation>    Время: %1</translation>
-        </message>
-        <message>
-            <location filename="../../lib/SuitabilityBenchmarkDialog.cpp" line="1842"></location>
-            <source>Backend used (image analysis): %1</source>
-            <translation>Используемый бэкенд (анализ изображений): %1</translation>
-        </message>
     </context>
     <context>
         <name>ReviewHistoryDialog</name>
@@ -3612,810 +3780,862 @@ Please update to continue. If you choose to quit, the application will close.</s
         </message>
     </context>
     <context>
+        <name>StoragePluginDialog</name>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="27"></location>
+            <source>Manage Storage Plugins</source>
+            <translation>Управление плагинами хранилища</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="33"></location>
+            <source>Install optional storage plugins to enable compatibility support for cloud-backed folders.</source>
+            <translation>Установите дополнительные плагины хранилища для обеспечения совместимости с папками, размещёнными в облаке.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="40"></location>
+            <source>Plugin</source>
+            <translation>Плагин</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="40"></location>
+            <source>Action</source>
+            <translation>Действие</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="55"></location>
+            <source>Check for updates</source>
+            <translation>Проверить обновления</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="56"></location>
+            <source>Install from File…</source>
+            <translation>Установить из файла…</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="57"></location>
+            <source>Install</source>
+            <translation>Установить</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="58"></location>
+            <source>Uninstall</source>
+            <translation>Удалить</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="101"></location>
+            <source> (Installed)</source>
+            <translation> (Установлено)</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="109"></location>
+            <source>Update</source>
+            <translation>Обновить</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="166"></location>
+            <source>Unknown plugin.</source>
+            <translation>Неизвестный плагин.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="180"></location>
+            <source>This plugin entry point is not supported by this version of the app.</source>
+            <translation>Точка входа этого плагина не поддерживается этой версией приложения.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="184"></location>
+            <source>A newer or refreshed package can be installed from the configured plugin source.</source>
+            <translation>Более новая или обновлённая версия пакета может быть установлена из настроенного источника плагинов.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="234"></location>
+            <source>Update check failed</source>
+            <translation>Проверка обновлений не удалась</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="236"></location>
+            <source>Failed to check for storage plugin updates.</source>
+            <translation>Не удалось проверить обновления плагина хранилища.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="250"></location>
+            <source>Install Storage Plugin</source>
+            <translation>Установить плагин хранилища</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="252"></location>
+            <source>AI File Sorter plugins (*.aifsplugin *.zip);;All files (*)</source>
+            <translation>AI File Sorter plugins (*.aifsplugin *.zip);;Все файлы (*)</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="262"></location>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="292"></location>
+            <source>Install failed</source>
+            <translation>Установка не удалась</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="264"></location>
+            <source>Failed to install plugin archive.</source>
+            <translation>Не удалось установить архив плагина.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="293"></location>
+            <source>Failed to install plugin.</source>
+            <translation>Не удалось установить плагин.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="310"></location>
+            <source>Update failed</source>
+            <translation>Не удалось обновить</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="311"></location>
+            <source>Failed to update plugin.</source>
+            <translation>Не удалось обновить плагин.</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="329"></location>
+            <source>Uninstall failed</source>
+            <translation>Удаление не удалось</translation>
+        </message>
+        <message>
+            <location filename="../../lib/StoragePluginDialog.cpp" line="330"></location>
+            <source>Failed to uninstall plugin.</source>
+            <translation>Не удалось удалить плагин.</translation>
+        </message>
+    </context>
+    <context>
         <name>UiTranslator</name>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="204"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="205"></location>
             <source>Sorting rules...</source>
             <translation>Правила сортировки...</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="410"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="411"></location>
             <source>Sorting Rules...</source>
             <translation>Правила сортировки...</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="33"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="34"></location>
             <source>&amp;File</source>
             <translation>&amp;Файл</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="34"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="35"></location>
             <source>&amp;Edit</source>
             <translation>&amp;Правка</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="35"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="36"></location>
             <source>&amp;View</source>
             <translation>&amp;Вид</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="36"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="37"></location>
             <source>&amp;Settings</source>
             <translation>&amp;Настройки</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="37"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="38"></location>
             <source>E&amp;xtensions</source>
             <translation>&amp;Расширения</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="39"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="40"></location>
             <source>Windows Explorer Extension</source>
             <translation>Расширение Windows Explorer</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="40"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="41"></location>
             <source>&amp;Plugins</source>
             <translation>&amp;Плагины</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="41"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="42"></location>
             <source>&amp;Development</source>
             <translation>&amp;Разработка</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="42"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="43"></location>
             <source>&amp;Tests</source>
             <translation>&amp;Тесты</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="44"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="45"></location>
             <source>Interface &amp;language</source>
             <translation>&amp;Язык интерфейса</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="46"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="47"></location>
             <source>Category &amp;language</source>
             <translation>Язык &amp;категорий</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="47"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="48"></location>
             <source>&amp;Quit</source>
             <translation>&amp;Выход</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="49"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="50"></location>
             <source>System compatibility check…</source>
             <translation>Проверка совместимости системы…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="52"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="53"></location>
             <source>&amp;Copy</source>
             <translation>&amp;Копировать</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="53"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="54"></location>
             <source>Cu&amp;t</source>
             <translation>&amp;Вырезать</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="54"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="55"></location>
             <source>Undo last run</source>
             <translation>Отменить последний запуск</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="56"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="57"></location>
             <source>Rename and categorization history…</source>
             <translation>История переименований и категоризации…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="57"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="58"></location>
             <source>&amp;Paste</source>
             <translation>&amp;Вставить</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="58"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="59"></location>
             <source>&amp;Delete</source>
             <translation>&amp;Удалить</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="59"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="60"></location>
             <source>File &amp;Explorer</source>
-            <translation>File &amp;Explorer</translation>
+            <translation>&amp;Проводник файлов</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="60"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="61"></location>
             <source>Select &amp;LLM…</source>
             <translation>Выбрать &amp;LLM…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="64"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="65"></location>
             <source>Manage storage plugins…</source>
             <translation>Управление плагинами хранилища…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="66"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="67"></location>
             <source>Manage category whitelists…</source>
             <translation>Управление белыми списками категорий…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="68"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="69"></location>
             <source>Install Windows Explorer Extension...</source>
             <translation>Установить расширение Windows Explorer...</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="70"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="71"></location>
             <source>Settings...</source>
             <translation>Настройки...</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="72"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="73"></location>
             <source>Activity Window</source>
             <translation>Окно активности</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="74"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="75"></location>
             <source>Reset learned behavior…</source>
             <translation>Сбросить обученное поведение…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="75"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="76"></location>
             <source>Clear cache…</source>
             <translation>Очистить кэш…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="77"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="78"></location>
             <source>Log prompts and responses to stdout</source>
             <translation>Записывать подсказки и ответы в stdout</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="79"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="80"></location>
             <source>Run large whitelist LLM test…</source>
             <translation>Запустить большой тест LLM для белого списка…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="81"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="82"></location>
             <source>Run &amp;consistency pass</source>
             <translation>Запустить проверку &amp;согласованности</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="82"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="83"></location>
             <source>&amp;English</source>
             <translation>&amp;Английский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="83"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="84"></location>
             <source>&amp;Dutch</source>
             <translation>&amp;Нидерландский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="84"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="85"></location>
             <source>&amp;French</source>
             <translation>&amp;Французский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="85"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="86"></location>
             <source>&amp;German</source>
             <translation>&amp;Немецкий</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="87"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="88"></location>
             <source>&amp;Italian</source>
             <translation>&amp;Итальянский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="95"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="96"></location>
             <source>&amp;Spanish</source>
             <translation>&amp;Испанский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="96"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="97"></location>
             <source>&amp;Turkish</source>
             <translation>&amp;Турецкий</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="97"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="98"></location>
             <source>&amp;Korean</source>
             <translation>&amp;Корейский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="90"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="91"></location>
             <source>&amp;Swedish</source>
             <translation>&amp;Шведский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="91"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="92"></location>
             <source>&amp;Icelandic</source>
             <translation>&amp;Исландский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="92"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="93"></location>
             <source>&amp;Norwegian</source>
             <translation>&amp;Норвежский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="93"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="94"></location>
             <source>&amp;Finnish</source>
             <translation>&amp;Финский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="94"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="95"></location>
             <source>&amp;Danish</source>
             <translation>&amp;Датский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="89"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="90"></location>
             <source>&amp;Simplified Chinese</source>
             <translation>&amp;Китайский (упрощенный)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="103"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="104"></location>
             <source>&amp;About AI File Sorter</source>
             <translation>&amp;О программе AI File Sorter</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="107"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="108"></location>
             <source>About &amp;Qt</source>
             <translation>О &amp;Qt</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="108"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="109"></location>
             <source>About &amp;AGPL</source>
             <translation>О &amp;AGPL</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="110"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="111"></location>
             <source>&amp;Support Project</source>
             <translation>&amp;Поддержать проект</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="209"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="210"></location>
             <source>Folder:</source>
             <translation>Папка:</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="216"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="217"></location>
             <source>Destination:</source>
             <translation>Папка назначения:</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="225"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="226"></location>
             <source>Use analyzed folder</source>
             <translation>Использовать анализируемую папку</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="226"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="227"></location>
             <source>Sort within the folder you are analyzing.</source>
             <translation>Сортировать внутри папки, которую вы анализируете.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="207"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="208"></location>
             <source>Browse…</source>
             <translation>Обзор…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="51"></location>
-            <location filename="../../lib/UiTranslator.cpp" line="256"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="52"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
             <source>Create folder structure...</source>
             <translation>Создать структуру папок...</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="62"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="63"></location>
             <source>Manage folder structure plugins...</source>
             <translation>Управление плагинами структуры папок...</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="229"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="230"></location>
             <source>Use subcategories</source>
             <translation>Использовать подкатегории</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="233"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="234"></location>
             <source>Sorting style</source>
             <translation>Стиль сортировки</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="237"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="238"></location>
             <source>More refined</source>
             <translation>Более подробный</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="241"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="242"></location>
             <source>More consistent</source>
             <translation>Более единообразный</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="246"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="247"></location>
             <source>Create category folders</source>
             <translation>Создавать папки категорий</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="247"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="248"></location>
             <source>Use existing folder structure</source>
             <translation>Использовать существующую структуру папок</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="252"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="253"></location>
             <source>Suggest new folders when needed</source>
             <translation>Предлагать новые папки при необходимости</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="260"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
             <source>Use a whitelist</source>
             <translation>Использовать белый список</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="267"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="268"></location>
             <source>Sort files</source>
             <translation>Сортировать файлы</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="271"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="272"></location>
             <source>Sort folders</source>
             <translation>Сортировать папки</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="275"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="276"></location>
             <source>Scan subfolders</source>
             <translation>Сканировать подпапки</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="279"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="280"></location>
             <source>Analyze picture files by content</source>
             <translation>Анализировать изображения по содержимому</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="283"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="284"></location>
             <source>Process picture files only (ignore any other files)</source>
             <translation>Обрабатывать только файлы изображений (игнорировать все остальные файлы)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="287"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="288"></location>
             <source>Add image creation date (if available) to category name</source>
             <translation>Добавлять дату создания изображения (если доступно) в название категории</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="291"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="292"></location>
             <source>Add photo date and place to filename (if available)</source>
             <translation>Добавлять дату и место съёмки в имя файла (если доступно)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="292"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="293"></location>
             <source>Dates are read locally from photo metadata. Place lookup sends photo GPS coordinates rounded to three decimal places to OpenStreetMap's Nominatim service, including when using local AI models. Turn this option off to keep photo locations local.</source>
             <translation>Даты читаются локально из метаданных фотографий. Определение места отправляет GPS-координаты фотографий, округлённые до трёх десятичных знаков, в OpenStreetMap's Nominatim service, в том числе при использовании локальных моделей ИИ. Отключите эту опцию, чтобы хранить местоположения фотографий локально.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="295"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="296"></location>
             <source>Add audio/video metadata to file name (if available)</source>
             <translation>Добавлять метаданные аудио/видео в имя файла (если доступно)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="299"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="300"></location>
             <source>Offer to rename picture files</source>
             <translation>Предлагать переименовать файлы изображений</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="303"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="304"></location>
             <source>Rename pictures without moving</source>
             <translation>Переименовывать изображения без перемещения</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="307"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="308"></location>
             <source>Show or hide picture analysis options</source>
             <translation>Показать или скрыть параметры анализа изображений</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="310"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="311"></location>
             <source>Analyze document files by content</source>
             <translation>Анализировать документы по содержимому</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="314"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="315"></location>
             <source>Process document files only (ignore any other files)</source>
             <translation>Обрабатывать только документы (игнорировать все остальные файлы)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="318"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="319"></location>
             <source>Offer to rename document files</source>
             <translation>Предлагать переименовать документы</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="322"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="323"></location>
             <source>Rename documents without moving</source>
             <translation>Переименовывать документы без перемещения</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="326"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="327"></location>
             <source>Add document creation date (if available) to category name</source>
             <translation>Добавлять дату создания документа (если доступно) в название категории</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="330"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="331"></location>
             <source>Show or hide document analysis options</source>
             <translation>Показать или скрыть параметры анализа документов</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="333"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="334"></location>
             <source>Stop analyzing</source>
             <translation>Остановить анализ</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="333"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="334"></location>
             <source>Analyze folder</source>
             <translation>Анализировать папку</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="345"></location>
-            <location filename="../../lib/UiTranslator.cpp" line="358"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="346"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="359"></location>
             <source>File</source>
             <translation>Файл</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="346"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="347"></location>
             <source>Type</source>
             <translation>Тип</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="347"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="348"></location>
             <source>Category</source>
             <translation>Категория</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="348"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="349"></location>
             <source>Subcategory</source>
             <translation>Подкатегория</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="349"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="350"></location>
             <source>Status</source>
             <translation>Статус</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="356"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="357"></location>
             <source>Directory</source>
             <translation>Папка</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="364"></location>
-            <location filename="../../lib/UiTranslator.cpp" line="555"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="365"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="556"></location>
             <source>Ready</source>
             <translation>Готово</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="111"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="112"></location>
             <source>&amp;Help</source>
             <translation>&amp;Справка</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="112"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="113"></location>
             <source>File Explorer</source>
             <translation>Проводник</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="550"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="551"></location>
             <source>Cancelling analysis…</source>
             <translation>Отмена анализа…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="552"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="553"></location>
             <source>Analyzing…</source>
             <translation>Анализ…</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="105"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="106"></location>
             <source>&amp;Quick Start Guide</source>
             <translation>&amp;Краткое руководство</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="106"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="107"></location>
             <source>&amp;FAQ</source>
             <translation>&amp;Часто задаваемые вопросы</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="86"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="87"></location>
             <source>&amp;Hindi</source>
             <translation>&amp;Хинди</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="98"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="99"></location>
             <source>&amp;Portuguese</source>
             <translation>&amp;Португальский (Португалия)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="99"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="100"></location>
             <source>&amp;Polish</source>
             <translation>&amp;Польский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="100"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="101"></location>
             <source>&amp;Russian</source>
             <translation>&amp;Русский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="101"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="102"></location>
             <source>&amp;Ukrainian</source>
             <translation>&amp;Украинский</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="205"></location>
-            <location filename="../../lib/UiTranslator.cpp" line="509"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="206"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="510"></location>
             <source>Choose what to sort, how to group files, and how to name pictures and documents.</source>
             <translation>Выберите, что сортировать, как группировать файлы и как называть изображения и документы.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="210"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="211"></location>
             <source>Choose the folder containing the files you want to sort.</source>
             <translation>Выберите папку, содержащую файлы, которые хотите отсортировать.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="219"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="220"></location>
             <source>Choose where sorted files and folders should go. Leave this blank to sort within the folder you are analyzing. Renaming alone does not move files.</source>
             <translation>Выберите место для размещения отсортированных файлов и папок. Оставьте это поле пустым, чтобы сортировать внутри анализируемой папки. Само по себе переименование не перемещает файлы.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="230"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="231"></location>
             <source>Create subfolders within category folders, for example Documents &gt; Invoices. Applies only when creating category folders.</source>
             <translation>Создавать подпапки внутри папок категорий, например Documents &gt; Invoices. Применяется только при создании папок категорий.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="234"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="235"></location>
             <source>Choose More refined for detailed categories, or More consistent to group similar items under the same category names.</source>
             <translation>Выберите «Более подробный» для подробных категорий или «Более единообразный», чтобы группировать похожие элементы под одними и теми же названиями категорий.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="238"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="239"></location>
             <source>Use more detailed category names to describe each item, even if similar items end up in different categories.</source>
             <translation>Используйте более подробные названия категорий, чтобы описать каждый элемент, даже если похожие элементы окажутся в разных категориях.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="242"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="243"></location>
             <source>Group similar items under the same category names to keep your folders more consistent.</source>
             <translation>Группируйте похожие элементы под одними и теми же названиями категорий, чтобы папки были более единообразными.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="249"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="250"></location>
             <source>Create new category folders, or sort into the existing folders at your chosen destination.</source>
             <translation>Создавать новые папки категорий или сортировать в существующие папки в выбранном месте назначения.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="253"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="254"></location>
             <source>When sorting into existing folders, suggest a new folder if none fits. New folders are created only when you apply the changes.</source>
             <translation>При сортировке в существующие папки предлагать новую папку, если ни одна не подходит. Новые папки создаются только при применении изменений.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="257"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="258"></location>
             <source>Choose a starter folder structure and where to create it. You can then sort files into those folders.</source>
             <translation>Выберите стартовую структуру папок и место её создания. Затем вы сможете сортировать файлы в эти папки.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="261"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="262"></location>
             <source>Use only category and subcategory names from a list you choose. This applies when sorting into category folders.</source>
             <translation>Использовать только названия категорий и подкатегорий из выбранного вами списка. Это применяется при сортировке в папки категорий.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="264"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="265"></location>
             <source>Choose the list of allowed category names to use when the whitelist is enabled.</source>
             <translation>Выберите список разрешённых названий категорий, который будет использоваться, когда белый список включён.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="268"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="269"></location>
             <source>Sort individual files into suitable folders. You can review the suggested moves before applying them.</source>
             <translation>Сортировать отдельные файлы по подходящим папкам. Вы можете просмотреть предлагаемые перемещения перед применением.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="272"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="273"></location>
             <source>Sort whole folders while keeping their contents together.</source>
             <translation>Сортировать целые папки, сохраняя их содержимое вместе.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="276"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="277"></location>
             <source>Also look inside subfolders when finding files and folders to sort.</source>
             <translation>Также просматривать содержимое подпапок при поиске файлов и папок для сортировки.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="280"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="281"></location>
             <source>Use an AI model to understand what your pictures show. Local models run on your computer; API connections send picture contents to the selected server.</source>
             <translation>Использовать модель ИИ для определения того, что изображено на ваших фотографиях. Локальные модели запускаются на вашем компьютере; при подключении по API содержимое изображений отправляется на выбранный сервер.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="284"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="285"></location>
             <source>Work only with supported picture files in your selection.</source>
             <translation>Обрабатывать только поддерживаемые файлы изображений из выбранного набора.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="288"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="289"></location>
             <source>Include a picture's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
             <translation>Добавлять дату создания изображения в название папки категории, если дата доступна. Существующие папки сохраняют свои имена.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="296"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="297"></location>
             <source>Use details such as the year, artist, title, or album to suggest clearer names for music and video files when available.</source>
             <translation>Использовать данные, такие как год, исполнитель, название или альбом, чтобы предлагать более понятные имена для музыкальных и видеофайлов, когда они доступны.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="300"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="301"></location>
             <source>Suggest clearer names for supported picture files. You can review the suggestions before applying them.</source>
             <translation>Предлагать более понятные имена для поддерживаемых файлов изображений. Вы можете просмотреть предложения перед применением.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="304"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="305"></location>
             <source>Keep pictures in their current folders and suggest new names only. Picture renaming must also be enabled.</source>
             <translation>Оставлять изображения в текущих папках и предлагать только новые имена. Переименование изображений также должно быть включено.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="311"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="312"></location>
             <source>Use the text inside supported documents to suggest suitable folders and clearer names. API connections send extracted document text to the selected server.</source>
             <translation>Использовать текст внутри поддерживаемых документов для предложения подходящих папок и более понятных имён. При подключении по API извлечённый текст документов отправляется на выбранный сервер.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="315"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="316"></location>
             <source>Work only with supported document files in your selection.</source>
             <translation>Обрабатывать только поддерживаемые файлы документов из выбранного набора.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="319"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="320"></location>
             <source>Suggest clearer names for supported document files. You can review the suggestions before applying them.</source>
             <translation>Предлагать более понятные имена для поддерживаемых файлов документов. Вы можете просмотреть предложения перед применением.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="323"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="324"></location>
             <source>Keep documents in their current folders and suggest new names only. Document renaming must also be enabled.</source>
             <translation>Оставлять документы в текущих папках и предлагать только новые имена. Переименование документов также должно быть включено.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="327"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="328"></location>
             <source>Include a document's creation date in its category folder name when the date is available. Existing folders keep their names.</source>
             <translation>Добавлять дату создания документа в название папки категории, если дата доступна. Существующие папки сохраняют свои имена.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="510"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="511"></location>
             <source>Choose the AI models used to sort and rename files. Local models run on your computer; API connections send analysis data to the selected server.</source>
             <translation>Выберите модели ИИ, используемые для сортировки и переименования файлов. Локальные модели запускаются на вашем компьютере; при подключении по API данные анализа отправляются на выбранный сервер.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="511"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="512"></location>
             <source>Create or edit lists of category names to use when sorting into category folders.</source>
             <translation>Создавать или редактировать списки названий категорий для использования при сортировке в папки категорий.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="512"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="513"></location>
             <source>Forget sorting preferences learned from your approved changes. Your files stay in place, and saved analysis results are kept. You will be asked to confirm first.</source>
             <translation>Забыть предпочтения сортировки, изученные на основе ваших подтверждённых изменений. Ваши файлы останутся на месте, а сохранённые результаты анализа будут сохранены. Сначала потребуется подтверждение.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="513"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="514"></location>
             <source>Review or clear results saved from earlier analyses. This does not delete your files.</source>
             <translation>Просмотреть или удалить результаты, сохранённые по результатам предыдущих анализов. Это не удаляет ваши файлы.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="518"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="519"></location>
             <source>Choose the language for the app's windows and menus.</source>
             <translation>Выберите язык для окон и меню приложения.</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="519"></location>
+            <location filename="../../lib/UiTranslator.cpp" line="520"></location>
             <source>Choose the language for category folder names and suggested filenames. Existing folders keep their names.</source>
             <translation>Выберите язык для названий папок категорий и предлагаемых имён файлов. Существующие папки сохранят свои имена.</translation>
         </message>
+    </context>
+    <context>
+        <name>VisualModelCatalog</name>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="209"></location>
-            <source>Choose where categorized items will be placed.</source>
-            <translation>Выберите, куда будут помещаться элементы после категоризации.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="99"></location>
+            <source>Qwen3.5 4B (text model)</source>
+            <translation>Qwen3.5 4B (текстовая модель)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="220"></location>
-            <source>Create subcategory folders within each category.</source>
-            <translation>Создавать подпапки внутри каждой категории.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="104"></location>
+            <source>Qwen3.5 4B mmproj (vision encoder)</source>
+            <translation>Qwen3.5 4B mmproj (энкодер зрения)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="224"></location>
-            <source>Choose how strict the category labels should be.</source>
-            <translation>Выберите, насколько строгими должны быть метки категорий.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="117"></location>
+            <source>LLaVA 1.6 Mistral 7B (text model)</source>
+            <translation>LLaVA 1.6 Mistral 7B (текстовая модель)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="228"></location>
-            <source>Favor detailed labels even if similar items vary.</source>
-            <translation>Отдавать предпочтение детализированным меткам, даже если похожие элементы различаются.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="122"></location>
+            <source>LLaVA mmproj (vision encoder)</source>
+            <translation>LLaVA mmproj (энкодер зрения)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="232"></location>
-            <source>Favor consistent labels across similar items.</source>
-            <translation>Отдавать предпочтение единообразным меткам для похожих элементов.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="136"></location>
+            <source>Gemma 3 4B IT (text model)</source>
+            <translation>Gemma 3 4B IT (текстовая модель)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="239"></location>
-            <source>Choose whether AI creates category folders or sorts into the current folder tree.</source>
-            <translation>Выберите, будет ли ИИ создавать папки категорий или сортировать в текущую структуру папок.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="141"></location>
+            <source>Gemma 3 4B mmproj (vision encoder)</source>
+            <translation>Gemma 3 4B mmproj (энкодер зрения)</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="243"></location>
-            <source>Allow AI to propose new destination folders when no existing folder fits well.</source>
-            <translation>Разрешить ИИ предлагать новые папки назначения, когда ни одна существующая папка не подходит.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="181"></location>
+            <source>Custom visual LLM</source>
+            <translation>Пользовательская визуальная LLM</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="247"></location>
-            <source>Create a starter folder structure at a location you choose.</source>
-            <translation>Создать начальную структуру папок в выбранном вами месте.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="186"></location>
+            <source>Custom visual text model</source>
+            <translation>Пользовательская визуальная текстовая модель</translation>
         </message>
         <message>
-            <location filename="../../lib/UiTranslator.cpp" line="251"></location>
-            <source>Restrict categories and subcategories to the selected whitelist.</source>
-            <translation>Ограничивать категории и подкатегории выбранным белым списком.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="254"></location>
-            <source>Select the whitelist used for this run.</source>
-            <translation>Выберите белый список, используемый для этого запуска.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="258"></location>
-            <source>Include files in the categorization pass.</source>
-            <translation>Включать файлы в проход категоризации.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="262"></location>
-            <source>Include directories in the categorization pass.</source>
-            <translation>Включать папки в проход категоризации.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="266"></location>
-            <source>Scan files inside subfolders and treat them as part of the main folder.</source>
-            <translation>Сканировать файлы внутри подпапок и рассматривать их как часть основной папки.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="270"></location>
-            <source>Run the visual LLM on supported picture files.</source>
-            <translation>Запускать визуальную LLM для поддерживаемых файлов изображений.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="274"></location>
-            <source>Ignore non-picture files in this run.</source>
-            <translation>Игнорировать в этом запуске файлы, не являющиеся изображениями.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="278"></location>
-            <source>Append the image creation date from metadata to the category label.</source>
-            <translation>Добавлять дату создания изображения из метаданных к метке категории.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="286"></location>
-            <source>Use embedded media tags (for example year, artist, album, title) to build suggested audio/video filenames.</source>
-            <translation>Использовать встроенные теги медиа (например, год, исполнитель, альбом, название) для формирования предлагаемых имён аудио/видео файлов.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="290"></location>
-            <source>Show suggested filenames for picture files.</source>
-            <translation>Показывать предлагаемые имена файлов для изображений.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="294"></location>
-            <source>Skip categorization for picture files and only rename them.</source>
-            <translation>Пропустить категоризацию для файлов изображений и только переименовать их.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="301"></location>
-            <source>Summarize document contents with the selected LLM.</source>
-            <translation>Суммировать содержимое документов с помощью выбранной LLM.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="305"></location>
-            <source>Ignore non-document files in this run.</source>
-            <translation>Игнорировать файлы, не являющиеся документами, в этом запуске.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="309"></location>
-            <source>Show suggested filenames for document files.</source>
-            <translation>Показывать предлагаемые имена файлов для документов.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="313"></location>
-            <source>Skip categorization for document files and only rename them.</source>
-            <translation>Не выполнять категоризацию для файлов документов, а только переименовывать их.</translation>
-        </message>
-        <message>
-            <location filename="../../lib/UiTranslator.cpp" line="317"></location>
-            <source>Append the document creation date from metadata to the category label.</source>
-            <translation>Добавлять дату создания документа из метаданных к метке категории.</translation>
+            <location filename="../../lib/VisualModelCatalog.cpp" line="191"></location>
+            <source>Custom mmproj</source>
+            <translation>Пользовательский mmproj</translation>
         </message>
     </context>
     <context>
@@ -4449,76 +4669,6 @@ Please update to continue. If you choose to quit, the application will close.</s
             <location filename="../../lib/WhitelistManagerDialog.cpp" line="295"></location>
             <source>The default list cannot be removed.</source>
             <translation>Список по умолчанию нельзя удалить.</translation>
-        </message>
-    </context>
-    <context>
-        <name>FolderStructurePluginInstallFlow</name>
-        <message>
-            <source>this plugin</source>
-            <translation>этот плагин</translation>
-        </message>
-        <message>
-            <source>Install failed</source>
-            <translation>Не удалось установить</translation>
-        </message>
-        <message>
-            <source>Failed to install folder-structure plugin.</source>
-            <translation>Не удалось установить плагин структуры папок.</translation>
-        </message>
-        <message>
-            <source>License needed</source>
-            <translation>Требуется лицензия</translation>
-        </message>
-        <message>
-            <source>Activate your license now and AI File Sorter will continue the installation automatically.</source>
-            <translation>Активируйте лицензию сейчас, и AI File Sorter автоматически продолжит установку.</translation>
-        </message>
-        <message>
-            <source>Activate License...</source>
-            <translation>Активировать лицензию...</translation>
-        </message>
-        <message>
-            <source>Read More...</source>
-            <translation>Подробнее...</translation>
-        </message>
-        <message>
-            <source>Activate Plugin License</source>
-            <translation>Активировать лицензию плагина</translation>
-        </message>
-        <message>
-            <source>Paste the license key for %1:</source>
-            <translation>Вставьте ключ лицензии для %1:</translation>
-        </message>
-        <message>
-            <source>Activation failed</source>
-            <translation>Активация не удалась</translation>
-        </message>
-        <message>
-            <source>Failed to activate the plugin license.</source>
-            <translation>Не удалось активировать лицензию плагина.</translation>
-        </message>
-    </context>
-    <context>
-        <name>FolderTreeCatalog</name>
-        <message>
-            <source>The destination contains folders deeper than %1 levels:
-%2
-
-Select a more specific destination folder or reorganize this branch.</source>
-            <translation>В папке назначения есть папки глубже %1 уровней:
-%2
-
-Выберите более конкретную папку назначения или измените структуру этой ветви.</translation>
-        </message>
-        <message>
-            <source>Could not validate the destination folder structure:
-%1
-
-%2</source>
-            <translation>Не удалось проверить структуру папок назначения:
-%1
-
-%2</translation>
         </message>
     </context>
 </TS>

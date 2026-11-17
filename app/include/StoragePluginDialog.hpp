@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QDialog>
 
 #include <atomic>
@@ -17,6 +18,8 @@ class StoragePluginManager;
  * @brief Simple plugin installer dialog for optional storage-provider packages.
  */
 class StoragePluginDialog : public QDialog {
+    Q_DECLARE_TR_FUNCTIONS(StoragePluginDialog)
+
 public:
     /**
      * @brief Constructs the storage-plugin dialog.

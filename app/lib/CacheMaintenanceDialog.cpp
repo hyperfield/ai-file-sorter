@@ -16,15 +16,10 @@
 
 namespace {
 
-QString dialog_tr(const char* source)
-{
-    return QCoreApplication::translate("CacheMaintenanceDialog", source);
-}
-
 QString path_display_text(const CacheMaintenanceTargetInfo& info)
 {
     if (info.path.empty()) {
-        return dialog_tr("None");
+        return CacheMaintenanceDialog::tr("None");
     }
     return QString::fromStdString(Utils::path_to_utf8(info.path));
 }
@@ -32,7 +27,7 @@ QString path_display_text(const CacheMaintenanceTargetInfo& info)
 QString size_display_text(const CacheMaintenanceTargetInfo& info)
 {
     if (!info.exists) {
-        return dialog_tr("None");
+        return CacheMaintenanceDialog::tr("None");
     }
     return QString::fromStdString(CacheMaintenanceService::format_size(info.size_bytes));
 }
@@ -111,7 +106,7 @@ CacheMaintenanceDialog::CacheMaintenanceDialog(CacheMaintenanceService& service,
       service_(service),
       busy_(busy)
 {
-    setWindowTitle(dialog_tr("Clear cache"));
+    setWindowTitle(tr("Clear cache"));
     setMinimumWidth(680);
     resize(760, 520);
 
@@ -120,7 +115,7 @@ CacheMaintenanceDialog::CacheMaintenanceDialog(CacheMaintenanceService& service,
     root_layout->setSpacing(12);
 
     auto* intro = new QLabel(
-        dialog_tr("Remove cached categorization results, image place lookups, or log files. "
+        tr("Remove cached categorization results, image place lookups, or log files. "
                   "Downloaded models are managed separately in the LLM dialog."),
         this);
     intro->setWordWrap(true);
@@ -129,7 +124,7 @@ CacheMaintenanceDialog::CacheMaintenanceDialog(CacheMaintenanceService& service,
 
     if (busy_) {
         busy_label_ = new QLabel(
-            dialog_tr("Cache cleanup is unavailable while analysis is running."),
+            tr("Cache cleanup is unavailable while analysis is running."),
             this);
         busy_label_->setObjectName(QStringLiteral("cacheBusyLabel"));
         busy_label_->setWordWrap(true);
@@ -186,7 +181,7 @@ void CacheMaintenanceDialog::add_target_section(CacheMaintenanceTarget target)
     description->setToolTip(target_description(target));
     layout->addWidget(description);
 
-    auto* path_caption = new QLabel(dialog_tr("Path:"), panel);
+    auto* path_caption = new QLabel(tr("Path:"), panel);
     path_caption->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     layout->addWidget(path_caption);
 
@@ -198,7 +193,7 @@ void CacheMaintenanceDialog::add_target_section(CacheMaintenanceTarget target)
     path_value->setToolTip(target_description(target));
     layout->addWidget(path_value);
 
-    auto* size_caption = new QLabel(dialog_tr("Estimated size:"), panel);
+    auto* size_caption = new QLabel(tr("Estimated size:"), panel);
     size_caption->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     layout->addWidget(size_caption);
 
@@ -211,7 +206,7 @@ void CacheMaintenanceDialog::add_target_section(CacheMaintenanceTarget target)
     auto* button_row = new QHBoxLayout();
     button_row->addStretch(1);
 
-    auto* clear_button = new QPushButton(dialog_tr("Clear"), panel);
+    auto* clear_button = new QPushButton(tr("Clear"), panel);
     clear_button->setObjectName(target_button_object_name(target));
     clear_button->setToolTip(target_description(target));
     clear_button->setEnabled(!busy_);
@@ -253,20 +248,20 @@ void CacheMaintenanceDialog::clear_target(CacheMaintenanceTarget target)
     if (!info.exists) {
         QMessageBox::information(this,
                                  windowTitle(),
-                                 dialog_tr("This cache is already empty."));
+                                 tr("This cache is already empty."));
         refresh_target(target);
         return;
     }
 
     QMessageBox confirm(this);
     confirm.setIcon(QMessageBox::Question);
-    confirm.setWindowTitle(dialog_tr("Confirm cache clear"));
-    confirm.setText(dialog_tr("Clear %1?").arg(target_title(target)));
+    confirm.setWindowTitle(tr("Confirm cache clear"));
+    confirm.setText(tr("Clear %1?").arg(target_title(target)));
     confirm.setInformativeText(
-        dialog_tr("Path: %1\nEstimated reclaimed space: %2\n\nThis cannot be undone.")
+        tr("Path: %1\nEstimated reclaimed space: %2\n\nThis cannot be undone.")
             .arg(path_display_text(info),
                  size_display_text(info)));
-    auto* clear_button = confirm.addButton(dialog_tr("Clear"), QMessageBox::AcceptRole);
+    auto* clear_button = confirm.addButton(tr("Clear"), QMessageBox::AcceptRole);
     confirm.addButton(QMessageBox::Cancel);
     confirm.setDefaultButton(static_cast<QPushButton*>(nullptr));
     confirm.exec();
@@ -279,7 +274,7 @@ void CacheMaintenanceDialog::clear_target(CacheMaintenanceTarget target)
         QMessageBox::warning(
             this,
             windowTitle(),
-            error.empty() ? dialog_tr("The selected cache could not be removed.")
+            error.empty() ? tr("The selected cache could not be removed.")
                           : QString::fromStdString(error));
         refresh_target(target);
         return;
@@ -288,18 +283,18 @@ void CacheMaintenanceDialog::clear_target(CacheMaintenanceTarget target)
     refresh_target(target);
     QMessageBox::information(this,
                              windowTitle(),
-                             dialog_tr("Cleared %1.").arg(target_title(target)));
+                             tr("Cleared %1.").arg(target_title(target)));
 }
 
 QString CacheMaintenanceDialog::target_title(CacheMaintenanceTarget target) const
 {
     switch (target) {
     case CacheMaintenanceTarget::Categorization:
-        return dialog_tr("Categorization cache");
+        return tr("Categorization cache");
     case CacheMaintenanceTarget::ImageLocation:
-        return dialog_tr("Image location cache");
+        return tr("Image location cache");
     case CacheMaintenanceTarget::Logs:
-        return dialog_tr("Logs");
+        return tr("Logs");
     }
     return QString();
 }
@@ -316,7 +311,7 @@ QString CacheMaintenanceDialog::target_description(CacheMaintenanceTarget target
             "CacheMaintenanceDialog",
             "Saves place names found for photo locations so the app can reuse them without another online lookup.");
     case CacheMaintenanceTarget::Logs:
-        return dialog_tr("Stores application log files used for troubleshooting and error reporting.");
+        return tr("Stores application log files used for troubleshooting and error reporting.");
     }
     return QString();
 }

@@ -35,6 +35,7 @@
 
 #include "FolderStructurePluginInstallFlow.hpp"
 #include "FolderStructurePluginManager.hpp"
+#include "FolderStructureUiText.hpp"
 #include "PluginBuildConfig.hpp"
 #include "Utils.hpp"
 
@@ -44,10 +45,6 @@ constexpr int kPluginIdRole = Qt::UserRole;
 constexpr int kInstalledRole = Qt::UserRole + 1;
 constexpr int kPurchaseUrlRole = Qt::UserRole + 2;
 constexpr int kObtainButtonMinimumWidth = 96;
-
-QString tr_dialog(const char* source_text) {
-    return QCoreApplication::translate("FolderStructurePluginDialog", source_text);
-}
 
 std::string to_utf8(const QString& value) {
     const QByteArray bytes = value.toUtf8();
@@ -77,9 +74,9 @@ QString installed_publisher_display_name(const FolderStructurePluginManifest& ma
         return known_publisher;
     }
     if (!manifest.verified_signer_key_id.empty()) {
-        return tr_dialog("Verified publisher");
+        return QCoreApplication::translate("FolderStructurePluginDialog", "Verified publisher");
     }
-    return tr_dialog("Verified package");
+    return QCoreApplication::translate("FolderStructurePluginDialog", "Verified package");
 }
 
 QString catalog_publisher_display_name(const FolderStructurePluginCatalogEntry& entry) {
@@ -89,7 +86,7 @@ QString catalog_publisher_display_name(const FolderStructurePluginCatalogEntry& 
             return known_publisher;
         }
     }
-    return tr_dialog("AI File Sorter catalog");
+    return QCoreApplication::translate("FolderStructurePluginDialog", "AI File Sorter catalog");
 }
 
 std::unordered_map<std::string, FolderStructurePluginManifest> installed_manifest_map(
@@ -269,7 +266,7 @@ void FolderStructurePluginDialog::populate_plugins() {
             item->setFlags(item->flags() & ~Qt::ItemIsUserCheckable);
             item->setText(0, tr("Available"));
         }
-        item->setText(1, QString::fromStdString(plugin.name));
+        item->setText(1, FolderStructureUiText::plugin_name(plugin.id, plugin.name));
         item->setText(2, QString::fromStdString(plugin.version));
         item->setText(3, is_installed ? installed_publisher_display_name(installed->second)
                                       : catalog_publisher_display_name(plugin));
@@ -277,7 +274,7 @@ void FolderStructurePluginDialog::populate_plugins() {
         item->setData(1, kPluginIdRole, QString::fromStdString(plugin.id));
         item->setData(0, kInstalledRole, is_installed);
         item->setData(0, kPurchaseUrlRole, QString::fromStdString(plugin.purchase_url));
-        item->setToolTip(1, QString::fromStdString(plugin.description));
+        item->setToolTip(1, FolderStructureUiText::plugin_description(plugin.id, plugin.description));
         if (is_installed && !installed->second.verified_signer_key_id.empty()) {
             item->setToolTip(3, tr("Signature verified with trusted key %1.")
                                     .arg(QString::fromStdString(installed->second.verified_signer_key_id)));
@@ -353,7 +350,7 @@ void FolderStructurePluginDialog::update_selection_state() {
                        tr("License: %1").arg(has_license ? tr("Active") : tr("Activation needed"));
     }
 
-    QString description = QString::fromStdString(plugin->description);
+    QString description = FolderStructureUiText::plugin_description(plugin->id, plugin->description);
     if (!installed && !plugin->has_remote_package()) {
         description += QStringLiteral("\n\n") +
                        tr("This plugin is listed by the server catalog, but the downloadable package is not available "
@@ -363,7 +360,7 @@ void FolderStructurePluginDialog::update_selection_state() {
     const QString publisher_line = installed ? tr("Verified publisher: %1").arg(current->text(3))
                                              : tr("Publisher: %1").arg(current->text(3));
     details_label_->setText(tr("%1 %2\n%3\nStatus: %4%5\n\n%6")
-                                .arg(QString::fromStdString(plugin->name), QString::fromStdString(plugin->version),
+                                .arg(FolderStructureUiText::plugin_name(plugin->id, plugin->name), QString::fromStdString(plugin->version),
                                      publisher_line, status, license_line, QString())
                                 .trimmed());
     description_label_->setText(description);

@@ -2,6 +2,7 @@
 
 #include "GgufFileValidation.hpp"
 #include "Utils.hpp"
+#include <QCoreApplication>
 
 #include <algorithm>
 #include <fstream>
@@ -95,12 +96,12 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
             VisualPromptPolicy::StructuredVisionInstruct,
             {
                 {VisualModelArtifactKind::Model,
-                 "Qwen3.5 4B (text model)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Qwen3.5 4B (text model)"),
                  "QWEN35_4B_MODEL_URL",
                  "model.gguf",
                  {}},
                 {VisualModelArtifactKind::Mmproj,
-                 "Qwen3.5 4B mmproj (vision encoder)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Qwen3.5 4B mmproj (vision encoder)"),
                  "QWEN35_4B_MMPROJ_URL",
                  "mmproj.gguf",
                  {"mmproj-F16.gguf"}},
@@ -113,12 +114,12 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
             VisualPromptPolicy::LegacyLlava,
             {
                 {VisualModelArtifactKind::Model,
-                 "LLaVA 1.6 Mistral 7B (text model)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "LLaVA 1.6 Mistral 7B (text model)"),
                  "LLAVA_MODEL_URL",
                  "model.gguf",
                  {}},
                 {VisualModelArtifactKind::Mmproj,
-                 "LLaVA mmproj (vision encoder)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "LLaVA mmproj (vision encoder)"),
                  "LLAVA_MMPROJ_URL",
                  "mmproj.gguf",
                  {"mmproj-model-f16.gguf",
@@ -132,12 +133,12 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
             VisualPromptPolicy::StructuredVisionInstruct,
             {
                 {VisualModelArtifactKind::Model,
-                 "Gemma 3 4B IT (text model)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Gemma 3 4B IT (text model)"),
                  "GEMMA3_4B_MODEL_URL",
                  "model.gguf",
                  {}},
                 {VisualModelArtifactKind::Mmproj,
-                 "Gemma 3 4B mmproj (vision encoder)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Gemma 3 4B mmproj (vision encoder)"),
                  "GEMMA3_4B_MMPROJ_URL",
                  "mmproj.gguf",
                  {"mmproj-model.gguf",
@@ -177,17 +178,17 @@ const VisualModelDescriptor& custom_visual_model_descriptor()
 {
     static const VisualModelDescriptor descriptor = {
         "custom",
-        "Custom visual LLM",
+        QT_TRANSLATE_NOOP("VisualModelCatalog", "Custom visual LLM"),
         VisualModelArchitecture::MtmdProjector,
         VisualPromptPolicy::StructuredVisionInstruct,
         {
             {VisualModelArtifactKind::Model,
-             "Custom visual text model",
+             QT_TRANSLATE_NOOP("VisualModelCatalog", "Custom visual text model"),
              "",
              "",
              {}},
             {VisualModelArtifactKind::Mmproj,
-             "Custom mmproj",
+             QT_TRANSLATE_NOOP("VisualModelCatalog", "Custom mmproj"),
              "",
              "",
              {}},

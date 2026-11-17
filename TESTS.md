@@ -4573,9 +4573,21 @@ Run: `./build-tests/ai_file_sorter_tests "HeadlessAnalysisCommand recursive Rena
 
 `localization_validation` is registered when the private localization helper is
 available in the workspace. It runs `tests/test_localization_validation.py`
-without network access; direct execution skips cleanly when the helper is absent. It accepts valid circumflex letters in Turkish and French UI
-text and Markdown while rejecting replacement characters and known UTF-8
-mojibake. Run `ctest --test-dir build-tests -C Release -R "^localization_validation$" --output-on-failure`.
+without network access; direct execution skips cleanly when the helper is absent.
+It accepts valid accented text while rejecting mojibake, broken placeholders,
+unreviewed English UI copies, and unchanged English Markdown. It also covers
+repairing invalid finished translations with `--skip-existing`, missing translation
+elements and source messages, obsolete messages, invalid plural forms, automatic
+source refresh, response-index integrity, retaining valid repairs while rejecting
+invalid provider output, and read-only checks that never load credentials or build a provider.
+Run `ctest --test-dir build-tests -C Release -R "^localization_validation$" --output-on-failure`.
+
+The native `[localization-gaps]` cases require translated template, plugin,
+activation, cache, storage, model, and history labels in every non-English catalog.
+French widget checks cover template names/descriptions, language-selector labels,
+Johnny.Decimal tabs/placeholders, cache and storage dialogs, and model-artifact titles. They also verify that
+canonical folder paths, backend IDs, and external or signed metadata remain unchanged.
+Rebuild, then run `ai_file_sorter_tests "[localization-gaps]"`.
 
 The `[release-notes]` native test loads the current release and releases 1.9.2
 and 1.9.1 for all 18 non-English languages, requiring translated bundled

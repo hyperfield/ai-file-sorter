@@ -8,6 +8,22 @@
 #include <QLabel>
 #include <QPushButton>
 
+TEST_CASE("French cache dialog uses its extracted translation context", "[ui-translations][localization-gaps]")
+{
+    QtAppContext qt;
+    TempDir config, logs;
+    CacheMaintenanceService service(config.path().string(), {}, [path = logs.path()] { return path; });
+    TranslationManager::instance().set_language(Language::French);
+    CacheMaintenanceDialog dialog(service, false);
+    CHECK(dialog.windowTitle() == QCoreApplication::translate("CacheMaintenanceDialog", "Clear cache"));
+    CHECK(dialog.windowTitle() != "Clear cache");
+    auto* clear = dialog.findChild<QPushButton*>("categorizationClearButton");
+    REQUIRE(clear);
+    CHECK(clear->text() == QCoreApplication::translate("CacheMaintenanceDialog", "Clear"));
+    CHECK(clear->text() != "Clear");
+    TranslationManager::instance().set_language(Language::English);
+}
+
 #ifndef _WIN32
 TEST_CASE("CacheMaintenanceDialog exposes tooltips for each cache target")
 {

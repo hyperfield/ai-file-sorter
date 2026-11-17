@@ -46,6 +46,24 @@ QTreeWidgetItem* find_plugin_item(QTreeWidget* plugin_list, const QString& plugi
 
 } // namespace
 
+TEST_CASE("French storage plugin dialog uses its extracted translation context", "[ui-translations][localization-gaps]")
+{
+    QtAppContext qt;
+    TranslationManager::instance().set_language(Language::French);
+    StoragePluginDialog dialog(nullptr);
+    CHECK(dialog.windowTitle() == QCoreApplication::translate("StoragePluginDialog", "Manage Storage Plugins"));
+    CHECK(dialog.windowTitle() != "Manage Storage Plugins");
+    auto* plugins = dialog.findChild<QTreeWidget*>();
+    REQUIRE(plugins);
+    CHECK(plugins->headerItem()->text(1) == QCoreApplication::translate("StoragePluginDialog", "Action"));
+    for (auto* button : dialog.findChildren<QPushButton*>()) {
+        CHECK(button->text() != "Install");
+        CHECK(button->text() != "Uninstall");
+        CHECK(button->text() != "Check for updates");
+    }
+    TranslationManager::instance().set_language(Language::English);
+}
+
 TEST_CASE("StoragePluginDialog refreshes plugin metadata on open and shows update actions")
 {
     if (!PluginBuildConfig::remote_catalogs_enabled()) {
