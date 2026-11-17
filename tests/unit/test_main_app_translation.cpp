@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "MainAppHelpActions.hpp"
 #include "MainApp.hpp"
+#include "ContentSizedPushButton.hpp"
 #include "MainAppTestAccess.hpp"
 #include "TestHelpers.hpp"
 #include "TranslationManager.hpp"
@@ -12,8 +13,156 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QCoreApplication>
+#include <QEvent>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QStyleFactory>
+#include <QStyleOptionButton>
 
+#include <set>
+#include <memory>
 #include <vector>
+
+namespace {
+void settle_button_layout()
+{
+    QApplication::processEvents();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+    QApplication::processEvents();
+}
+
+void check_button_caption_space(const QPushButton& button)
+{
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.text = button.text();
+    option.icon = button.icon();
+    option.iconSize = button.iconSize();
+    const auto contents = button.style()->subElementRect(QStyle::SE_PushButtonContents, &option, &button);
+    constexpr int kQtIconTextGap = 4;
+    const int icon_width = option.icon.isNull() ? 0 : option.iconSize.width() + kQtIconTextGap;
+    const int text_width = option.fontMetrics.size(Qt::TextShowMnemonic, option.text).width();
+    const int padding = contents.width() - icon_width - text_width;
+    CAPTURE(button.text().toStdString(), button.width(), button.sizeHint().width(), padding,
+            option.fontMetrics.height(), button.style()->objectName().toStdString());
+    CHECK(padding >= 2 * option.fontMetrics.height());
+    CHECK(button.width() >= button.minimumSizeHint().width());
+    CHECK(button.minimumWidth() == 0);
+    CHECK(button.maximumWidth() == QWIDGETSIZE_MAX);
+}
+} // namespace
+
+TEST_CASE("Main window actions retain space around translated captions", "[translated-sizing]")
+{
+    QtAppContext qt;
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_language(Language::English);
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(source.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    REQUIRE(settings.save());
+    MainApp window(settings, false, true);
+    window.setAttribute(Qt::WA_DontShowOnScreen);
+    window.resize(1600, 900);
+    window.show();
+    auto* rules = window.findChild<QPushButton*>(QStringLiteral("sortingRulesButton"));
+    REQUIRE(rules);
+    const std::vector<QPushButton*> buttons{rules, MainAppTestAccess::browse_button(window),
+        MainAppTestAccess::destination_browse_button(window),
+        MainAppTestAccess::create_folder_structure_button(window), MainAppTestAccess::analyze_button(window)};
+    const auto base_font = window.font();
+    const auto languages = TranslationManager::instance().available_languages();
+    for (const double scale : {1.0, 1.5}) {
+        auto font = base_font;
+        font.setPointSizeF((base_font.pointSizeF() > 0 ? base_font.pointSizeF() : 9.0) * scale);
+        window.setFont(font);
+        std::set<int> rules_widths;
+        int english_width = 0;
+        for (const auto& language : languages) {
+            TranslationManager::instance().set_language(language.id);
+            MainAppTestAccess::trigger_retranslate(window);
+            settle_button_layout();
+            rules_widths.insert(rules->width());
+            if (language.id == Language::English) english_width = rules->width();
+            for (auto* button : buttons) {
+                REQUIRE(button);
+                CAPTURE(language.code.toStdString(), scale);
+                check_button_caption_space(*button);
+            }
+        }
+        CHECK(rules_widths.size() > 1);
+        TranslationManager::instance().set_language(Language::English);
+        MainAppTestAccess::trigger_retranslate(window);
+        settle_button_layout();
+        CHECK(rules->width() == english_width);
+    }
+}
+
+TEST_CASE("Content-sized buttons update their minimum for text fonts icons and styles", "[translated-sizing]")
+{
+    QtAppContext qt;
+    for (const auto& style_name : QStyleFactory::keys()) {
+        DYNAMIC_SECTION(style_name.toStdString()) {
+            std::unique_ptr<QStyle> style(QStyleFactory::create(style_name));
+            REQUIRE(style);
+            std::unique_ptr<QStyle> alternate(QStyleFactory::create(
+                style_name.compare("Fusion", Qt::CaseInsensitive) == 0 ? "Windows" : "Fusion"));
+            REQUIRE(alternate);
+            QWidget host;
+            host.setAttribute(Qt::WA_DontShowOnScreen);
+            auto* layout = new QHBoxLayout(&host);
+            auto* button = new ContentSizedPushButton(QString::fromUtf8("Règles de tri..."), &host);
+            QPushButton* abstract_button = button;
+            button->setStyle(style.get());
+            button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+            layout->addStretch();
+            layout->addWidget(button);
+            host.show();
+            settle_button_layout();
+            const auto initial = button->minimumSizeHint();
+            check_button_caption_space(*button);
+            abstract_button->setText(QString::fromUtf8("Règles de tri pour les images et les documents..."));
+            settle_button_layout();
+            CHECK(button->minimumSizeHint().width() > initial.width());
+            check_button_caption_space(*button);
+            abstract_button->setText(QString::fromUtf8("Règles de tri..."));
+            settle_button_layout();
+            CHECK(button->minimumSizeHint() == initial);
+            const auto original_font = button->font();
+            auto large_font = original_font;
+            large_font.setPointSizeF((large_font.pointSizeF() > 0 ? large_font.pointSizeF() : 9.0) * 2);
+            button->setFont(large_font);
+            settle_button_layout();
+            CHECK(button->minimumSizeHint().width() > initial.width());
+            check_button_caption_space(*button);
+            button->setFont(original_font);
+            abstract_button->setIcon(style->standardIcon(QStyle::SP_FileDialogDetailedView));
+            abstract_button->setIconSize(QSize(initial.height(), initial.height()));
+            settle_button_layout();
+            const auto with_icon = button->minimumSizeHint();
+            CHECK(with_icon.width() > initial.width());
+            check_button_caption_space(*button);
+            abstract_button->setIconSize(QSize(initial.height() * 2, initial.height() * 2));
+            settle_button_layout();
+            CHECK(button->minimumSizeHint().width() > with_icon.width());
+            check_button_caption_space(*button);
+            abstract_button->setIcon(QIcon());
+            settle_button_layout();
+            CHECK(button->minimumSizeHint() == initial);
+            button->setStyle(alternate.get());
+            settle_button_layout();
+            check_button_caption_space(*button);
+            button->setStyle(style.get());
+            settle_button_layout();
+            CHECK(button->minimumSizeHint() == initial);
+            host.resize(1, 1);
+            settle_button_layout();
+            check_button_caption_space(*button);
+        }
+    }
+}
 
 TEST_CASE("MainApp loads default settings without registered application loggers") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());

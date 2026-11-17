@@ -96,7 +96,8 @@ FolderStructureInitializerDialog::FolderStructureInitializerDialog(
     auto* language_layout = new QFormLayout();
     language_selector_ = new QComboBox(starter_tab_);
     language_selector_->setObjectName(QStringLiteral("folderStructureLanguageSelector"));
-    language_selector_->setMaximumWidth(280);
+    language_selector_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    language_selector_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
     language_selector_->setToolTip(tr("Choose the language for starter folder names. "
                                       "Translation uses the selected LLM and does not change your category language."));
     auto languages = language_options_.supported_languages;

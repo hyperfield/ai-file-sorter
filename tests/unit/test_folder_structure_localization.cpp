@@ -69,6 +69,31 @@ FolderStructureInitializerDialog::LanguageOptions french_options()
 }
 } // namespace
 
+TEST_CASE("Folder language selector fits long names and enlarged fonts", "[folder-language][translated-sizing]")
+{
+    QtAppContext qt;
+    TempDir destination;
+    FolderStructureInitializerDialog dialog(destination.path());
+    dialog.setAttribute(Qt::WA_DontShowOnScreen);
+    auto* language = dialog.findChild<QComboBox*>("folderStructureLanguageSelector");
+    REQUIRE(language);
+    auto font = language->font();
+    font.setPointSizeF((font.pointSizeF() > 0 ? font.pointSizeF() : 9.0) * 3);
+    language->setFont(font);
+    int longest = 0;
+    for (int index = 1; index < language->count(); ++index) {
+        if (language->fontMetrics().horizontalAdvance(language->itemText(index)) >
+            language->fontMetrics().horizontalAdvance(language->itemText(longest))) longest = index;
+    }
+    language->setCurrentIndex(longest);
+    dialog.resize(1400, 800);
+    dialog.show();
+    QApplication::processEvents();
+    CAPTURE(language->currentText().toStdString(), language->width(), language->minimumSizeHint().width());
+    CHECK(language->width() >= language->minimumSizeHint().width());
+    CHECK(language->width() >= language->fontMetrics().horizontalAdvance(language->currentText()));
+}
+
 TEST_CASE("Folder structure translation preserves numbering and shared parent labels", "[folder-language]")
 {
     FolderStructureTemplates::Descriptor source;

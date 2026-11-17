@@ -398,6 +398,21 @@ research tooling.
   controls move out of the main panel, sliders persist independently on closing,
   reflect loaded or externally changed settings on opening, and the dialog entry
   points are disabled during analysis.
+- `Main window actions retain space around translated captions`: all 19 interface
+  languages retain room for complete button captions and icons at normal and
+  enlarged fonts, including changes made after the window is already visible.
+  Covers Sorting rules, both Browse buttons, Create folder structure, and Analyze.
+  Sorting rules grows and shrinks again when switching between languages. The
+  complete caption and icon retain font-scaled horizontal padding without a
+  fixed minimum or maximum pixel width.
+- `Content-sized buttons update their minimum for text fonts icons and styles`:
+  every installed Qt style is checked with live text, font and icon changes,
+  through base-class setters, and with a constrained parent layout. The minimum
+  follows the full content, grows and shrinks again, and prevents compression.
+- `Folder language selector fits long names and enlarged fonts`: the starter
+  structure dialog sizes its language selector to the longest name at a larger
+  accessibility font size, without a fixed pixel-width cap.
+  Run these cases with `ai_file_sorter_tests "[translated-sizing]"`.
 
 `tests/unit/test_content_context_routing.cpp` also verifies that complete cached
 image evidence is not reused after changing the image filename word limit, while

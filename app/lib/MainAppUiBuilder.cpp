@@ -1,6 +1,7 @@
 #include "MainAppUiBuilder.hpp"
 
 #include "AppTheme.hpp"
+#include "ContentSizedPushButton.hpp"
 #include "CategoryLanguageSupport.hpp"
 #include "AppInfo.hpp"
 
@@ -472,7 +473,7 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.sorting_mode_selector->setMinimumContentsLength(22);
     app.sorting_mode_selector->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     app.suggest_new_folders_checkbox = new QCheckBox(central);
-    app.sorting_rules_button = new QPushButton(central);
+    app.sorting_rules_button = new ContentSizedPushButton(central);
     app.sorting_rules_button->setObjectName(QStringLiteral("sortingRulesButton"));
     app.sorting_rules_button->setIcon(QIcon::fromTheme(QStringLiteral("preferences-system"),
         app.style()->standardIcon(QStyle::SP_FileDialogDetailedView)));
@@ -488,7 +489,7 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     auto* path_layout = new QHBoxLayout();
     app.path_label = new QLabel(central);
     app.path_entry = new QLineEdit(central);
-    app.browse_button = new QPushButton(central);
+    app.browse_button = new ContentSizedPushButton(central);
     path_layout->addWidget(app.path_label);
     path_layout->addWidget(app.path_entry, 1);
     path_layout->addWidget(app.browse_button);
@@ -498,8 +499,8 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.destination_path_label = new QLabel(central);
     app.destination_path_entry = new QLineEdit(central);
     app.destination_path_entry->setObjectName(QStringLiteral("destinationPathEntry"));
-    app.destination_browse_button = new QPushButton(central);
-    app.create_folder_structure_button = new QPushButton(central);
+    app.destination_browse_button = new ContentSizedPushButton(central);
+    app.create_folder_structure_button = new ContentSizedPushButton(central);
     app.create_folder_structure_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     destination_layout->addWidget(app.destination_path_label);
     destination_layout->addWidget(app.destination_path_entry, 1);
@@ -522,7 +523,7 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     QFontMetrics fm(app.whitelist_selector->font());
     app.whitelist_selector->setMinimumWidth(fm.horizontalAdvance(QString(16, QChar('W'))) + 5);
 
-    app.analyze_button = new QPushButton(central);
+    app.analyze_button = new ContentSizedPushButton(central);
     QIcon analyze_icon = QIcon::fromTheme(QStringLiteral("sparkle"));
     if (analyze_icon.isNull()) {
         analyze_icon = QIcon::fromTheme(QStringLiteral("applications-education"));
@@ -533,7 +534,6 @@ void MainAppUiBuilder::build_central_panel(MainApp& app) {
     app.analyze_button->setIcon(analyze_icon);
     app.analyze_button->setIconSize(QSize(20, 20));
     app.analyze_button->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
-    app.analyze_button->setMinimumWidth(160);
     auto* analyze_layout = new QHBoxLayout();
     auto* whitelist_row = new QHBoxLayout();
     whitelist_row->addWidget(app.use_whitelist_checkbox);
