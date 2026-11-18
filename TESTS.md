@@ -4615,6 +4615,14 @@ Ninja and Visual Studio. It checks enabled, disabled, and enabled-then-disabled
 unit/live-test options, ensuring explicit OFF flags clear prior cached test builds.
 Run `ctest --test-dir build-tests -C Release -R '^windows_build_options$' --output-on-failure`.
 
+### Windows executable DPI manifests
+
+`windows_app_manifest` reads the embedded manifest resources of the freshly
+built app and launcher without executing either binary or loading dependencies.
+It requires Per-Monitor V2, the older per-monitor fallback, and standard-user
+`asInvoker` privileges without UI access. Rebuild the native targets, then run
+`ctest --test-dir build-tests -C Release -R '^windows_app_manifest$' --output-on-failure`.
+
 ### New European interface locales
 
 `[ui-locales]` covers European Portuguese, Polish, Russian, and Ukrainian settings

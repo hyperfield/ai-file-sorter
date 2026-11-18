@@ -1707,6 +1707,19 @@ if(WIN32)
         message(FATAL_ERROR "PowerShell is required to generate Windows resources")
     endif()
 
+    set(APP_MANIFEST_FILE "${CMAKE_CURRENT_SOURCE_DIR}/resources/windows/app.manifest")
+    set(APP_MANIFEST_SOURCE "${APP_MANIFEST_FILE}")
+    if(MINGW)
+        # MinGW does not embed .manifest sources through the linker like MSVC does.
+        set(APP_MANIFEST_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/generated/app_manifest.rc")
+        configure_file(resources/windows/app_manifest.rc.in "${APP_MANIFEST_SOURCE}" @ONLY)
+        set_source_files_properties("${APP_MANIFEST_SOURCE}" PROPERTIES OBJECT_DEPENDS "${APP_MANIFEST_FILE}")
+    endif()
+    target_sources(aifilesorter PRIVATE "${APP_MANIFEST_SOURCE}")
+    if(STARTER_TARGET)
+        target_sources(${STARTER_TARGET} PRIVATE "${APP_MANIFEST_SOURCE}")
+    endif()
+
     set(APP_ICON_BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources/images/icon_256x256.png")
     set(APP_ICON_ICO "${CMAKE_CURRENT_BINARY_DIR}/generated/app_icon.ico")
     add_custom_command(OUTPUT "${APP_ICON_ICO}"
@@ -2263,6 +2276,17 @@ if(AI_FILE_SORTER_BUILD_TESTS)
                     --app $<TARGET_FILE:aifilesorter> ${_aifs_headless_stdout_runtime_args} -v
             )
             set_tests_properties(headless_stdout_contract PROPERTIES LABELS "headless;integration" TIMEOUT 120)
+            if(WIN32)
+                set(_aifs_manifest_launcher_args "")
+                if(STARTER_TARGET)
+                    list(APPEND _aifs_manifest_launcher_args --launcher $<TARGET_FILE:${STARTER_TARGET}>)
+                endif()
+                add_test(NAME windows_app_manifest
+                    COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/../tests/integration/test_windows_app_manifest.py
+                        --app $<TARGET_FILE:aifilesorter> ${_aifs_manifest_launcher_args} -v)
+                set_tests_properties(windows_app_manifest PROPERTIES LABELS "windows;integration" TIMEOUT 30)
+            endif()
             if(WIN32 AND STARTER_TARGET)
                 add_dependencies(ai_file_sorter_tests ${STARTER_TARGET})
                 add_test(NAME headless_launcher_stdout_contract
