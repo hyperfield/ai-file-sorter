@@ -18,6 +18,7 @@
 #include <QToolButton>
 
 #include <curl/curl.h>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -74,6 +75,59 @@ TEST_CASE("API visual selection stays independent of the text model and hides lo
     LLMSelectionDialogTestAccess::select_visual_backend(dialog, http_visual_model_id(id));
     CHECK(dialog.get_selected_visual_model_id() == http_visual_model_id(id));
     CHECK(dialog.get_selected_llm_choice() == LLMChoice::Remote_Gemini);
+}
+
+TEST_CASE("Visual model dialog opens with missing artifacts in Unicode storage",
+          "[unicode-model-paths]") {
+    QtAppContext qt;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", Utils::path_to_utf8(temp.path()));
+    struct RestoreStorage {
+        std::string previous = Utils::get_llm_storage_directory_override();
+        ~RestoreStorage() { Utils::set_llm_storage_directory_override(previous); }
+    } restore;
+    const auto storage = temp.path() /
+        Utils::utf8_to_path("Models_\u6a21\u578b_\u0938\u0902\u0917\u094d\u0930\u0939");
+    EnvVarGuard model_guard("QWEN35_4B_MODEL_URL",
+                            std::string("https://example.com/unicode-model.gguf"));
+    EnvVarGuard mmproj_guard("QWEN35_4B_MMPROJ_URL",
+                             std::string("https://example.com/unicode-mmproj.gguf"));
+    Settings settings;
+    settings.set_llm_storage_dir(Utils::path_to_utf8(storage));
+    settings.set_llm_choice(LLMChoice::Local_4b_Qwen35);
+    settings.set_visual_model_id("qwen3.5-4b");
+    settings.set_suitability_benchmark_suppressed(true);
+    SECTION("No artifacts downloaded") {}
+    SECTION("Selected text model downloaded without its projector") {
+        const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+        REQUIRE(descriptor);
+        const auto path = visual_artifact_storage_path(*descriptor, descriptor->artifacts[0]);
+        std::filesystem::create_directories(path.parent_path());
+        const std::array<char, 16> header{'G', 'G', 'U', 'F'};
+        std::ofstream output(path, std::ios::binary);
+        output.write(header.data(), static_cast<std::streamsize>(header.size()));
+    }
+    SECTION("Both selected artifacts downloaded") {
+        const auto* descriptor = find_visual_model_descriptor("qwen3.5-4b");
+        REQUIRE(descriptor);
+        const std::array<char, 16> header{'G', 'G', 'U', 'F'};
+        for (const auto& artifact : descriptor->artifacts) {
+            const auto path = visual_artifact_storage_path(*descriptor, artifact);
+            std::filesystem::create_directories(path.parent_path());
+            std::ofstream output(path, std::ios::binary);
+            output.write(header.data(), static_cast<std::streamsize>(header.size()));
+        }
+    }
+    std::unique_ptr<LLMSelectionDialog> dialog;
+    REQUIRE_NOTHROW(dialog = std::make_unique<LLMSelectionDialog>(settings));
+    CHECK(dialog->get_selected_visual_model_id() == "qwen3.5-4b");
+    const auto entry = LLMSelectionDialogTestAccess::visual_entry_for_env_var(*dialog, "QWEN35_4B_MODEL_URL");
+    REQUIRE(entry.status_label);
+    CHECK_FALSE(entry.status_label->text().isEmpty());
+    const auto* path_label = dialog->findChild<QLabel*>(
+        QStringLiteral("visualDownloadDetails_QWEN35_4B_MODEL_URLLocalPath"));
+    REQUIRE(path_label);
+    CHECK(path_label->text().contains(QString::fromStdString(Utils::path_to_utf8(storage))));
 }
 
 #ifndef _WIN32

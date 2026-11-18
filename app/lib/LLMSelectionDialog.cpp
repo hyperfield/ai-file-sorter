@@ -1749,7 +1749,7 @@ void LLMSelectionDialog::refresh_visual_llm_download_entry(VisualLlmDownloadEntr
 
     if (entry.details.local_path_label) {
         const std::string path_text = entry.resolved_artifact_path.has_value()
-                                          ? entry.resolved_artifact_path->string()
+                                          ? Utils::path_to_utf8(*entry.resolved_artifact_path)
                                           : entry.downloader->get_download_destination();
         entry.details.local_path_label->setText(format_markup_label(tr("Local path"),
                                                             QString::fromStdString(path_text),
@@ -1790,7 +1790,7 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
     }
     if (entry.details.local_path_label) {
         const std::string path_text = entry.resolved_artifact_path.has_value()
-                                          ? entry.resolved_artifact_path->string()
+                                          ? Utils::path_to_utf8(*entry.resolved_artifact_path)
                                           : entry.downloader->get_download_destination();
         entry.details.local_path_label->setText(format_markup_label(tr("Local path"),
                                                             QString::fromStdString(path_text),
@@ -1804,7 +1804,7 @@ void LLMSelectionDialog::update_visual_llm_download_entry(VisualLlmDownloadEntry
     if (entry.file_size_label) {
         long long size = 0;
         if (artifact_ready) {
-            size = local_file_size_or_zero(entry.resolved_artifact_path->string());
+            size = local_file_size_or_zero(Utils::path_to_utf8(*entry.resolved_artifact_path));
         } else {
             size = entry.downloader->get_real_content_length();
             if (local_status == LLMDownloader::DownloadStatus::Corrupt) {

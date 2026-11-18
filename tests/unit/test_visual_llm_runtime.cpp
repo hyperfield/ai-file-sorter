@@ -260,6 +260,43 @@ TEST_CASE("VisualLlmRuntime resolves custom visual LLM artifacts") {
     CHECK(*backend->path_for(VisualModelArtifactKind::Mmproj) == mmproj_path);
 }
 
+TEST_CASE("VisualLlmRuntime reports missing artifacts in Unicode storage without throwing",
+          "[unicode-model-paths]") {
+    VisualRuntimeTempEnv env;
+    LlmStorageOverrideGuard storage_guard;
+    TempDir temp;
+    const auto storage = temp.path() /
+        Utils::utf8_to_path("Models_\u6a21\u578b_\u0938\u0902\u0917\u094d\u0930\u0939");
+    Utils::set_llm_storage_directory_override(Utils::path_to_utf8(storage));
+    EnvVarGuard model_guard("QWEN35_4B_MODEL_URL",
+                            std::string("https://example.com/unicode-model.gguf"));
+    EnvVarGuard mmproj_guard("QWEN35_4B_MMPROJ_URL",
+                             std::string("https://example.com/unicode-mmproj.gguf"));
+    const auto& descriptor = default_visual_model_descriptor();
+    const auto model_path = visual_artifact_storage_path(descriptor, descriptor.artifacts[0]);
+    const auto mmproj_path = visual_artifact_storage_path(descriptor, descriptor.artifacts[1]);
+    std::string expected_prefix = "Visual LLM model file is missing: ";
+    auto expected_path = model_path;
+
+    SECTION("Missing model") {}
+    SECTION("Missing projector") {
+        write_gguf_file(model_path);
+        expected_prefix = "Visual LLM mmproj file is missing: ";
+        expected_path = mmproj_path;
+    }
+    SECTION("Invalid model") {
+        std::filesystem::create_directories(model_path.parent_path());
+        std::ofstream(model_path, std::ios::binary).put('x');
+    }
+
+    std::optional<VisualLlmRuntime::Backend> backend;
+    std::string error;
+    REQUIRE_NOTHROW(backend = VisualLlmRuntime::resolve_active_backend("qwen3.5-4b", &error));
+    CHECK_FALSE(backend.has_value());
+    CHECK(error == expected_prefix + Utils::path_to_utf8(expected_path));
+    CHECK_NOTHROW(VisualLlmRuntime::resolve_active_backend("qwen3.5-4b"));
+}
+
 TEST_CASE("VisualLlmRuntime rejects custom visual LLMs without MMProj") {
     TempDir temp;
     const auto model_path = temp.path() / "custom-model.gguf";

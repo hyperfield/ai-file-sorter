@@ -2212,6 +2212,20 @@ Procedure: Resolve `custom:<id>` through `VisualLlmRuntime::resolve_active_backe
 Expected outcome: The runtime returns the generic custom visual descriptor and resolves both configured paths.
 Run: `./build-tests/ai_file_sorter_tests "VisualLlmRuntime resolves custom visual LLM artifacts"`
 
+#### Test case: VisualLlmRuntime reports missing artifacts in Unicode storage without throwing
+Purpose: Keep missing-model diagnostics safe for storage paths containing Chinese and Devanagari characters, including on Windows code pages that cannot represent them.
+Setup: Point isolated model storage at a Unicode temporary directory and configure fixture-only model/projector URLs.
+Procedure: Resolve a missing model, a missing projector and an invalid model with and without an error-output pointer.
+Expected outcome: Resolution returns no backend without throwing, and diagnostics preserve the complete UTF-8 path. No model is loaded or downloaded.
+Run: `./build-tests/ai_file_sorter_tests "[unicode-model-paths]"`
+
+#### Test case: Visual model dialog opens with missing artifacts in Unicode storage
+Purpose: Prevent opening model selection from crashing when optional model files are absent under a non-Latin storage path.
+Setup: Use isolated configuration and Unicode storage, with compatibility benchmarking suppressed.
+Procedure: Construct the real model dialog with Qwen selected for no downloaded artifacts, a downloaded text model without its projector, and both artifacts downloaded; inspect status and local-path details.
+Expected outcome: The dialog opens, retains the selected backend, shows a status and preserves the complete Unicode path rather than throwing a filesystem conversion exception. This test runs on Windows as well as other platforms.
+Run: `./build-tests/ai_file_sorter_tests "[unicode-model-paths]"`
+
 #### Test case: VisualLlmRuntime rejects custom visual LLMs without MMProj
 Purpose: Ensure a custom text-only local LLM is not treated as usable for image analysis.
 Setup: Create a valid custom model GGUF entry without an MMProj path.

@@ -231,9 +231,9 @@ std::optional<VisualLlmRuntime::Backend> VisualLlmRuntime::resolve_active_backen
         if (!resolved_path) {
             if (error) {
                 if (artifact.kind == VisualModelArtifactKind::Model) {
-                    *error = "Visual LLM model file is missing: " + preferred_path.string();
+                    *error = "Visual LLM model file is missing: " + Utils::path_to_utf8(preferred_path);
                 } else {
-                    *error = "Visual LLM mmproj file is missing: " + preferred_path.string();
+                    *error = "Visual LLM mmproj file is missing: " + Utils::path_to_utf8(preferred_path);
                 }
             }
             return std::nullopt;
