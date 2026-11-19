@@ -1,13 +1,53 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "HeadlessSettingsOverridesJson.hpp"
+#include "HeadlessAnalysisWorkflowHost.hpp"
+#include "Settings.hpp"
+#include "TestHelpers.hpp"
+#include "Utils.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 
+#include <array>
 #include <string>
+#include <fstream>
+#include <iterator>
+#include <limits>
+#include <utility>
 #include <vector>
+
+/** @brief Inspects effective in-memory preferences without exposing mutable host state. */
+class HeadlessAnalysisWorkflowHostTestAccess {
+public:
+    static std::pair<int, int> filename_words(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return {host.settings_.get_image_filename_words(), host.settings_.get_document_filename_words()};
+    }
+    static std::array<bool, 4> rename_preferences(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return {host.settings_.get_offer_rename_images(), host.settings_.get_offer_rename_documents(),
+                host.settings_.get_rename_images_only(), host.settings_.get_rename_documents_only()};
+    }
+    static std::array<bool, 3> content_naming(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return {host.settings_.get_analyze_images_by_content(), host.settings_.get_analyze_documents_by_content(),
+                host.settings_.get_add_audio_video_metadata_to_filename()};
+    }
+    static std::array<bool, 2> file_type_filters(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return {host.settings_.get_process_images_only(), host.settings_.get_process_documents_only()};
+    }
+    static bool sorts_folders(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return host.settings_.get_categorize_directories();
+    }
+    static SortingMode sorting_mode(const HeadlessAnalysisWorkflowHost& host)
+    {
+        return host.settings_.get_sorting_mode();
+    }
+};
 
 TEST_CASE("HeadlessSettingsOverridesJson parses direct whitelist lists")
 {
@@ -23,6 +63,10 @@ TEST_CASE("HeadlessSettingsOverridesJson parses direct whitelist lists")
 
     QJsonObject object;
     object.insert(QStringLiteral("useWhitelist"), true);
+    object.insert(QStringLiteral("sortingMode"), QStringLiteral("existing-folder-tree"));
+    object.insert(QStringLiteral("destinationFolder"),
+                  QString::fromUtf8(" C:/Archive/\xC3\x89t\xC3\xA9 "));
+    object.insert(QStringLiteral("suggestNewFolders"), true);
     object.insert(QStringLiteral("activeWhitelist"), QStringLiteral("Live LLM Whitelist"));
     object.insert(QStringLiteral("allowedCategories"), categories);
     object.insert(QStringLiteral("allowedSubcategories"), subcategories);
@@ -31,10 +75,398 @@ TEST_CASE("HeadlessSettingsOverridesJson parses direct whitelist lists")
 
     REQUIRE(overrides.use_whitelist.has_value());
     CHECK(*overrides.use_whitelist);
+    REQUIRE(overrides.sorting_mode.has_value());
+    CHECK(*overrides.sorting_mode == SortingMode::ExistingFolderTree);
+    REQUIRE(overrides.destination_folder.has_value());
+    CHECK(*overrides.destination_folder == std::string("C:/Archive/") + "\xC3\x89t\xC3\xA9");
+    REQUIRE(overrides.suggest_new_folders.has_value());
+    CHECK(*overrides.suggest_new_folders);
     REQUIRE(overrides.active_whitelist.has_value());
     CHECK(*overrides.active_whitelist == "Live LLM Whitelist");
     REQUIRE(overrides.allowed_categories.has_value());
     CHECK(*overrides.allowed_categories == std::vector<std::string>{"Documents", "Finance"});
     REQUIRE(overrides.allowed_subcategories.has_value());
     CHECK(*overrides.allowed_subcategories == std::vector<std::string>{"Invoices", "Contracts"});
+}
+
+TEST_CASE("HeadlessSettingsOverridesJson scopes legacy Explorer defaults to missing sorting modes", "[headless][explorer-compat]")
+{
+    QJsonObject object{{QStringLiteral("useSubcategories"), false},
+                       {QStringLiteral("categorizeFiles"), true}};
+    const auto legacy = HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-104");
+    CHECK(legacy.sorting_mode == SortingMode::GeneratedCategories);
+    CHECK(legacy.use_subcategories == false);
+    CHECK(legacy.categorize_files == true);
+    CHECK_FALSE(legacy.destination_folder.has_value());
+    CHECK_FALSE(HeadlessSettingsOverridesJson::from_json(object).sorting_mode.has_value());
+
+    for (const auto* job_id : {"", "headless-job", "other-explorer-job", "explorer"}) {
+        CAPTURE(job_id);
+        CHECK_FALSE(HeadlessSettingsOverridesJson::from_json_for_job(object, job_id).sorting_mode.has_value());
+    }
+    object.insert(QStringLiteral("sortingMode"), QStringLiteral("ExistingFolderTree"));
+    CHECK(HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-110").sorting_mode ==
+          SortingMode::ExistingFolderTree);
+    object.insert(QStringLiteral("sortingMode"), QStringLiteral("GeneratedCategories"));
+    CHECK(HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-110").sorting_mode ==
+          SortingMode::GeneratedCategories);
+
+    // Invalid explicit values must still inherit preferences rather than identify an old client.
+    const std::vector<QJsonValue> invalid{QJsonValue(), QJsonValue(false), QJsonValue(1),
+        QJsonValue(QStringLiteral("")), QJsonValue(QStringLiteral("invalid")),
+        QJsonValue(QJsonArray{}), QJsonValue(QJsonObject{})};
+    for (const auto& value : invalid) {
+        object.insert(QStringLiteral("sortingMode"), value);
+        CHECK_FALSE(HeadlessSettingsOverridesJson::from_json_for_job(object, "explorer-110").sorting_mode.has_value());
+    }
+}
+
+TEST_CASE("HeadlessSettingsOverridesJson parses bounded independent filename word limits", "[headless][sorting-rules]")
+{
+    for (int words = 3; words <= 6; ++words) {
+        const auto overrides = HeadlessSettingsOverridesJson::from_json(
+            {{QStringLiteral("imageFilenameWords"), words}, {QStringLiteral("documentFilenameWords"), 9 - words}});
+        REQUIRE(overrides.image_filename_words.has_value());
+        REQUIRE(overrides.document_filename_words.has_value());
+        CHECK(*overrides.image_filename_words == words);
+        CHECK(*overrides.document_filename_words == 9 - words);
+    }
+    for (double words : {-1e100, 0.0, 2.0, 7.0, 1e100}) {
+        const auto overrides = HeadlessSettingsOverridesJson::from_json(
+            {{QStringLiteral("imageFilenameWords"), words}, {QStringLiteral("documentFilenameWords"), words}});
+        REQUIRE(overrides.image_filename_words.has_value());
+        CHECK(*overrides.image_filename_words == (words < 3 ? 3 : 6));
+        CHECK(overrides.document_filename_words == overrides.image_filename_words);
+    }
+    const auto absent = HeadlessSettingsOverridesJson::from_json({});
+    CHECK_FALSE(absent.image_filename_words.has_value());
+    CHECK_FALSE(absent.document_filename_words.has_value());
+    const std::vector<QJsonValue> invalid{QJsonValue(), QJsonValue(true), QJsonValue(QStringLiteral("6")),
+        QJsonValue(4.5), QJsonValue(QJsonArray{}), QJsonValue(QJsonObject{}),
+        QJsonValue(std::numeric_limits<double>::infinity()), QJsonValue(std::numeric_limits<double>::quiet_NaN())};
+    for (const auto& value : invalid) {
+        const auto overrides = HeadlessSettingsOverridesJson::from_json(
+            {{QStringLiteral("imageFilenameWords"), value}, {QStringLiteral("documentFilenameWords"), 6}});
+        CHECK_FALSE(overrides.image_filename_words.has_value());
+        CHECK(overrides.document_filename_words == 6);
+        const auto document = HeadlessSettingsOverridesJson::from_json(
+            {{QStringLiteral("documentFilenameWords"), value}});
+        CHECK_FALSE(document.document_filename_words.has_value());
+    }
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost isolates filename word overrides from persisted preferences", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings stored;
+    stored.set_image_filename_words(4);
+    stored.set_document_filename_words(5);
+    REQUIRE(stored.save());
+    const auto config_path = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+    const auto read_config = [&]() {
+        std::ifstream input(config_path, std::ios::binary);
+        REQUIRE(input.good());
+        return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    };
+    const auto before = read_config();
+    HeadlessAnalysisWorkflowHost::Options options;
+    options.folder_path = temp.path();
+    std::pair<int, int> expected{4, 5};
+    SECTION("absent overrides inherit both saved limits") {}
+    SECTION("image override leaves the saved document limit in use") {
+        options.settings_overrides.image_filename_words = 6;
+        expected = {6, 5};
+    }
+    SECTION("document override leaves the saved image limit in use") {
+        options.settings_overrides.document_filename_words = 3;
+        expected = {4, 3};
+    }
+    SECTION("both overrides replace the saved values independently") {
+        options.settings_overrides = HeadlessSettingsOverridesJson::from_json(
+            {{QStringLiteral("imageFilenameWords"), 6}, {QStringLiteral("documentFilenameWords"), 3}});
+        expected = {6, 3};
+    }
+    SECTION("direct in-memory overrides are bounded too") {
+        options.settings_overrides.image_filename_words = -10;
+        options.settings_overrides.document_filename_words = 100;
+        expected = {3, 6};
+    }
+    {
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        CHECK(HeadlessAnalysisWorkflowHostTestAccess::filename_words(host) == expected);
+        CHECK(read_config() == before);
+    }
+    CHECK(read_config() == before);
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    CHECK(reloaded.get_image_filename_words() == 4);
+    CHECK(reloaded.get_document_filename_words() == 5);
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost respects explicit per-type rename preferences", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings stored;
+    stored.set_offer_rename_images(false);
+    stored.set_offer_rename_documents(false);
+    stored.set_rename_images_only(false);
+    stored.set_rename_documents_only(false);
+    REQUIRE(stored.save());
+    const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+    const auto config_bytes = [&]() {
+        std::ifstream input(config, std::ios::binary);
+        REQUIRE(input.good());
+        return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    };
+    const auto before = config_bytes();
+    HeadlessAnalysisWorkflowHost::Options options;
+    options.folder_path = temp.path();
+    options.operation_mode = HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename;
+    options.settings_overrides.respect_rename_preferences = true;
+    std::array<bool, 4> expected{true, true, false, false};
+    SECTION("omitted overrides preserve the combined operation defaults") {}
+    SECTION("JSON opt-in is parsed before applying independent rename preferences") {
+        options.settings_overrides = HeadlessSettingsOverridesJson::from_json(
+            {{QStringLiteral("respectRenamePreferences"), true},
+             {QStringLiteral("offerRenameImages"), false},
+             {QStringLiteral("offerRenameDocuments"), true}});
+        expected = {false, true, false, false};
+    }
+    SECTION("older queued tasks preserve their combined-operation behavior") {
+        options.settings_overrides.respect_rename_preferences.reset();
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = true;
+        options.settings_overrides.rename_documents_only = true;
+    }
+    SECTION("pictures can be renamed without enabling document renames") {
+        options.settings_overrides.offer_rename_images = true;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = true;
+        expected = {true, false, true, false};
+    }
+    SECTION("documents can be renamed without enabling picture renames") {
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = true;
+        options.settings_overrides.rename_documents_only = true;
+        expected = {false, true, false, true};
+    }
+    SECTION("disabled rename groups do not become rename-only") {
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = true;
+        options.settings_overrides.rename_documents_only = true;
+        expected = {false, false, false, false};
+    }
+    SECTION("sort-only still suppresses all rename options") {
+        options.operation_mode = HeadlessAnalysisWorkflowHost::OperationMode::Categorize;
+        options.settings_overrides.offer_rename_images = true;
+        options.settings_overrides.offer_rename_documents = true;
+        options.settings_overrides.rename_images_only = true;
+        options.settings_overrides.rename_documents_only = true;
+        expected = {false, false, false, false};
+    }
+    SECTION("explicit rename action still keeps all files in place") {
+        options.operation_mode = HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        options.settings_overrides.analyze_images_by_content = false;
+        options.settings_overrides.analyze_documents_by_content = false;
+        options.settings_overrides.add_audio_video_metadata_to_filename = false;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        options.settings_overrides.rename_images_only = false;
+        options.settings_overrides.rename_documents_only = false;
+        expected = {true, true, true, true};
+    }
+    {
+        const bool explicit_rename = options.operation_mode == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        CHECK(HeadlessAnalysisWorkflowHostTestAccess::rename_preferences(host) == expected);
+        if (explicit_rename) {
+            const std::array<bool, 3> all_enabled{true, true, true};
+            CHECK(HeadlessAnalysisWorkflowHostTestAccess::content_naming(host) == all_enabled);
+        }
+        CHECK(config_bytes() == before);
+    }
+    CHECK(config_bytes() == before);
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost enables analysis required by sorting renames", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    bool stored_analysis = false;
+    bool explicit_analysis_off = false;
+    bool respect = true;
+    auto operation = HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename;
+    SECTION("disabled main-app analysis switches") {}
+    SECTION("explicit analysis-off overrides cannot suppress requested renames") {
+        stored_analysis = true;
+        explicit_analysis_off = true;
+    }
+    SECTION("non-renamed groups retain existing content analysis") { stored_analysis = true; }
+    SECTION("legacy combined operations retain their inherited analysis") { respect = false; }
+    SECTION("sort-only ignores rename preferences") { operation = HeadlessAnalysisWorkflowHost::OperationMode::Categorize; }
+    SECTION("explicit rename still enables both groups") { operation = HeadlessAnalysisWorkflowHost::OperationMode::Rename; }
+    for (unsigned groups = 0; groups < 4; ++groups) {
+        Settings stored;
+        stored.set_analyze_images_by_content(stored_analysis);
+        stored.set_analyze_documents_by_content(stored_analysis);
+        REQUIRE(stored.save());
+        const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+        const auto config_bytes = [&]() {
+            std::ifstream input(config, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        };
+        const auto before = config_bytes();
+        HeadlessAnalysisWorkflowHost::Options options;
+        options.folder_path = temp.path();
+        options.operation_mode = operation;
+        if (respect) {
+            options.settings_overrides.respect_rename_preferences = true;
+        }
+        options.settings_overrides.offer_rename_images = (groups & 1) != 0;
+        options.settings_overrides.offer_rename_documents = (groups & 2) != 0;
+        if (explicit_analysis_off) {
+            options.settings_overrides.analyze_images_by_content = false;
+            options.settings_overrides.analyze_documents_by_content = false;
+        }
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        const bool rename = operation == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        const bool opted_in_sort = respect && operation == HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename;
+        const bool inherited = stored_analysis && !explicit_analysis_off;
+        const auto actual = HeadlessAnalysisWorkflowHostTestAccess::content_naming(host);
+        CHECK(actual[0] == (rename || inherited || (opted_in_sort && (groups & 1) != 0)));
+        CHECK(actual[1] == (rename || inherited || (opted_in_sort && (groups & 2) != 0)));
+        CHECK(config_bytes() == before);
+    }
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost preserves sorting file-type filters", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    bool explicit_overrides = false;
+    SECTION("persisted file-type filters") {}
+    SECTION("explicit overrides take precedence") { explicit_overrides = true; }
+    for (unsigned flags = 0; flags < 4; ++flags) {
+        const bool images = (flags & 1) != 0;
+        const bool documents = (flags & 2) != 0;
+        Settings stored;
+        stored.set_analyze_images_by_content(false);
+        stored.set_analyze_documents_by_content(false);
+        stored.set_process_images_only(explicit_overrides ? !images : images);
+        stored.set_process_documents_only(explicit_overrides ? !documents : documents);
+        REQUIRE(stored.save());
+        const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+        const auto config_bytes = [&]() {
+            std::ifstream input(config, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        };
+        const auto original_config = config_bytes();
+        for (const auto operation : {HeadlessAnalysisWorkflowHost::OperationMode::Categorize,
+                                     HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename,
+                                     HeadlessAnalysisWorkflowHost::OperationMode::Rename}) {
+            HeadlessAnalysisWorkflowHost::Options options;
+            options.folder_path = temp.path();
+            options.operation_mode = operation;
+            if (explicit_overrides) {
+                options.settings_overrides.process_images_only = images;
+                options.settings_overrides.process_documents_only = documents;
+            }
+            HeadlessAnalysisWorkflowHost host(std::move(options));
+            const bool rename = operation == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+            const std::array<bool, 2> expected{!rename && images, !rename && documents};
+            CHECK(HeadlessAnalysisWorkflowHostTestAccess::file_type_filters(host) == expected);
+            const auto content = HeadlessAnalysisWorkflowHostTestAccess::content_naming(host);
+            CHECK(content[0] == rename);
+            CHECK(content[1] == rename);
+            CHECK(config_bytes() == original_config);
+        }
+    }
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost resets destination while inheriting sorting preferences", "[headless][sorting-rules]")
+{
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    const auto source = temp.path() / "inbox";
+    const auto archive = temp.path() / "archive";
+    std::filesystem::create_directories(source);
+    std::filesystem::create_directories(archive);
+    Settings stored;
+    stored.set_destination_folder(Utils::path_to_utf8(archive));
+    stored.set_sorting_mode(SortingMode::ExistingFolderTree);
+    stored.set_suggest_new_folders(true);
+    REQUIRE(stored.save());
+    const auto config = std::filesystem::path(stored.get_config_dir()) / "config.ini";
+    const auto config_bytes = [&]() {
+        std::ifstream input(config, std::ios::binary);
+        return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    };
+    const auto before = config_bytes();
+    HeadlessAnalysisWorkflowHost::Options options;
+    options.folder_path = Utils::path_to_utf8(source);
+    auto destination = source;
+    auto mode = SortingMode::ExistingFolderTree;
+    bool suggest_new = true;
+    SECTION("omitted overrides inherit mode and permission but reset destination") {}
+    SECTION("empty destination explicitly selects the analyzed root") {
+        options.settings_overrides.destination_folder = "";
+    }
+    SECTION("an explicit override selects the archive") {
+        options.settings_overrides.destination_folder = Utils::path_to_utf8(archive);
+        destination = archive;
+    }
+    SECTION("an independent extension can override inherited sorting") {
+        options.settings_overrides.sorting_mode = SortingMode::GeneratedCategories;
+        options.settings_overrides.suggest_new_folders = false;
+        mode = SortingMode::GeneratedCategories;
+        suggest_new = false;
+    }
+    {
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        CHECK(std::filesystem::equivalent(Utils::utf8_to_path(host.destination_folder()), destination));
+        CHECK(HeadlessAnalysisWorkflowHostTestAccess::sorting_mode(host) == mode);
+        CHECK(host.suggest_new_folders() == suggest_new);
+        CHECK(config_bytes() == before);
+    }
+    CHECK(config_bytes() == before);
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    CHECK(reloaded.get_sorting_mode() == SortingMode::ExistingFolderTree);
+    CHECK(reloaded.get_suggest_new_folders());
+    CHECK(reloaded.get_destination_folder() == Utils::path_to_utf8(archive));
+}
+
+TEST_CASE("HeadlessAnalysisWorkflowHost gives folder sorting priority over recursion") {
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    bool folders = true;
+    bool explicit_recursion = true;
+    bool recursive_value = true;
+    SECTION("conflicting per-task overrides") {}
+    SECTION("inherited folders with CLI recursion") { explicit_recursion = false; }
+    SECTION("explicit recursion off overrides CLI") { recursive_value = false; }
+    SECTION("recursive files with folder sorting off") { folders = false; }
+    Settings stored;
+    stored.set_categorize_directories(folders);
+    REQUIRE(stored.save());
+    for (const auto operation : {HeadlessAnalysisWorkflowHost::OperationMode::Categorize,
+                                 HeadlessAnalysisWorkflowHost::OperationMode::CategorizeAndRename,
+                                 HeadlessAnalysisWorkflowHost::OperationMode::Rename}) {
+        HeadlessAnalysisWorkflowHost::Options options;
+        options.folder_path = temp.path();
+        options.operation_mode = operation;
+        options.include_subdirectories = true;
+        if (explicit_recursion) {
+            options.settings_overrides.categorize_directories = folders;
+            options.settings_overrides.include_subdirectories = recursive_value;
+        }
+        HeadlessAnalysisWorkflowHost host(std::move(options));
+        const bool rename = operation == HeadlessAnalysisWorkflowHost::OperationMode::Rename;
+        CHECK(HeadlessAnalysisWorkflowHostTestAccess::sorts_folders(host) == (folders && !rename));
+        CHECK(host.include_subdirectories() == ((!folders || rename) && recursive_value));
+    }
 }

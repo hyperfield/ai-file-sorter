@@ -236,10 +236,6 @@ if [[ "$INCLUDE_CUDA" == "1" ]]; then SELECTED_VARIANTS+=("cuda"); fi
 if [[ "$INCLUDE_VULKAN" == "1" ]]; then SELECTED_VARIANTS+=("vulkan"); fi
 echo "Included precompiled variants: ${SELECTED_VARIANTS[*]}"
 
-if [[ -f "$APP_DIR/resources/certs/cacert.pem" ]]; then
-    install -m 0644 "$APP_DIR/resources/certs/cacert.pem" "$PAYLOAD_ROOT/opt/aifilesorter/certs/cacert.pem"
-fi
-
 if [[ -f "$REPO_ROOT/LICENSE" ]]; then
     install -m 0644 "$REPO_ROOT/LICENSE" "$PAYLOAD_ROOT/opt/aifilesorter/LICENSE"
 fi
@@ -279,6 +275,9 @@ if [[ "$INCLUDE_CUDA" == "1" ]]; then
 fi
 DESCRIPTION_TEXT+=" The launcher falls back to CPU automatically when GPU backends are unavailable."
 
+# Private libraries do not advertise global Provides, so their SONAME requirements
+# must also be excluded. Ordinary host-library requirements remain generated.
+BUNDLED_REQUIRES_EXCLUDE="$(python3 "$SCRIPT_DIR/rpm_dependencies.py" "$PRECOMPILED_DST")"
 OPTIONAL_REQUIRES_EXCLUDE=""
 if [[ "$INCLUDE_CUDA" == "1" && "$INCLUDE_VULKAN" == "1" ]]; then
     OPTIONAL_REQUIRES_EXCLUDE="%global __requires_exclude_from ^/opt/aifilesorter/lib/precompiled/(cuda|vulkan)(/.*)?$"
@@ -294,6 +293,7 @@ cat > "$SPEC_FILE" <<EOF
 %global debug_package %{nil}
 %global _build_id_links none
 %global __provides_exclude_from ^/opt/aifilesorter/lib/precompiled/.*$
+${BUNDLED_REQUIRES_EXCLUDE}
 ${OPTIONAL_REQUIRES_EXCLUDE}
 Name:           aifilesorter
 Version:        ${RPM_VERSION}
@@ -302,6 +302,7 @@ Summary:        AI File Sorter desktop application
 License:        AGPL-3.0-only
 URL:            https://github.com/hyperfield/ai-file-sorter
 BuildArch:      ${RPM_ARCH}
+Requires:       ca-certificates
 Source0:        ${PAYLOAD_NAME}.tar.gz
 Source1:        ${PAYLOAD_NAME}.files
 

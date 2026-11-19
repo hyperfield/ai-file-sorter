@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "RemoteApiError.hpp"
 
 #include "LLMErrors.hpp"
@@ -28,7 +29,7 @@ constexpr size_t kMaxErrorExcerptLength = 240;
 
 std::string trim_copy(std::string value)
 {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -40,7 +41,7 @@ std::string collapse_spaces_copy(std::string value)
     collapsed.reserve(value.size());
     bool previous_space = false;
     for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
+        if (TextEncoding::ascii_space(ch)) {
             if (!previous_space) {
                 collapsed.push_back(' ');
             }
@@ -86,6 +87,24 @@ std::string string_field(const Json::Value& value, const char* key)
     return field.isString() ? field.asString() : std::string();
 }
 
+bool indicates_token_limit(const std::string& code, std::string message)
+{
+    std::transform(message.begin(), message.end(), message.begin(),
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
+    return code == "context_length_exceeded" || code == "input_too_long" ||
+        message.find("maximum context length") != std::string::npos ||
+        (message.find("input token count") != std::string::npos && message.find("exceed") != std::string::npos);
+}
+
+bool is_input_budget_error(long http_code, const std::optional<Json::Value>& root, const std::string& message)
+{
+    if (http_code == 413) return true;
+    if (http_code != 400) return false;
+    const auto code = root && (*root)["error"].isObject()
+        ? string_field((*root)["error"], "code") : std::string();
+    return indicates_token_limit(code, message);
+}
+
 std::string extract_error_status(const Json::Value& root)
 {
     const auto& error = root["error"];
@@ -113,11 +132,8 @@ std::optional<int> parse_retry_seconds_text(std::string_view text)
     std::smatch match;
     const std::regex retry_regex(R"(retry\s+in\s+([0-9]+(?:\.[0-9]+)?)s)", std::regex::icase);
     if (std::regex_search(input, match, retry_regex) && match.size() > 1) {
-        try {
-            return clamp_retry_seconds(std::stod(match[1].str()));
-        } catch (...) {
-            return std::nullopt;
-        }
+        const auto seconds = TextEncoding::parse_number(match[1].str());
+        return seconds ? clamp_retry_seconds(*seconds) : std::nullopt;
     }
     return std::nullopt;
 }
@@ -202,10 +218,8 @@ std::optional<int> parse_retry_after_seconds(std::string_view value)
         return std::nullopt;
     }
 
-    char* end = nullptr;
-    const double parsed = std::strtod(trimmed.c_str(), &end);
-    if (end != trimmed.c_str() && *end == '\0') {
-        return clamp_retry_seconds(parsed);
+    if (const auto parsed = TextEncoding::parse_number(trimmed)) {
+        return clamp_retry_seconds(*parsed);
     }
     return std::nullopt;
 }
@@ -262,6 +276,11 @@ std::string extract_error_message(std::string_view payload)
             ? provider + " rate limit reached."
             : provider + " rate limit reached: " + message;
         throw BackoffError(detail, retry_after.value_or(0));
+    }
+
+    // Providers without local tokenizer metadata can still request bounded chunking.
+    if (is_input_budget_error(http_code, root, message)) {
+        throw PromptBudgetError(provider + " input exceeds its context budget: " + message);
     }
 
     if (logger) {

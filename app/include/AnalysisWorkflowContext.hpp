@@ -56,6 +56,11 @@ struct AnalysisWorkflowContext {
     std::function<void(std::vector<FileEntry>&)> filter_file_entries;
     /** @brief Optional callback when the in-progress review preview has changed. */
     std::function<void()> notify_review_preview_changed;
+    /**
+     * @brief Optional host callback when existing-folder sorting recognizes a Johnny.Decimal-like tree.
+     * @return True when the host handled the suggestion in a way that should cancel analysis.
+     */
+    std::function<bool()> suggest_johnny_decimal_plugin;
     std::function<void(const std::vector<StagePlan>&)> configure_progress_stages;
     std::function<void(StageId, const std::vector<FileEntry>&)> set_progress_stage_items;
     std::function<void(StageId)> set_progress_active_stage;
@@ -69,4 +74,8 @@ struct AnalysisWorkflowContext {
     std::function<bool(const std::string&)> prompt_visual_cpu_fallback;
     std::function<bool(const std::string&)> prompt_continue_without_visual_analysis;
     std::function<void(const CategorizedFile&, const std::string&)> notify_recategorization_reset;
+    /** @brief Applies headless file-type scope independently of optional content analysis. */
+    bool independent_file_type_filters{false};
+    /** @brief Allows legacy combined-operation hosts to reuse cached names with content analysis off. */
+    bool reuse_cached_content_renames_without_analysis{false};
 };

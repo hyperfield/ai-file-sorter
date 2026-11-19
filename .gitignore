@@ -34,6 +34,7 @@ app/scripts/git-private.manifest.example
 app/scripts/git-private.ps1
 app/scripts/git-private.README.md
 app/scripts/git_private_sync.py
+app/*.local.env
 
 # Virtual environments
 .venv/
@@ -83,7 +84,20 @@ appcert-AIFileSorter.xml
 msix-layout/
 
 # References
-# includePaths.txt
+/app/includePaths.txt
+/images/screenshots/johnny-decimal/macos/archive-index.md
+
+# Private routing research; the generic headless live tests stay public.
+/tests/live_llm/build_prompt_replay.py
+/tests/live_llm/routing_prompt_replay.py
+/tests/live_llm/folder_creation_replay.py
+/tests/live_llm/test_routing_prompt_replay.py
+/tests/live_llm/test_folder_creation_replay.py
+/tests/live_llm/PROMPT_REPLAY.md
+/tests/live_llm/FOLDER_CREATION_REPLAY.md
+/tests/live_llm/prompts/
+/tests/tools/local_prompt_replay_main.cpp
+/tests/tools/folder_creation_replay_main.cpp
 
 ### VisualStudioCode ###
 .vscode/
@@ -136,6 +150,7 @@ app/scripts/__pycache__/
 app/include/llama/*.h
 
 # R & D
+/experiments/
 /assets/
 /plugins/
 /scripts/
@@ -155,10 +170,17 @@ changelog/
 !/docs/
 !/docs/architecture.md
 !/docs/headless-runtime-contract.md
+!/docs/folder-purposes.md
 !/docs/configuration-and-environment.md
 !/docs/testing.md
 !/docs/categorization-behavior.md
 !/docs/updater-contract.md
+!/docs/storage-plugin-protocol.md
+!/docs/schemas/
+!/docs/schemas/headless-settings-overrides.schema.json
+!/docs/schemas/headless-review-plan.schema.json
+!/docs/schemas/storage-plugin-v1/
+!/docs/schemas/storage-plugin-v1/*.schema.json
 
 # Build artifacts
 

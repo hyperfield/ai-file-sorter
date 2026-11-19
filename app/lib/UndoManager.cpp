@@ -44,6 +44,11 @@ bool UndoManager::save_plan(const std::string& run_base_dir,
         obj["mtime"] = static_cast<qint64>(entry.mtime);
         obj["stable_identity"] = QString::fromStdString(entry.stable_identity);
         obj["revision_token"] = QString::fromStdString(entry.revision_token);
+        QJsonArray created_directories;
+        for (const auto& directory : entry.created_directories) {
+            created_directories.push_back(QString::fromStdString(directory));
+        }
+        obj["created_directories"] = created_directories;
         arr.push_back(obj);
     }
 
@@ -141,6 +146,14 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
         const qint64 expected_mtime = obj.value("mtime").toInteger(0);
         const QString expected_stable_identity = obj.value("stable_identity").toString();
         const QString expected_revision_token = obj.value("revision_token").toString();
+        std::vector<std::string> created_directories;
+        const QJsonArray created_directories_json = obj.value("created_directories").toArray();
+        created_directories.reserve(created_directories_json.size());
+        for (const auto& directory : created_directories_json) {
+            if (directory.isString()) {
+                created_directories.push_back(directory.toString().toStdString());
+            }
+        }
 
         QFileInfo dest_info(destination);
         if (!dest_info.exists()) {
@@ -188,7 +201,8 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
             continue;
         }
 
-        const auto undo_result = provider->undo_move(source.toStdString(), destination.toStdString());
+        const auto undo_result =
+            provider->undo_move(source.toStdString(), destination.toStdString(), created_directories);
         if (undo_result.success) {
             result.restored++;
         } else {

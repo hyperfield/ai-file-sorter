@@ -9,6 +9,9 @@
 
 class Logger {
 public:
+    /** @brief Destination for console diagnostics; rotating file logs are always retained. */
+    enum class ConsoleOutput { Stdout, Stderr };
+
     static std::string get_log_directory();
     /**
      * @brief Clears application log files while keeping the log directory in place.
@@ -16,7 +19,13 @@ public:
      * @return True when the log directory was cleared or was already empty.
      */
     static bool clear_logs(std::string* error = nullptr);
+    /** @brief Initialize application loggers with the desktop's stdout console output. */
     static void setup_loggers();
+    /**
+     * @brief Initialize application and default loggers for the selected console stream.
+     * @param console_output Use stderr when stdout carries headless JSON status records.
+     */
+    static void setup_loggers(ConsoleOutput console_output);
     static std::shared_ptr<spdlog::logger> get_logger(const std::string &name);
     static std::string get_log_file_path(const std::string &log_dir, const std::string &log_name);
 

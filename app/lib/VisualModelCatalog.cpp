@@ -2,6 +2,7 @@
 
 #include "GgufFileValidation.hpp"
 #include "Utils.hpp"
+#include <QCoreApplication>
 
 #include <algorithm>
 #include <fstream>
@@ -10,10 +11,13 @@ namespace {
 
 constexpr std::string_view kLegacyDefaultLlavaBackendId = "llava-v1.6-mistral-7b";
 constexpr std::string_view kCustomVisualModelIdPrefix = "custom:";
+constexpr std::string_view kHttpVisualPrefix = "http-vision:";
 
 std::optional<std::string> read_cached_download_url(const std::filesystem::path& candidate)
 {
-    std::ifstream in(candidate.string() + ".aifs.meta");
+    auto metadata_path = candidate;
+    metadata_path += ".aifs.meta";
+    std::ifstream in(metadata_path);
     if (!in.is_open()) {
         return std::nullopt;
     }
@@ -31,8 +35,9 @@ std::optional<std::string> read_cached_download_url(const std::filesystem::path&
 
 bool is_shared_legacy_filename(const std::filesystem::path& candidate)
 {
-    const auto filename = candidate.filename().string();
-    return filename == "mmproj-model.gguf" || filename == "mmproj-model-f16.gguf";
+    const auto filename = Utils::path_to_utf8(candidate.filename());
+    return filename == "mmproj-model.gguf" || filename == "mmproj-model-f16.gguf"
+        || filename == "mmproj-F16.gguf";
 }
 
 bool is_default_llava_mmproj_without_metadata_compatible(
@@ -72,7 +77,7 @@ std::optional<std::filesystem::path> legacy_path_from_url(std::string_view downl
     }
 
     try {
-        return std::filesystem::path(
+        return Utils::utf8_to_path(
             Utils::make_default_path_to_file_from_download_url(std::string(download_url)));
     } catch (...) {
         return std::nullopt;
@@ -85,18 +90,36 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
 {
     static const std::vector<VisualModelDescriptor> descriptors = {
         {
+            "qwen3.5-4b",
+            "Qwen3.5 4B",
+            VisualModelArchitecture::MtmdProjector,
+            VisualPromptPolicy::StructuredVisionInstruct,
+            {
+                {VisualModelArtifactKind::Model,
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Qwen3.5 4B (text model)"),
+                 "QWEN35_4B_MODEL_URL",
+                 "model.gguf",
+                 {}},
+                {VisualModelArtifactKind::Mmproj,
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Qwen3.5 4B mmproj (vision encoder)"),
+                 "QWEN35_4B_MMPROJ_URL",
+                 "mmproj.gguf",
+                 {"mmproj-F16.gguf"}},
+            },
+        },
+        {
             "llava-v1.6-mistral-7b",
             "LLaVA 1.6 Mistral 7B",
             VisualModelArchitecture::MtmdProjector,
             VisualPromptPolicy::LegacyLlava,
             {
                 {VisualModelArtifactKind::Model,
-                 "LLaVA 1.6 Mistral 7B (text model)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "LLaVA 1.6 Mistral 7B (text model)"),
                  "LLAVA_MODEL_URL",
                  "model.gguf",
                  {}},
                 {VisualModelArtifactKind::Mmproj,
-                 "LLaVA mmproj (vision encoder)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "LLaVA mmproj (vision encoder)"),
                  "LLAVA_MMPROJ_URL",
                  "mmproj.gguf",
                  {"mmproj-model-f16.gguf",
@@ -110,12 +133,12 @@ const std::vector<VisualModelDescriptor>& visual_model_descriptors()
             VisualPromptPolicy::StructuredVisionInstruct,
             {
                 {VisualModelArtifactKind::Model,
-                 "Gemma 3 4B IT (text model)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Gemma 3 4B IT (text model)"),
                  "GEMMA3_4B_MODEL_URL",
                  "model.gguf",
                  {}},
                 {VisualModelArtifactKind::Mmproj,
-                 "Gemma 3 4B mmproj (vision encoder)",
+                 QT_TRANSLATE_NOOP("VisualModelCatalog", "Gemma 3 4B mmproj (vision encoder)"),
                  "GEMMA3_4B_MMPROJ_URL",
                  "mmproj.gguf",
                  {"mmproj-model.gguf",
@@ -144,9 +167,9 @@ const VisualModelDescriptor* find_visual_model_descriptor(std::string_view id)
 
 const VisualModelDescriptor& default_visual_model_descriptor()
 {
-    const auto* gemma = find_visual_model_descriptor("gemma-3-4b-it");
-    if (gemma) {
-        return *gemma;
+    const auto* qwen = find_visual_model_descriptor("qwen3.5-4b");
+    if (qwen) {
+        return *qwen;
     }
     return visual_model_descriptors().front();
 }
@@ -155,17 +178,17 @@ const VisualModelDescriptor& custom_visual_model_descriptor()
 {
     static const VisualModelDescriptor descriptor = {
         "custom",
-        "Custom visual LLM",
+        QT_TRANSLATE_NOOP("VisualModelCatalog", "Custom visual LLM"),
         VisualModelArchitecture::MtmdProjector,
         VisualPromptPolicy::StructuredVisionInstruct,
         {
             {VisualModelArtifactKind::Model,
-             "Custom visual text model",
+             QT_TRANSLATE_NOOP("VisualModelCatalog", "Custom visual text model"),
              "",
              "",
              {}},
             {VisualModelArtifactKind::Mmproj,
-             "Custom mmproj",
+             QT_TRANSLATE_NOOP("VisualModelCatalog", "Custom mmproj"),
              "",
              "",
              {}},
@@ -204,7 +227,7 @@ bool is_custom_visual_model_id(std::string_view visual_model_id)
 std::filesystem::path visual_artifact_storage_path(const VisualModelDescriptor& backend,
                                                    const VisualModelArtifactDescriptor& artifact)
 {
-    return std::filesystem::path(Utils::get_default_llm_destination())
+    return Utils::utf8_to_path(Utils::get_default_llm_destination())
            / std::filesystem::path(backend.id)
            / std::filesystem::path(artifact.local_storage_name);
 }
@@ -225,7 +248,7 @@ std::optional<std::filesystem::path> resolve_visual_artifact_path(
         return legacy_path;
     }
 
-    const auto llm_dir = std::filesystem::path(Utils::get_default_llm_destination());
+    const auto llm_dir = Utils::utf8_to_path(Utils::get_default_llm_destination());
     for (const auto fallback_name : artifact.fallback_filenames) {
         const auto candidate = llm_dir / std::filesystem::path(std::string(fallback_name));
         if (!std::filesystem::exists(candidate)) {
@@ -237,4 +260,31 @@ std::optional<std::filesystem::path> resolve_visual_artifact_path(
     }
 
     return std::nullopt;
+}
+
+const VisualModelDescriptor& http_visual_model_descriptor()
+{
+    static const VisualModelDescriptor descriptor{
+        "http-vision", "OpenAI-compatible vision API", VisualModelArchitecture::HttpChatCompletion,
+        VisualPromptPolicy::StructuredVisionInstruct, {}};
+    return descriptor;
+}
+
+std::string http_visual_model_id(std::string_view endpoint_id)
+{
+    return endpoint_id.empty() ? std::string() : std::string(kHttpVisualPrefix) + std::string(endpoint_id);
+}
+
+std::optional<std::string> http_endpoint_id_from_visual_model_id(std::string_view visual_model_id)
+{
+    if (visual_model_id.size() <= kHttpVisualPrefix.size() ||
+        visual_model_id.substr(0, kHttpVisualPrefix.size()) != kHttpVisualPrefix) {
+        return std::nullopt;
+    }
+    return std::string(visual_model_id.substr(kHttpVisualPrefix.size()));
+}
+
+bool is_http_visual_model_id(std::string_view visual_model_id)
+{
+    return http_endpoint_id_from_visual_model_id(visual_model_id).has_value();
 }

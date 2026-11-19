@@ -14,6 +14,7 @@
 #include <vector>
 
 class ILLMClient;
+class Settings;
 namespace spdlog { class logger; }
 
 class ConsistencyPassService {
@@ -21,7 +22,8 @@ public:
     using ProgressCallback = std::function<void(const std::string&)>;
 
     ConsistencyPassService(DatabaseManager& db_manager,
-                           std::shared_ptr<spdlog::logger> logger);
+                           std::shared_ptr<spdlog::logger> logger,
+                           const Settings* settings = nullptr);
 
     void set_prompt_logging_enabled(bool enabled);
 
@@ -62,6 +64,7 @@ private:
                                    CategoryLanguage category_language) const;
 
     DatabaseManager& db_manager;
+    const Settings* settings_;
     std::shared_ptr<spdlog::logger> logger;
     mutable bool prompt_logging_enabled{false};
 };

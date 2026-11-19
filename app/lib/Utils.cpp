@@ -18,7 +18,6 @@
 #include <functional>
 #include <QCoreApplication>
 #include <QMetaObject>
-#include <QFile>
 #include <QString>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
@@ -49,7 +48,7 @@ std::string& llm_storage_directory_override()
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -102,12 +101,12 @@ std::vector<std::string> collect_user_prefixes() {
         }
     };
 
-    append(std::getenv("HOME"));
-    append(std::getenv("USERPROFILE"));
+    append(Utils::getenv_utf8("HOME").value_or("").c_str());
+    append(Utils::getenv_utf8("USERPROFILE").value_or("").c_str());
 
     if (prefixes.empty() && Utils::is_os_windows()) {
-        if (const char* username = std::getenv("USERNAME")) {
-            prefixes.emplace_back(std::string("C:/Users/") + username);
+        if (const auto username = Utils::getenv_utf8("USERNAME")) {
+            prefixes.emplace_back(std::string("C:/Users/") + *username);
         }
     }
 
@@ -177,22 +176,6 @@ std::optional<std::string> strip_prefix(const std::string& path,
 
 namespace {
 
-bool is_nonempty_file(const std::filesystem::path& path)
-{
-    std::error_code ec;
-    const auto size = std::filesystem::file_size(path, ec);
-    return !ec && size > 0;
-}
-
-QString path_to_qstring(const std::filesystem::path& path)
-{
-#ifdef _WIN32
-    return QString::fromStdWString(path.wstring());
-#else
-    return QString::fromStdString(path.string());
-#endif
-}
-
 #ifdef _WIN32
 std::optional<std::wstring> current_package_family_name()
 {
@@ -234,122 +217,6 @@ std::optional<std::filesystem::path> packaged_local_cache_root()
            L"LocalCache" / L"aifilesorter";
 }
 #endif
-
-std::filesystem::path user_writable_app_data_dir()
-{
-    constexpr const char* kAppName = "AIFileSorter";
-    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR");
-        override_root && *override_root) {
-        return std::filesystem::path(override_root) / kAppName;
-    }
-
-#ifdef _WIN32
-    if (auto packaged_root = packaged_local_cache_root()) {
-        return *packaged_root;
-    }
-
-    if (const char* app_data = std::getenv("APPDATA"); app_data && *app_data) {
-        return std::filesystem::path(app_data) / kAppName;
-    }
-#elif defined(__APPLE__)
-    if (const char* home = std::getenv("HOME"); home && *home) {
-        return std::filesystem::path(home) / "Library" / "Application Support" / kAppName;
-    }
-#else
-    if (const char* home = std::getenv("HOME"); home && *home) {
-        return std::filesystem::path(home) / ".config" / kAppName;
-    }
-#endif
-
-    throw std::runtime_error("Unable to determine writable app data directory for CA bundle");
-}
-
-std::filesystem::path bundled_ca_bundle_path()
-{
-    const std::filesystem::path exe_path = std::filesystem::path(Utils::get_executable_path());
-    return exe_path.parent_path() / "certs" / "cacert.pem";
-}
-
-std::filesystem::path staged_ca_bundle_path()
-{
-    return user_writable_app_data_dir() / "certs" / "cacert.pem";
-}
-
-bool ca_bundle_staging_forced()
-{
-    const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR");
-    return override_root && *override_root;
-}
-
-QByteArray read_embedded_ca_bundle()
-{
-    QFile resource(QStringLiteral(":/dev/hfstudio/AIFileSorter/certs/cacert.pem"));
-    if (!resource.open(QIODevice::ReadOnly)) {
-        throw std::runtime_error("Failed to open embedded CA bundle resource");
-    }
-
-    QByteArray data = resource.readAll();
-    resource.close();
-    if (data.isEmpty()) {
-        throw std::runtime_error("Embedded CA bundle resource is empty");
-    }
-
-    return data;
-}
-
-void write_ca_bundle(const std::filesystem::path& cert_file, const QByteArray& data)
-{
-    std::error_code ec;
-    std::filesystem::create_directories(cert_file.parent_path(), ec);
-    if (ec) {
-        throw std::system_error(ec, "Failed to create CA bundle directory");
-    }
-
-    QFile output(path_to_qstring(cert_file));
-    if (!output.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        throw std::runtime_error("Failed to create CA bundle file at " +
-                                 Utils::path_to_utf8(cert_file));
-    }
-    if (output.write(data) != data.size()) {
-        output.close();
-        throw std::runtime_error("Failed to write CA bundle file at " +
-                                 Utils::path_to_utf8(cert_file));
-    }
-    output.close();
-}
-
-std::filesystem::path resolve_ca_bundle()
-{
-    if (!ca_bundle_staging_forced()) {
-        const auto bundled = bundled_ca_bundle_path();
-        if (is_nonempty_file(bundled)) {
-            return bundled;
-        }
-    }
-
-    const auto staged = staged_ca_bundle_path();
-    const auto data = read_embedded_ca_bundle();
-    std::error_code ec;
-    const auto current_size = std::filesystem::file_size(staged, ec);
-    if (ec || current_size != static_cast<decltype(current_size)>(data.size())) {
-        write_ca_bundle(staged, data);
-    }
-
-    return staged;
-}
-
-struct CaBundleCache {
-    std::mutex mutex;
-    bool initialized{false};
-    std::filesystem::path cached_path;
-    std::exception_ptr init_error;
-};
-
-CaBundleCache& ca_bundle_cache()
-{
-    static CaBundleCache cache;
-    return cache;
-}
 
 } // namespace
 
@@ -414,9 +281,17 @@ bool Utils::is_network_available()
 std::string Utils::get_executable_path()
 {
 #ifdef _WIN32
-    char result[MAX_PATH];
-    GetModuleFileNameA(NULL, result, MAX_PATH);
-    return std::string(result);
+    // Runtime resolvers and QProcess consumers interpret this API as UTF-8.
+    // The ANSI API corrupts executable directories outside the active code page.
+    constexpr DWORD kExecutablePathCapacity = 32768;
+    std::wstring result(kExecutablePathCapacity, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, result.data(), kExecutablePathCapacity);
+    if (length == 0 || length >= kExecutablePathCapacity) {
+        const DWORD error = length >= kExecutablePathCapacity ? ERROR_INSUFFICIENT_BUFFER : GetLastError();
+        throw std::system_error(std::error_code(error, std::system_category()), "GetModuleFileNameW failed");
+    }
+    result.resize(length);
+    return path_to_utf8(std::filesystem::path(result));
 #elif __linux__
     char result[PATH_MAX];
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
@@ -435,27 +310,19 @@ std::string Utils::get_executable_path()
 }
 
 
-std::filesystem::path Utils::ensure_ca_bundle() {
-    auto& cache = ca_bundle_cache();
-    std::lock_guard<std::mutex> lock(cache.mutex);
-
-    if (!cache.initialized) {
-        cache.initialized = true;
-        try {
-            cache.cached_path = resolve_ca_bundle();
-            cache.init_error = nullptr;
-        } catch (...) {
-            cache.init_error = std::current_exception();
-        }
-    }
-
-    if (cache.init_error) {
-        std::rethrow_exception(cache.init_error);
-    }
-
-    return cache.cached_path;
+std::optional<std::string> Utils::getenv_utf8(const char* name)
+{
+#ifdef _WIN32
+    const auto wide_name = utf8_to_path(name).native();
+    const wchar_t* value = _wgetenv(wide_name.c_str());
+    if (!value) return std::nullopt;
+    return path_to_utf8(std::filesystem::path(value));
+#else
+    const char* value = std::getenv(name);
+    if (!value) return std::nullopt;
+    return std::string(value);
+#endif
 }
-
 
 std::string Utils::path_to_utf8(const std::filesystem::path& path) {
 #ifdef _WIN32
@@ -595,8 +462,9 @@ const char* Utils::to_cstr(const std::u8string& u8str) {
 void Utils::ensure_directory_exists(const std::string &dir)
 {
     try {
-        if (!std::filesystem::exists(dir)) {
-            std::filesystem::create_directories(dir);
+        const auto native_dir = utf8_to_path(dir);
+        if (!std::filesystem::exists(native_dir)) {
+            std::filesystem::create_directories(native_dir);
         }
     } catch (const std::exception &e) {
         log_core(spdlog::level::err, "Error creating log directory: {}", e.what());
@@ -801,41 +669,41 @@ std::string Utils::get_default_llm_destination()
         return configured;
     }
 
-    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_STORAGE_DIR");
-        env_override && *env_override) {
-        return trim_copy(env_override);
+    if (const auto env_override = getenv_utf8("AI_FILE_SORTER_LLM_STORAGE_DIR");
+        env_override && !env_override->empty()) {
+        return trim_copy(*env_override);
     }
-    if (const char* env_override = std::getenv("AI_FILE_SORTER_LLM_DIR");
-        env_override && *env_override) {
-        return trim_copy(env_override);
+    if (const auto env_override = getenv_utf8("AI_FILE_SORTER_LLM_DIR");
+        env_override && !env_override->empty()) {
+        return trim_copy(*env_override);
     }
 
-    const char* home = std::getenv("HOME");
+    const auto home = getenv_utf8("HOME");
 
     if (Utils::is_os_windows()) {
-        const char* appdata = std::getenv("APPDATA");
+        const auto appdata = getenv_utf8("APPDATA");
         if (!appdata) throw std::runtime_error("APPDATA not set");
-        std::filesystem::path legacy = std::filesystem::path(appdata) / "aifilesorter" / "llms";
+        std::filesystem::path legacy = utf8_to_path(*appdata) / "aifilesorter" / "llms";
 
 #ifdef _WIN32
         if (auto packaged = packaged_llm_path()) {
             // Prefer the packaged LocalCache path; fall back to legacy if it already exists (backward compatibility).
             if (std::filesystem::exists(legacy)) {
-                return legacy.string();
+                return path_to_utf8(legacy);
             }
-            return packaged->string();
+            return path_to_utf8(*packaged);
         }
 #endif
-        return legacy.string();
+        return path_to_utf8(legacy);
     }
 
     if (!home) throw std::runtime_error("HOME not set");
 
     if (Utils::is_os_macos()) {
-        return (std::filesystem::path(home) / "Library" / "Application Support" / "aifilesorter" / "llms").string();
+        return path_to_utf8(utf8_to_path(*home) / "Library" / "Application Support" / "aifilesorter" / "llms");
     }
 
-    return (std::filesystem::path(home) / ".local" / "share" / "aifilesorter" / "llms").string();
+    return path_to_utf8(utf8_to_path(*home) / ".local" / "share" / "aifilesorter" / "llms");
 }
 
 
@@ -854,7 +722,7 @@ std::string Utils::get_file_name_from_url(std::string url)
 std::string Utils::make_default_path_to_file_from_download_url(std::string url)
 {
     std::string filename = get_file_name_from_url(url);
-    std::string path_to_file = (std::filesystem::path(get_default_llm_destination()) / filename).string();
+    std::string path_to_file = path_to_utf8(utf8_to_path(get_default_llm_destination()) / utf8_to_path(filename));
     return path_to_file;
 }
 
@@ -903,10 +771,11 @@ bool Utils::is_cuda_available() {
 
 #ifdef _WIN32
     std::optional<std::filesystem::path> ggml_directory;
-    if (const char* ggml_dir = std::getenv("AI_FILE_SORTER_GGML_DIR");
-        ggml_dir && ggml_dir[0] != '\0') {
-        ggml_directory = std::filesystem::path(std::string(ggml_dir));
+    if (const auto ggml_dir = getenv_utf8("AI_FILE_SORTER_GGML_DIR");
+        ggml_dir && !ggml_dir->empty()) {
+        ggml_directory = Utils::utf8_to_path(*ggml_dir);
     }
+    ggml_directory = WindowsCudaProbe::resolve_backend_directory({}, ggml_directory);
 
     const auto probe_result = WindowsCudaProbe::probe(ggml_directory);
     if (!probe_result.driver_present) {
@@ -928,8 +797,9 @@ bool Utils::is_cuda_available() {
         return false;
     }
     if (ggml_directory.has_value() && !probe_result.backend_loadable) {
-        log_core(spdlog::level::warn,
-                 "[CUDA] ggml-cuda.dll could not be loaded with the discovered CUDA runtime.");
+        log_core(spdlog::level::warn, "[CUDA] Backend '{}' could not load with runtime '{}' (Win32 error {}).",
+                 Utils::path_to_utf8(*ggml_directory / "ggml-cuda.dll"),
+                 Utils::path_to_utf8(probe_result.runtime_library_path), probe_result.backend_load_error);
         return false;
     }
 
@@ -1004,17 +874,6 @@ void reset_cuda_memory_probe() {
     cuda_memory_probe() = CudaMemoryProbe{};
 }
 
-#ifdef AI_FILE_SORTER_TEST_BUILD
-void reset_ca_bundle_cache()
-{
-    auto& cache = ca_bundle_cache();
-    std::lock_guard<std::mutex> lock(cache.mutex);
-    cache.initialized = false;
-    cache.cached_path.clear();
-    cache.init_error = nullptr;
-}
-#endif
-
 } // namespace TestHooks
 
 #ifdef _WIN32
@@ -1070,61 +929,37 @@ std::string Utils::abbreviate_user_path(const std::string& path) {
     return to_forward_slashes(Utils::path_to_utf8(normalized.filename()));
 }
 
-namespace {
-std::string trim_ws(const std::string& value) {
-    const char* whitespace = " \t\n\r\f\v";
-    const auto start = value.find_first_not_of(whitespace);
-    const auto end = value.find_last_not_of(whitespace);
-    if (start == std::string::npos || end == std::string::npos) {
-        return std::string();
-    }
-    return value.substr(start, end - start + 1);
-}
+std::string Utils::filesystem_comparison_key(const std::string& path) {
+#if defined(__APPLE__)
+    return QString::fromStdString(path).normalized(QString::NormalizationForm_C).toStdString();
+#else
+    return path;
+#endif
 }
 
 std::string Utils::sanitize_path_label(const std::string& value) {
-    const std::string invalid = R"(<>:"/\|?*)";
-    QString normalized = QString::fromUtf8(value.c_str());
+    const QString invalid = QStringLiteral("<>:\"/\\|?*");
+    QString normalized = QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
     normalized.remove(QChar::ReplacementCharacter);
-    const QByteArray normalized_utf8 = normalized.normalized(QString::NormalizationForm_C).toUtf8();
-    const std::string utf8_value(normalized_utf8.constData(),
-                                 static_cast<std::size_t>(normalized_utf8.size()));
-    std::string cleaned;
-    cleaned.reserve(utf8_value.size());
+    normalized = normalized.normalized(QString::NormalizationForm_C);
+    QString cleaned;
+    cleaned.reserve(normalized.size());
 
-    // Replace invalid path characters and control chars with spaces.
-    for (unsigned char ch : utf8_value) {
-        if (std::iscntrl(ch)) {
+    // Classify Unicode characters rather than individual UTF-8 bytes.
+    for (QChar ch : normalized) {
+        if (ch.category() == QChar::Other_Control) {
             continue;
         }
-        if (invalid.find(static_cast<char>(ch)) != std::string::npos) {
-            cleaned.push_back(' ');
+        if (invalid.contains(ch)) {
+            cleaned.append(QLatin1Char(' '));
         } else {
-            cleaned.push_back(static_cast<char>(ch));
+            cleaned.append(ch);
         }
     }
 
-    // Collapse multiple spaces.
-    std::string collapsed;
-    collapsed.reserve(cleaned.size());
-    bool prev_space = false;
-    for (char ch : cleaned) {
-        const bool is_space = std::isspace(static_cast<unsigned char>(ch));
-        if (is_space) {
-            if (!prev_space) {
-                collapsed.push_back(' ');
-            }
-        } else {
-            collapsed.push_back(ch);
-        }
-        prev_space = is_space;
+    cleaned = cleaned.simplified();
+    while (cleaned.endsWith(QLatin1Char('.')) || cleaned.endsWith(QLatin1Char(' '))) {
+        cleaned.chop(1);
     }
-
-    // Trim and drop trailing dots/spaces (Windows safety).
-    std::string trimmed = trim_ws(collapsed);
-    while (!trimmed.empty() && (trimmed.back() == '.' || std::isspace(static_cast<unsigned char>(trimmed.back())))) {
-        trimmed.pop_back();
-    }
-
-    return trim_ws(trimmed);
+    return cleaned.toStdString();
 }

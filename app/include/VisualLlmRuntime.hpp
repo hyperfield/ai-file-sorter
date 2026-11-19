@@ -9,7 +9,7 @@
 #include <vector>
 
 /**
- * @brief Resolves local visual/text LLM runtime files and fallback heuristics.
+ * @brief Resolves visual backend configurations, local artifacts and fallback heuristics.
  */
 class VisualLlmRuntime {
 public:
@@ -31,6 +31,8 @@ public:
         const VisualModelDescriptor* descriptor{nullptr};
         /** @brief Resolved artifact paths for the backend. */
         std::vector<ResolvedArtifact> artifacts;
+        /** @brief Connection configuration for HTTP image analysis; no local artifacts needed. */
+        std::optional<CustomApiEndpoint> api_endpoint;
 
         /**
          * @brief Return the resolved path for the given artifact kind.
@@ -61,6 +63,19 @@ public:
     static std::optional<Backend> resolve_active_backend(
         std::string_view backend_id,
         const std::vector<CustomLLM>& custom_llms,
+        std::string* error = nullptr);
+    /**
+     * @brief Resolve a local backend or an explicitly enabled API connection.
+     * @param backend_id Persisted visual backend id.
+     * @param custom_llms Configured local models.
+     * @param api_endpoints Configured API connections.
+     * @param error Optional error output.
+     * @return Backend configuration; API resolution does not probe the server.
+     */
+    static std::optional<Backend> resolve_active_backend(
+        std::string_view backend_id,
+        const std::vector<CustomLLM>& custom_llms,
+        const std::vector<CustomApiEndpoint>& api_endpoints,
         std::string* error = nullptr);
     static std::optional<Paths> resolve_paths(std::string_view backend_id = {},
                                               std::string* error = nullptr);

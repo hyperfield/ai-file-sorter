@@ -1,8 +1,8 @@
 # Flytileidarvisir
 
-AI File Sorter hjalpar ther ad skipuleggja skrar med yfirfara-fyrst ferli og valfrjalsri sjalfvirkri samthykkt fyrir breytingar sem thu velur ad treysta.
+AI File Sorter hjálpar þér að skipuleggja skrár með yfirferð áður en breytingar eru framkvæmdar. Valfrjálst sjálfvirkt samþykki getur forvalið breytingar á yfirferðarlistanum.
 
-AI stjornar greiningunni og leggur til flokka, undirflokka og nofn. Thad breytir ekki skranum thinum beint. Forritid flytur eda endurnefnir skrar eftir ad thu stadfestir yfirfarnar breytingar, eda sjalfvirkt adeins thegar thu hefur virkjad vidkomandi sjalfvirka samthykkt.
+Gervigreindin leggur til flokka, áfangamöppur og nöfn. Forritið flytur eða endurnefnir skrár aðeins eftir að þú staðfestir valdar breytingar í yfirferðarglugganum.
 
 ## Orugg fyrsta keyrsla
 
@@ -16,6 +16,32 @@ Godar moppur fyrir fyrstu keyrslu eru:
 
 Thetta gerir fyrstu keyrsluna audvelt ad yfirfara. Skrarnar thinar verda afram a tolvu thinri thegar thu notar stadbundin likon, og AI leggur adeins til flokka og nofn. Hafdu sjalfvirka samthykkt slokkta i fyrstu keyrslu svo ekkert se flutt eda endurnefnt fyrr en thu samthykkir yfirferdarlistann.
 
+Valfrjáls staðaleit á netinu sendir GPS-hnit mynda, námunduð að þremur aukastöfum, til Nominatim-þjónustu OpenStreetMap, einnig með staðbundnum líkönum. Þjónustuveitandinn getur einnig séð IP-tölu þína og tíma beiðninnar. Myndskrár, skráarheiti og tökudagsetningar eru ekki send; að bæta eingöngu dagsetningum við flokka fer fram á tölvunni.
+
+## Settu upp LLM
+
+Opnaðu **Settings -> Select LLM**. Veldu líkan úr fellilistanum **Local LLMs** eða þjónustuaðila undir **API connections**.
+
+**Qwen3.5 4B (Recommended)** er fyrsti staðbundni valkosturinn og sjálfgefið líkan við nýja uppsetningu. Það býður upp á mikla nákvæmni við flokkun og er ráðlagt fyrir fyrirliggjandi möppuskipan. Fyrra vistað líkanaval þitt helst. Til að nota eigin GGUF-skrá skaltu velja **Custom local LLM (gguf)** og síðan **Add**.
+
+Fyrir staðbundið líkan sem forritið býður upp á skaltu opna **Downloads**, smella á **Download** og bíða eftir **Model ready** áður en þú staðfestir með **OK**. **Model storage** gerir þér kleift að velja niðurhalsmöppu. **See details** sýnir niðurhalsslóð, staðbundna skráarslóð og tæknilegar upplýsingar.
+
+Fyrir staðbundna myndgreiningu skaltu velja **Sjónræn líkan** undir **Myndgreiningarlíkön** og sækja nauðsynlegar skrár. Myndlíkan er valið óháð textalíkani.
+
+Undir **API connections** skaltu velja Gemini, ChatGPT (OpenAI) eða eigin OpenAI-samhæfðan endapunkt og slá inn nauðsynlegar tengingarupplýsingar og líkananafn. Skýja-API krefjast internets og senda greiningarinntak til stilltrar þjónustu. Eigin endapunktar geta líka keyrt staðbundið.
+
+Til að greina myndir með OpenAI-samhæfri API-tengingu skaltu virkja **Líkan með myndskilningi** fyrir tenginguna og velja hana undir **Myndgreiningarlíkön** → **Sjónræn líkan**. Ekki þarf að sækja staðbundið líkan eða myndvarpa. Þegar myndstuðningur er virkjaður þarftu að staðfesta að efni mynda verði sent á stilltan þjón.
+
+## Athugaðu staðbundin afköst (valfrjálst)
+
+Eftir að líkön hafa verið sótt skaltu opna **File -> System compatibility check** og smella á **Run benchmark**. Lokaðu fyrst öðrum forritum sem nota mikið af örgjörva eða skjákorti. Athugunin prófar sótt staðbundin líkön, þar á meðal eigin GGUF-líkön.
+
+Haltu **Backend** á **Automatic (try CPU if GPU fails)** eða veldu **All available backends** til að bera saman örgjörva og studda skjákortsvalkosti. Niðurstöður eru vistaðar sérstaklega fyrir hvert líkan og bakenda; bilun á einum útilokar ekki samsetningu sem virkar á öðrum.
+
+Veldu niðurstöðu og notaðu **Retry selected** til að endurtaka þá samsetningu, **Retry failed** til að endurtaka samsetningar sem mistókust eða **Try chosen backend** til að prófa valið líkan með tilteknum bakenda úr fellilistanum.
+
+Ráðleggingarnar áætla staðbundin afköst. Athugunin prófar hvorki API-þjónustur né nákvæmni við val á fyrirliggjandi möppum og breytir ekki völdu líkani sjálfkrafa.
+
 ## 1. Veldu moppu
 
 Notadu **Browse** eda **File Explorer**-gluggann til ad velja moppuna sem thu vilt rada.
@@ -28,6 +54,8 @@ Daeigerd daemi:
 - net- eda skysamstillt mappa
 - verkefnasafn
 
+**Destination** ákveður hvert flokkaðar skrár fara. Hafðu **Use analyzed folder** virkt til að flokka innan valinnar möppu, eða slökktu á því og veldu annan áfangastað.
+
 ## 2. Veldu hvad forritid a ad gera
 
 Notadu adalvalkostina til ad akveda hvort forritid eigi ad:
@@ -37,20 +65,33 @@ Notadu adalvalkostina til ad akveda hvort forritid eigi ad:
 - greina skjol
 - bjoda upp a endurnefningartillogur fyrir studdar skrar
 
-Ef thu vilt adeins endurnefningartillogur skaltu virkja vidkomandi adeins-endurnefna ham.
+Ef þú vilt aðeins tillögur að nöfnum skaltu virkja **Bjóða upp á að endurnefna myndaskrár** eða **Bjóða upp á að endurnefna skjalskrár** og síðan **Endurnefna myndir án flutnings** eða **Endurnefna skjöl án flutnings** fyrir viðkomandi skráartegund.
 
-## 3. Veldu flokkunarstil
+**Flokka möppur** flytur heilar möppur með innihaldi þeirra og slekkur á **Skannaðu undirmöppur**. Til að leita í skrám í undirmöppum í staðinn skaltu slökkva á **Flokka möppur** og virkja **Skannaðu undirmöppur**.
 
-Veldu stilinn sem passar best vid markmid thitt:
+## 3. Veldu hvernig á að flokka
+
+Ný notandasnið byrja með **Nota fyrirliggjandi möppuskipulag**. Vistaðir flokkunarvalkostir haldast. Veldu **Áfangastaður** sem inniheldur möppurnar sem þú vilt nota, eða veldu **Búa til flokkarmöppur** til að búa þær til.
+
+Veldu flokkunarham:
+
+- **Create category folders** býr til möppur úr tillögum að flokkanöfnum.
+- **Use existing folder structure** velur möppur innan möpputrésins undir **Destination**. Virkjaðu **Suggest new folders when needed** til að leyfa nýja áfangastaði þegar enginn passar vel; hafðu það óvirkt til að nota aðeins fyrirliggjandi möppur.
+
+Notaðu **Búa til möppuskipulag...** til að bæta upphafsskipulagi við áfangastaðinn. **Folder language** byrjar með tungumáli flokkanna og má breyta eingöngu fyrir þetta skipulag. Valið LLM þýðir möppunöfn sem eru ekki á ensku. Farðu yfir þýdda forskoðun áður en þú velur **Búa til**; númerun og stigskipting haldast.
+
+Fyrir fyrirliggjandi möppur mælum við með **Qwen3.5 4B**. **Gemma 1.1 7B** og líkön sem notuð eru í gegnum API eru einnig hentugir valkostir. Önnur staðbundin líkön sýna ábendingu; þú getur haldið líkaninu eða breytt því í **Settings -> Select LLM**.
+
+Í hamnum **Create category folders** skaltu velja flokkunarstíl:
 
 - **More refined** fyrir almenna notkun og finni hopun
 - **More consistent** ef thu vilt meiri samraemingu merkja a milli likra skra
 
-Thu getur einnig virkjad flokkaleyfilista ef thu vilt ad forritid haldi sig innan threngra safns flokkanafna.
+Leyfislistar takmarka tillögur að heitum flokka og undirflokka í hamnum **Búa til flokkarmöppur**. Þeir eru óvirkir og hunsaðir í **Nota fyrirliggjandi möppuskipulag**, sem notar möppuskipulag áfangastaðarins. Listastillingin helst þegar skipt er um ham.
 
 ## 4. Byrja greiningu
 
-Smelltu a **Analyze and categorize files**.
+Smelltu a **Analyze folder**.
 
 Forritid skannar valda moppu, safnar upplysingunum sem thad tharfnast og undirbyr yfirferdarlista.
 
@@ -66,13 +107,19 @@ Yfirferdarglugginn leyfir ther ad skoda:
 
 Thu getur lagad eda hafnad tillogum adur en thu stadfestir nokkud.
 
+Virkjaðu **Dry run (preview only, do not move files)** til að forskoða fyrirhugaða flutninga og endurnefningar án þess að framkvæma þær.
+
 ## 6. Nota breytingarnar
 
-Thegar thu stadfestir byr forritid til naudsynlegar moppur og framkvaemir flutninga eda endurnefningar. Ef sjalfvirk samthykkt er virk geta vidkomandi flokkunar- eda skraarnafnsbreytingar verid notadar an thess ad stoppa i yfirferdarglugganum.
+Veldu línurnar sem þú vilt vinna úr og smelltu á **Beita breytingum**. Forritið býr til nauðsynlegar möppur og framkvæmir valda flutninga eða endurnefningar.
+
+**Forskoðun á þurrhlaupi**: Virkjaðu **Dry run (preview only, do not move files)** til að forskoða fyrirhugaða flutninga og endurnefningar án þess að framkvæma þær.
+
+**Velja tillögur um endurnefningu sjálfkrafa** og **Velja tillögur um flokkun sjálfkrafa** forvelja viðeigandi línur. Þú þarft samt að staðfesta áður en breytingarnar eru framkvæmdar.
 
 ## 7. Afturkalla sidustu keyrslu
 
-Ef thu notar breytingar og vilt sidan snua theim vid skaltu nota **Undo last run** i valmyndinni.
+Ef thu notar breytingar og vilt sidan snua theim vid skaltu nota **Edit -> Undo last run** i valmyndinni.
 
 Afturkollun er aetlad fyrir sidustu stadfestu flokkunarkeyrslu. Hun notar skradan keyrsluferil forritsins til ad flytja skrar til baka og snua studdum endurnefningum vid thar sem thad er mogulegt.
 

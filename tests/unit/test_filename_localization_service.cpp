@@ -78,3 +78,18 @@ TEST_CASE("FilenameLocalizationService skips localization when English is select
     CHECK(localized == "project_notes.txt");
     CHECK(llm.last_prompt.empty());
 }
+
+TEST_CASE("Filename localization unwraps a legacy JSON filename without using its key", "[prompt-contract]")
+{
+    FilenameLocalizationService service;
+    for (const std::string response : {R"({"filename":"lac_hiver"})",
+                                      "```json\n{\"filename\":\"lac_hiver\"}\n```"}) {
+        FixedResponseLLM llm(response);
+        CHECK(service.localize_filename("winter_lake_scene.jpg", CategoryLanguage::French, llm) == "lac_hiver.jpg");
+    }
+    for (const std::string response : {R"({"explanation":"here is a filename"})", "{invalid", "[]",
+                                      R"({"filename":42})", R"({"filename":"lac_hiver","explanation":"extra"})"}) {
+        FixedResponseLLM llm(response);
+        CHECK(service.localize_filename("winter_lake_scene.jpg", CategoryLanguage::French, llm) == "winter_lake_scene.jpg");
+    }
+}

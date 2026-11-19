@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "AppTheme.hpp"
 
 #include <QApplication>
@@ -24,7 +25,7 @@ bool starts_with_case_insensitive(std::string_view value, std::string_view prefi
     for (std::size_t i = 0; i < prefix.size(); ++i) {
         const unsigned char lhs = static_cast<unsigned char>(value[i]);
         const unsigned char rhs = static_cast<unsigned char>(prefix[i]);
-        if (std::tolower(lhs) != std::tolower(rhs)) {
+        if (TextEncoding::ascii_lower(lhs) != TextEncoding::ascii_lower(rhs)) {
             return false;
         }
     }
@@ -39,8 +40,8 @@ bool contains_case_insensitive(std::string_view value, std::string_view needle)
                needle.begin(),
                needle.end(),
                [](char lhs, char rhs) {
-                   return std::tolower(static_cast<unsigned char>(lhs)) ==
-                          std::tolower(static_cast<unsigned char>(rhs));
+                   return TextEncoding::ascii_lower(static_cast<unsigned char>(lhs)) ==
+                          TextEncoding::ascii_lower(static_cast<unsigned char>(rhs));
                }) != value.end();
 }
 
@@ -362,6 +363,20 @@ QString file_listing_panel_style_sheet(const QPalette& palette)
                                     QStringLiteral("QFrame#aifsFileListingPanel"),
                                     QStringLiteral("QTreeView#aifsCategorizedResultsView"),
                                     QStringLiteral("QTreeView#aifsFolderContentsView"));
+}
+
+QString folder_structure_plugin_status_style_sheet(const QPalette& palette)
+{
+    const QColor accent = palette_is_dark(palette) ? QColor(QStringLiteral("#7ab7ff"))
+                                                   : QColor(QStringLiteral("#0b67c2"));
+    return QStringLiteral(R"(
+        QLabel#aifsFolderStructurePluginStatusLabel {
+            color: %1;
+            font-weight: 600;
+            padding: 4px 6px 2px 6px;
+        }
+    )")
+        .arg(css_color(accent));
 }
 
 QString review_dialog_style_sheet(const QPalette& palette)

@@ -62,3 +62,23 @@ TEST_CASE("RemoteApiError reports non-JSON server errors without JSON parse fail
         REQUIRE(message.find("parse JSON") == std::string::npos);
     }
 }
+
+TEST_CASE("Remote API context limits request document chunking without masking other errors", "[document-budget]")
+{
+    for (const auto* payload : {
+        R"({"error":{"code":"context_length_exceeded","message":"Input is too long"}})",
+        R"({"error":{"status":"INVALID_ARGUMENT","message":"The input token count exceeds the maximum number of tokens allowed"}})",
+        R"({"error":{"message":"This model has a maximum context length of 2048 tokens"}})"
+    }) {
+        CHECK_THROWS_AS(RemoteApiError::throw_for_http_error("Provider", 400, payload, "", nullptr), PromptBudgetError);
+    }
+    CHECK_THROWS_AS(RemoteApiError::throw_for_http_error("Provider", 413, "Payload too large", "", nullptr), PromptBudgetError);
+    try {
+        RemoteApiError::throw_for_http_error("Provider", 400, R"({"error":{"message":"Unknown model"}})", "", nullptr);
+        FAIL("Expected a provider error");
+    } catch (const PromptBudgetError&) {
+        FAIL("An unrelated error must not trigger chunking");
+    } catch (const std::runtime_error&) {}
+    CHECK_THROWS_AS(RemoteApiError::throw_for_http_error("Provider", 429,
+        R"({"error":{"message":"Input token count exceeds per-minute quota"}})", "", nullptr), BackoffError);
+}

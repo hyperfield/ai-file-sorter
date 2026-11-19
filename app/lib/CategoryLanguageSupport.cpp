@@ -52,6 +52,7 @@ const std::vector<CategoryLanguage>& supported_category_languages_for_llm_choice
 {
     switch (choice) {
     case LLMChoice::Local_4b_Gemma:
+    case LLMChoice::Local_4b_Qwen35:
         return all_languages();
     case LLMChoice::Local_7b:
         return mistral_7b_languages();

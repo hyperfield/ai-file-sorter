@@ -49,7 +49,7 @@ TEST_CASE("Settings maintenance actions stay separate and follow analysis state"
     CHECK(reset_learning_action->isEnabled());
 }
 
-TEST_CASE("Plugins menu is only available in development mode")
+TEST_CASE("Folder-structure plugins are public and storage plugins stay development-only")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
     QtAppContext qt_context;
@@ -62,11 +62,14 @@ TEST_CASE("Plugins menu is only available in development mode")
     REQUIRE(settings.save());
 
     MainApp public_window(settings, /*development_mode=*/false);
-    CHECK(MainAppTestAccess::plugins_menu(public_window) == nullptr);
+    REQUIRE(MainAppTestAccess::plugins_menu(public_window) != nullptr);
+    REQUIRE(MainAppTestAccess::manage_folder_structure_plugins_action(public_window) != nullptr);
     CHECK(MainAppTestAccess::manage_storage_plugins_action(public_window) == nullptr);
+    CHECK(MainAppTestAccess::plugins_menu(public_window)->menuAction()->isVisible());
 
     MainApp development_window(settings, /*development_mode=*/true);
     REQUIRE(MainAppTestAccess::plugins_menu(development_window) != nullptr);
+    REQUIRE(MainAppTestAccess::manage_folder_structure_plugins_action(development_window) != nullptr);
     REQUIRE(MainAppTestAccess::manage_storage_plugins_action(development_window) != nullptr);
     CHECK(MainAppTestAccess::plugins_menu(development_window)->menuAction()->isVisible());
 }

@@ -99,6 +99,10 @@ on the active `RUN` line instead of printing periodic heartbeat lines. Set
 `AI_FILE_SORTER_LIVE_INLINE_PROGRESS=never` to force plain one-line `RUN`
 records for log collectors that do not handle carriage returns.
 
+Timeouts stop the complete test process tree, including the native child of the
+Windows launcher. The model-free `live_llm_process_cleanup` CTest regression
+checks that descendants cannot continue writing after the timeout.
+
 For a non-verbose CTest run, tail the runner's progress log from another shell:
 
 ```powershell

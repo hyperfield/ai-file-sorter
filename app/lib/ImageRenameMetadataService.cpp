@@ -1,3 +1,5 @@
+#include "TextEncoding.hpp"
+#include "CurlTls.hpp"
 #include "ImageRenameMetadataService.hpp"
 
 #include "Utils.hpp"
@@ -26,11 +28,13 @@
 #include <fstream>
 #include <iomanip>
 #include <initializer_list>
+#include <locale>
 #include <optional>
 #include <regex>
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -38,6 +42,8 @@ namespace {
 constexpr char kExifPrefix[] = "Exif\0\0";
 constexpr char kDefaultNominatimUrl[] = "https://nominatim.openstreetmap.org/reverse";
 constexpr std::chrono::seconds kMinReverseInterval{1};
+// City-level lookups use a roughly 111 m latitude grid, shared with cache identity.
+constexpr int kCoordinateDecimalPlaces = 3;
 constexpr std::array<uint8_t, 8> kPngSignature = {
     0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
 };
@@ -78,16 +84,6 @@ size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp)
     auto* output = static_cast<std::string*>(userp);
     output->append(static_cast<const char*>(contents), total);
     return total;
-}
-
-void configure_tls(CURL* curl)
-{
-#if defined(_WIN32)
-    const auto cert_path = Utils::ensure_ca_bundle();
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-#else
-    (void)curl;
-#endif
 }
 
 bool read_byte(std::ifstream& in, uint8_t& value)
@@ -314,7 +310,7 @@ std::optional<std::vector<uint8_t>> read_png_exif_payload(const std::filesystem:
 std::string to_lower_ascii(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -460,7 +456,7 @@ std::optional<size_t> value_data_offset(const std::vector<uint8_t>& tiff,
 
 std::string trim_copy(std::string value)
 {
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -642,13 +638,13 @@ ParsedExifMetadata parse_tiff_metadata(const std::vector<uint8_t>& tiff)
 
             if (const TiffEntry* lat_ref_entry = find_entry(gps_entries, kTagGpsLatitudeRef)) {
                 if (const auto text = read_ascii_value(tiff, *lat_ref_entry); text && !text->empty()) {
-                    lat_ref = static_cast<char>(std::toupper(static_cast<unsigned char>((*text)[0])));
+                    lat_ref = static_cast<char>(TextEncoding::ascii_upper(static_cast<unsigned char>((*text)[0])));
                 }
             }
 
             if (const TiffEntry* lon_ref_entry = find_entry(gps_entries, kTagGpsLongitudeRef)) {
                 if (const auto text = read_ascii_value(tiff, *lon_ref_entry); text && !text->empty()) {
-                    lon_ref = static_cast<char>(std::toupper(static_cast<unsigned char>((*text)[0])));
+                    lon_ref = static_cast<char>(TextEncoding::ascii_upper(static_cast<unsigned char>((*text)[0])));
                 }
             }
 
@@ -709,7 +705,7 @@ std::string shell_quote_argument(const std::string& raw)
 std::optional<std::string> run_command_capture_output(const std::string& command)
 {
 #if defined(_WIN32)
-    FILE* pipe = _popen(command.c_str(), "rb");
+    FILE* pipe = _wpopen(Utils::utf8_to_path(command).c_str(), L"rb");
 #else
     FILE* pipe = popen(command.c_str(), "r");
 #endif
@@ -766,15 +762,7 @@ std::optional<double> json_number_field(const Json::Value& object, const char* k
         if (text.empty()) {
             return std::nullopt;
         }
-        try {
-            size_t consumed = 0;
-            const double numeric = std::stod(text, &consumed);
-            if (consumed == text.size()) {
-                return numeric;
-            }
-        } catch (const std::exception&) {
-            return std::nullopt;
-        }
+        return TextEncoding::parse_number(text);
     }
 
     return std::nullopt;
@@ -883,7 +871,12 @@ std::optional<std::string> pick_place_name(const Json::Value& root)
 } // namespace
 
 ImageRenameMetadataService::ImageRenameMetadataService(std::string config_dir)
-    : config_dir_(std::move(config_dir))
+    : ImageRenameMetadataService(std::move(config_dir), Options{})
+{
+}
+
+ImageRenameMetadataService::ImageRenameMetadataService(std::string config_dir, Options options)
+    : config_dir_(std::move(config_dir)), options_(std::move(options))
 {
     open_cache_db();
 }
@@ -914,7 +907,7 @@ bool ImageRenameMetadataService::open_cache_db()
     }
 
     const auto db_path = config_path / "image_place_cache.db";
-    if (sqlite3_open(db_path.string().c_str(), &cache_db_) != SQLITE_OK) {
+    if (sqlite3_open(Utils::path_to_utf8(db_path).c_str(), &cache_db_) != SQLITE_OK) {
         if (cache_db_) {
             sqlite3_close(cache_db_);
             cache_db_ = nullptr;
@@ -1060,8 +1053,8 @@ void ImageRenameMetadataService::upsert_cache(const std::string& lat_key,
 }
 
 ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::reverse_geocode(
-    double latitude,
-    double longitude)
+    const std::string& lat_key,
+    const std::string& lon_key)
 {
     ReverseGeocodeResult result;
 
@@ -1074,8 +1067,7 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
     const char* endpoint = std::getenv("AI_FILE_SORTER_NOMINATIM_URL");
     url_builder << ((endpoint && endpoint[0] != '\0') ? endpoint : kDefaultNominatimUrl)
                 << "?format=jsonv2&addressdetails=1&zoom=10&lat="
-                << std::fixed << std::setprecision(7) << latitude
-                << "&lon=" << std::fixed << std::setprecision(7) << longitude;
+                << lat_key << "&lon=" << lon_key;
 
     std::string response;
     curl_easy_setopt(curl, CURLOPT_URL, url_builder.str().c_str());
@@ -1085,7 +1077,12 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     const std::string user_agent = reverse_geocoder_user_agent();
     curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent.c_str());
-    configure_tls(curl);
+    try {
+        CurlTls::configure(curl);
+    } catch (...) {
+        curl_easy_cleanup(curl);
+        throw;
+    }
 
     curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, "Accept: application/json");
@@ -1129,8 +1126,8 @@ ImageRenameMetadataService::ReverseGeocodeResult ImageRenameMetadataService::rev
 std::optional<std::string> ImageRenameMetadataService::resolve_place_prefix(double latitude,
                                                                              double longitude)
 {
-    // Requirement: no network available -> no place prefix.
-    if (!network_available()) {
+    // Neither cached places nor connectivity checks bypass the online-place opt-in.
+    if (!options_.allow_online_place_lookup || !network_available()) {
         return std::nullopt;
     }
 
@@ -1150,7 +1147,7 @@ std::optional<std::string> ImageRenameMetadataService::resolve_place_prefix(doub
         }
     }
 
-    const auto geocode = reverse_geocode(latitude, longitude);
+    const auto geocode = reverse_geocode(lat_key, lon_key);
     last_geocode_request_ = std::chrono::steady_clock::now();
 
     if (geocode.success) {
@@ -1239,28 +1236,7 @@ std::string ImageRenameMetadataService::apply_prefix_to_filename(
 
 std::string ImageRenameMetadataService::slugify(const std::string& value)
 {
-    std::string output;
-    output.reserve(value.size());
-
-    bool last_sep = true;
-    for (unsigned char ch : value) {
-        if (std::isalnum(ch)) {
-            output.push_back(static_cast<char>(std::tolower(ch)));
-            last_sep = false;
-            continue;
-        }
-
-        if (!last_sep && !output.empty()) {
-            output.push_back('_');
-            last_sep = true;
-        }
-    }
-
-    while (!output.empty() && output.back() == '_') {
-        output.pop_back();
-    }
-
-    return output;
+    return TextEncoding::place_slug(value);
 }
 
 std::optional<std::string> ImageRenameMetadataService::normalize_exif_date(const std::string& value)
@@ -1271,14 +1247,20 @@ std::optional<std::string> ImageRenameMetadataService::normalize_exif_date(const
 std::string ImageRenameMetadataService::format_coord_key(double value)
 {
     std::ostringstream out;
-    out << std::fixed << std::setprecision(4) << value;
-    return out.str();
+    out.imbue(std::locale::classic());
+    out << std::fixed << std::setprecision(kCoordinateDecimalPlaces) << value;
+    std::string key = out.str();
+    if (key.front() == '-' && key.find_first_not_of("0.", 1) == std::string::npos) {
+        key.erase(0, 1);
+    }
+    return key;
 }
 
 bool ImageRenameMetadataService::network_available()
 {
     if (!network_checked_) {
-        network_available_ = Utils::is_network_available();
+        network_available_ = options_.network_available
+            ? options_.network_available() : Utils::is_network_available();
         network_checked_ = true;
     }
     return network_available_;

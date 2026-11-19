@@ -1,8 +1,10 @@
+#include "TextEncoding.hpp"
 #include "CategorizationDialog.hpp"
 
 #include "AppTheme.hpp"
 #include "BulkEditDialog.hpp"
 #include "DatabaseManager.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "LocalFsProvider.hpp"
 #include "Logger.hpp"
 #include "MovableCategorizedFile.hpp"
@@ -15,6 +17,7 @@
 #include "IFilePreviewService.hpp"
 #include "ReviewFileNaming.hpp"
 #include "ReviewHistoryStore.hpp"
+#include "StorageUndoCleanup.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -65,6 +68,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace {
 
@@ -114,6 +118,22 @@ std::string read_item_or_hidden_text(const QStandardItem* item, int hidden_role)
     }
 
     return std::string();
+}
+
+std::string normalized_path_compare_key(const std::string& path)
+{
+    std::string key = Utils::path_to_utf8(Utils::utf8_to_path(path).lexically_normal());
+#ifdef _WIN32
+    std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
+    });
+#endif
+    return key;
+}
+
+bool same_directory_path(const std::string& left, const std::string& right)
+{
+    return normalized_path_compare_key(left) == normalized_path_compare_key(right);
 }
 
 } // namespace
@@ -247,6 +267,16 @@ void CategorizationDialog::show_results(const std::vector<CategorizedFile>& file
 {
     categorized_files = files;
     include_subdirectories_ = include_subdirectories;
+    folder_tree_mode_ = std::any_of(categorized_files.begin(),
+                                    categorized_files.end(),
+                                    [](const CategorizedFile& file) {
+                                        return file.folder_tree_mode;
+                                    });
+    folder_tree_allow_new_folders_ = std::any_of(categorized_files.begin(),
+                                                 categorized_files.end(),
+                                                 [](const CategorizedFile& file) {
+                                                     return file.folder_tree_allow_new_folders;
+                                                 });
     allow_image_renames_ = allow_image_renames;
     allow_document_renames_ = allow_document_renames;
     auto_approve_filename_changes_ = auto_approve_filename_changes;
@@ -258,6 +288,10 @@ void CategorizationDialog::show_results(const std::vector<CategorizedFile>& file
     if (auto_approve_categories_checkbox) {
         QSignalBlocker blocker(auto_approve_categories_checkbox);
         auto_approve_categories_checkbox->setChecked(auto_approve_categorization_);
+    }
+    if (show_subcategories_checkbox) {
+        show_subcategories_checkbox->setVisible(!folder_tree_mode_);
+        show_subcategories_checkbox->setEnabled(!folder_tree_mode_);
     }
     base_dir_.clear();
     if (!base_dir_override.empty()) {
@@ -327,12 +361,16 @@ void CategorizationDialog::setup_ui()
     bulk_edit_button = new QPushButton(this);
 
     select_layout->addWidget(select_all_checkbox);
-    select_layout->addWidget(auto_approve_filenames_checkbox);
-    select_layout->addWidget(auto_approve_categories_checkbox);
     select_layout->addWidget(select_highlighted_button);
     select_layout->addWidget(bulk_edit_button);
     select_layout->addStretch(1);
     scroll_layout->addLayout(select_layout);
+    scroll_layout->addWidget(auto_approve_filenames_checkbox);
+    scroll_layout->addWidget(auto_approve_categories_checkbox);
+    QWidget::setTabOrder(select_all_checkbox, select_highlighted_button);
+    QWidget::setTabOrder(select_highlighted_button, bulk_edit_button);
+    QWidget::setTabOrder(bulk_edit_button, auto_approve_filenames_checkbox);
+    QWidget::setTabOrder(auto_approve_filenames_checkbox, auto_approve_categories_checkbox);
 
     show_subcategories_checkbox = new QCheckBox(this);
     show_subcategories_checkbox->setChecked(show_subcategory_column);
@@ -353,14 +391,16 @@ void CategorizationDialog::setup_ui()
     scroll_layout->addWidget(rename_documents_only_checkbox);
 
     model = new QStandardItemModel(this);
-    model->setColumnCount(8);
+    model->setColumnCount(9);
 
     table_view = new QTableView(this);
     table_view->setObjectName(QStringLiteral("aifsReviewTable"));
     table_view->setModel(model);
     table_view->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_view->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    table_view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked | QAbstractItemView::EditKeyPressed);
+    table_view->setEditTriggers(QAbstractItemView::DoubleClicked |
+                                QAbstractItemView::SelectedClicked |
+                                QAbstractItemView::EditKeyPressed);
     table_view->horizontalHeader()->setStretchLastSection(true);
     table_view->verticalHeader()->setVisible(false);
     table_view->horizontalHeader()->setSectionsClickable(true);
@@ -371,6 +411,7 @@ void CategorizationDialog::setup_ui()
     table_view->setColumnHidden(ColumnType, false);
     table_view->setColumnHidden(ColumnSuggestedName, !show_rename_column);
     table_view->setColumnHidden(ColumnSubcategory, !show_subcategory_column);
+    table_view->setColumnHidden(ColumnTargetFolder, !folder_tree_mode_);
     table_view->setColumnHidden(ColumnPreview, false);
     table_view->setColumnWidth(ColumnSelect, 70);
     table_view->setIconSize(QSize(16, 16));
@@ -445,6 +486,9 @@ void CategorizationDialog::setup_ui()
     connect(undo_button, &QPushButton::clicked, this, &CategorizationDialog::on_undo_button_clicked);
     connect(preview_button, &QPushButton::clicked, this, &CategorizationDialog::on_preview_button_clicked);
     connect(select_all_checkbox, &QCheckBox::toggled, this, &CategorizationDialog::on_select_all_toggled);
+    connect(dry_run_checkbox, &QCheckBox::toggled, this, [this](bool preview_only) {
+        confirm_button->setText(preview_only ? tr("Dry run preview") : tr("Apply changes"));
+    });
     connect(auto_approve_filenames_checkbox, &QCheckBox::toggled,
             this, &CategorizationDialog::on_auto_approve_filename_changes_toggled);
     connect(auto_approve_categories_checkbox, &QCheckBox::toggled,
@@ -484,7 +528,6 @@ void CategorizationDialog::apply_theme_styles()
         setStyleSheet(style_sheet);
     }
 }
-
 
 namespace {
 QFileIconProvider& file_icon_provider()
@@ -667,6 +710,10 @@ void CategorizationDialog::ensure_unique_suggested_names_in_model()
                 entry.subcategory.clear();
             }
         }
+        if (auto* target_item = model->item(row, ColumnTargetFolder)) {
+            entry.target_folder_relative_path = target_item->text().toStdString();
+            entry.folder_tree_mode = !entry.target_folder_relative_path.empty();
+        }
         entry.suggested_name = suggested;
         entries.push_back(std::move(entry));
         rows.push_back(row);
@@ -767,6 +814,26 @@ void CategorizationDialog::populate_model()
             subcategory_item->setIcon(edit_icon());
         }
 
+        auto* target_folder_item =
+            new QStandardItem(QString::fromStdString(file.target_folder_relative_path));
+        target_folder_item->setData(QString::fromStdString(file.target_folder_relative_path), kTargetFolderRole);
+        target_folder_item->setData(file.target_folder_suggested_new, kTargetFolderSuggestedNewRole);
+        target_folder_item->setData(file.target_folder_exists, kTargetFolderExistsRole);
+        target_folder_item->setData(file.folder_tree_allow_new_folders, kFolderTreeAllowNewFoldersRole);
+        target_folder_item->setData(QString::fromStdString(file.folder_tree_routing_explanation),
+                                    kFolderTreeRoutingExplanationRole);
+        target_folder_item->setEditable(file.folder_tree_mode && !file.rename_only);
+        if (file.folder_tree_mode) {
+            const QString explanation = QString::fromStdString(file.folder_tree_routing_explanation);
+            target_folder_item->setToolTip(
+                explanation.isEmpty() && file.target_folder_suggested_new
+                    ? tr("This folder will be created if approved.")
+                    : explanation);
+        }
+        if (file.folder_tree_mode && !file.rename_only) {
+            target_folder_item->setIcon(edit_icon());
+        }
+
         auto* status_item = new QStandardItem;
         status_item->setEditable(false);
         status_item->setData(static_cast<int>(RowStatus::None), kStatusRole);
@@ -782,6 +849,7 @@ void CategorizationDialog::populate_model()
             << suggested_item
             << category_item
             << subcategory_item
+            << target_folder_item
             << status_item
             << preview_item;
         model->appendRow(row);
@@ -892,6 +960,83 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
                                                         subcategory,
                                                         category_language_);
     };
+    auto attach_folder_tree_metadata =
+        [this](DatabaseManager::ResolvedCategory& resolved, QStandardItem* target_item) {
+            if (!folder_tree_mode_ || !target_item) {
+                return;
+            }
+
+            const std::string target_folder = target_item->text().toStdString();
+            const auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+            if (!validation.valid) {
+                return;
+            }
+
+            resolved.target_folder_relative_path = validation.normalized_path;
+            resolved.folder_tree_mode = true;
+            resolved.target_folder_suggested_new =
+                target_item->data(kTargetFolderSuggestedNewRole).toBool();
+            resolved.target_folder_exists = target_item->data(kTargetFolderExistsRole).toBool();
+            resolved.folder_tree_allow_new_folders =
+                target_item->data(kFolderTreeAllowNewFoldersRole).toBool() ||
+                folder_tree_allow_new_folders_;
+        };
+    const auto folder_tree_catalog = (folder_tree_mode_ && !base_dir_.empty())
+        ? FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(base_dir_))
+        : FolderTreeCatalog::Catalog{};
+    const std::string folder_tree_fingerprint = folder_tree_catalog.fingerprint();
+    auto persist_folder_tree_route =
+        [this, &folder_tree_catalog, &folder_tree_fingerprint](
+            const std::string& file_name,
+            const std::string& file_type_label,
+            const std::string& file_path,
+            const DatabaseManager::ResolvedCategory& resolved,
+            QStandardItem* target_item) {
+            if (!folder_tree_mode_ || !db_manager || !target_item || base_dir_.empty() ||
+                resolved.category.empty() || resolved.subcategory.empty()) {
+                return;
+            }
+
+            const std::string target_folder = target_item->text().toStdString();
+            const auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+            if (!validation.valid) {
+                return;
+            }
+
+            const bool allow_new = target_item->data(kFolderTreeAllowNewFoldersRole).toBool() ||
+                                   folder_tree_allow_new_folders_;
+            const auto target_dir =
+                Utils::utf8_to_path(base_dir_) / Utils::utf8_to_path(validation.normalized_path);
+            const std::string target_dir_text = Utils::path_to_utf8(target_dir);
+            const bool target_exists =
+                storage_provider_ ? storage_provider_->path_exists(target_dir_text)
+                                  : std::filesystem::exists(target_dir);
+            const std::string semantic_target =
+                FolderTreeCatalog::semantic_target_path(resolved.category, resolved.subcategory);
+            const auto best_existing =
+                FolderTreeCatalog::best_semantic_match(folder_tree_catalog,
+                                                       resolved.category,
+                                                       resolved.subcategory);
+
+            DatabaseManager::FolderTreeRoutingRecord record;
+            record.destination_root = base_dir_;
+            record.tree_fingerprint = folder_tree_fingerprint;
+            record.allow_new_folders = allow_new;
+            record.semantic_category = resolved.category;
+            record.semantic_subcategory = resolved.subcategory;
+            record.semantic_target_folder = semantic_target;
+            if (best_existing) {
+                record.best_existing_folder = best_existing->entry.relative_path;
+                record.best_existing_score = best_existing->score;
+            }
+            record.target_folder_relative_path = validation.normalized_path;
+            record.target_folder_suggested_new = !target_exists;
+            record.target_folder_exists = target_exists;
+            db_manager->insert_or_update_folder_tree_routing(file_name,
+                                                             file_type_label,
+                                                             file_path,
+                                                             record);
+        };
 
     for (int row = 0; row < model->rowCount(); ++row) {
         auto* file_item = model->item(row, ColumnFile);
@@ -904,6 +1049,7 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
         bool rename_only = file_item->data(kRenameOnlyRole).toBool();
         auto* category_item = model->item(row, ColumnCategory);
         auto* subcategory_item = model->item(row, ColumnSubcategory);
+        auto* target_folder_item = model->item(row, ColumnTargetFolder);
         std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
         std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
         const bool is_image = row_is_supported_image(row);
@@ -970,7 +1116,9 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
                 resolved.category = cached_entry->category;
                 resolved.subcategory = cached_entry->subcategory;
             }
+            attach_folder_tree_metadata(resolved, target_folder_item);
             const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+            persist_folder_tree_route(file_name, file_type_label, file_path, resolved, target_folder_item);
             if (cached_entry &&
                 entry_is_unchanged(*cached_entry, resolved, suggested_name, rename_only, used_consistency)) {
                 continue;
@@ -987,6 +1135,9 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
         const bool preserve_display_labels =
             display_uses_canonical_storage(category_item, subcategory_item, category, subcategory);
         auto resolved = resolve_for_storage(category_item, subcategory_item, category, subcategory);
+        attach_folder_tree_metadata(resolved, target_folder_item);
+        const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
+        persist_folder_tree_route(file_name, file_type_label, file_path, resolved, target_folder_item);
         if (learn_approved_mappings && selected_for_processing && learning_store_ &&
             !resolved.category.empty()) {
             std::string learning_error;
@@ -1006,7 +1157,6 @@ void CategorizationDialog::record_categorization_to_db(bool learn_approved_mappi
             }
         }
 
-        const std::string file_type_label = (file_type == FileType::Directory) ? "D" : "F";
         if (cached_entry &&
             entry_is_unchanged(*cached_entry, resolved, suggested_name, rename_only, used_consistency)) {
             continue;
@@ -1072,6 +1222,7 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
         core_logger->info("Dry run enabled; will not move files.");
     }
 
+    std::vector<std::string> run_created_directories;
     std::vector<std::string> files_not_moved;
     ScopedFlag guard(suppress_item_changed_);
     if (include_subdirectories_) {
@@ -1107,7 +1258,7 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
             }
 
             std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
-            if (is_missing_category_label(category)) {
+            if (!folder_tree_mode_ && is_missing_category_label(category)) {
                 continue;
             }
             std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
@@ -1131,6 +1282,16 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
             file.category = category;
             file.subcategory = subcategory;
             file.rename_only = false;
+            if (auto* target_item = model->item(row_index, ColumnTargetFolder)) {
+                file.target_folder_relative_path = target_item->text().toStdString();
+                file.folder_tree_mode = !file.target_folder_relative_path.empty();
+                file.target_folder_suggested_new =
+                    target_item->data(kTargetFolderSuggestedNewRole).toBool();
+                file.target_folder_exists =
+                    target_item->data(kTargetFolderExistsRole).toBool();
+                file.folder_tree_allow_new_folders =
+                    target_item->data(kFolderTreeAllowNewFoldersRole).toBool();
+            }
 
             const auto target_dir = build_suggested_target_dir(file, base_dir, show_subcategory_column);
             const std::string dir_key = Utils::path_to_utf8(target_dir);
@@ -1196,7 +1357,8 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
                             file_type,
                             rename_only,
                             used_consistency_hints,
-                            dry_run);
+                            dry_run,
+                            run_created_directories);
     }
 
     if (dry_run) {
@@ -1254,6 +1416,10 @@ void CategorizationDialog::on_confirm_and_sort_button_clicked()
                 }
             } else if (rec->rename_only) {
                 to_label = rec->destination_file_name;
+                destination = rec->destination;
+            } else if (!rec->target_folder_relative_path.empty()) {
+                to_label = rec->target_folder_relative_path;
+                to_label += std::string(1, sep) + rec->destination_file_name;
                 destination = rec->destination;
             } else {
                 to_label = rec->category;
@@ -1315,12 +1481,14 @@ void CategorizationDialog::handle_selected_row(int row_index,
                                                FileType file_type,
                                                bool rename_only,
                                                bool used_consistency_hints,
-                                               bool dry_run)
+                                               bool dry_run,
+                                               std::vector<std::string>& run_created_directories)
 {
     const std::string destination_name = resolve_destination_name(file_name, rename_candidate);
     const bool rename_active = destination_name != file_name;
     auto* category_item_ref = model ? model->item(row_index, ColumnCategory) : nullptr;
     auto* subcategory_item_ref = model ? model->item(row_index, ColumnSubcategory) : nullptr;
+    auto* target_folder_item_ref = model ? model->item(row_index, ColumnTargetFolder) : nullptr;
     auto read_role_text = [](QStandardItem* item, int role) {
         return item && item->data(role).isValid()
             ? item->data(role).toString().toStdString()
@@ -1390,6 +1558,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 destination_name,
                 std::string(),
                 std::string(),
+                std::string(),
+                false,
                 false,
                 true});
             if (core_logger) {
@@ -1479,6 +1649,225 @@ void CategorizationDialog::handle_selected_row(int row_index,
         return;
     }
 
+    if (folder_tree_mode_) {
+        if (!target_folder_item_ref) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            return;
+        }
+        std::string target_folder = target_folder_item_ref->text().toStdString();
+        auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+        if (!validation.valid) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->warn("Skipping move for '{}' due to invalid target folder: {}",
+                                  file_name,
+                                  validation.error);
+            }
+            return;
+        }
+
+        const auto source_path = Utils::utf8_to_path(source_dir) / Utils::utf8_to_path(file_name);
+        const auto target_dir =
+            Utils::utf8_to_path(base_dir) / Utils::utf8_to_path(validation.normalized_path);
+        const std::string target_dir_text = Utils::path_to_utf8(target_dir);
+        const bool target_exists =
+            storage_provider_ ? storage_provider_->path_exists(target_dir_text) : std::filesystem::exists(target_dir);
+        const bool allow_new = target_folder_item_ref->data(kFolderTreeAllowNewFoldersRole).toBool() ||
+                               folder_tree_allow_new_folders_;
+        if (!target_exists && !allow_new) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->warn("Skipping move for '{}' because target folder '{}' does not exist.",
+                                  file_name,
+                                  validation.normalized_path);
+            }
+            return;
+        }
+
+        const auto destination_path = target_dir / Utils::utf8_to_path(destination_name);
+        const std::string source_text = Utils::path_to_utf8(source_path);
+        const std::string destination_text = Utils::path_to_utf8(destination_path);
+        const auto derived_pair = FolderTreeCatalog::derive_category_pair(validation.normalized_path);
+        const std::string folder_category = derived_pair.first;
+        const std::string folder_subcategory = derived_pair.second;
+        target_folder_item_ref->setText(QString::fromStdString(validation.normalized_path));
+        target_folder_item_ref->setData(QString::fromStdString(validation.normalized_path), kTargetFolderRole);
+        target_folder_item_ref->setData(!target_exists, kTargetFolderSuggestedNewRole);
+        target_folder_item_ref->setData(target_exists, kTargetFolderExistsRole);
+
+        if (dry_run) {
+            set_preview_status(row_index, destination_text);
+            dry_run_plan_.push_back(PreviewRecord{
+                source_text,
+                destination_text,
+                file_name,
+                destination_name,
+                folder_category,
+                folder_subcategory,
+                validation.normalized_path,
+                !target_exists,
+                false,
+                false});
+            if (core_logger) {
+                core_logger->info("Dry run: would move '{}' to '{}'", source_text, destination_text);
+            }
+            return;
+        }
+
+        if (!storage_provider_) {
+            update_status_column(row_index, false);
+            files_not_moved.push_back(file_name);
+            return;
+        }
+
+        std::vector<std::string> created_directories;
+        if (!target_exists) {
+            const auto missing_directories =
+                StorageUndoCleanup::missing_directories_for_target(*storage_provider_, target_dir_text);
+            std::string ensure_error;
+            if (!storage_provider_->ensure_directory(target_dir_text, &ensure_error)) {
+                update_status_column(row_index, false);
+                files_not_moved.push_back(file_name);
+                if (core_logger) {
+                    core_logger->warn("Failed to create target folder '{}' for '{}': {}",
+                                      validation.normalized_path,
+                                      file_name,
+                                      ensure_error.empty() ? "unknown error" : ensure_error);
+                }
+                return;
+            }
+            run_created_directories.insert(run_created_directories.end(),
+                                           missing_directories.begin(),
+                                           missing_directories.end());
+        }
+        created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_dir_text);
+
+        const auto move_result = storage_provider_->move_entry(source_text, destination_text);
+        update_status_column(row_index,
+                             move_result.success,
+                             true,
+                             rename_active && move_result.success,
+                             move_result.success);
+        if (!move_result.success) {
+            files_not_moved.push_back(file_name);
+            if (core_logger) {
+                core_logger->warn("File {} was not moved: {}",
+                                  file_name,
+                                  move_result.message.empty() ? "operation skipped" : move_result.message);
+            }
+            return;
+        }
+
+        const long long history_id = record_review_history(
+            row_index,
+            rename_active ? "rename_and_categorize" : "categorize",
+            source_text,
+            destination_text,
+            file_name,
+            destination_name,
+            folder_category,
+            folder_subcategory,
+            move_result.metadata.size_bytes,
+            move_result.metadata.mtime,
+            move_result.metadata.stable_identity,
+            move_result.metadata.revision_token,
+            created_directories);
+        record_move_for_undo(row_index,
+                             source_text,
+                             destination_text,
+                             move_result.metadata.size_bytes,
+                             move_result.metadata.mtime,
+                             move_result.metadata.stable_identity,
+                             move_result.metadata.revision_token,
+                             history_id,
+                             created_directories);
+
+        if (db_manager) {
+            const std::string original_category = read_role_text(category_item_ref, kOriginalCategoryRole);
+            const std::string original_subcategory = read_role_text(subcategory_item_ref, kOriginalSubcategoryRole);
+            const std::string canonical_category = read_role_text(category_item_ref, kCanonicalCategoryRole);
+            const std::string canonical_subcategory = read_role_text(subcategory_item_ref, kCanonicalSubcategoryRole);
+            std::string storage_category = read_item_or_hidden_text(category_item_ref, kHiddenCategoryRole);
+            std::string storage_subcategory =
+                read_item_or_hidden_text(subcategory_item_ref, kHiddenSubcategoryRole);
+            if (storage_category.empty()) {
+                storage_category = folder_category;
+            }
+            if (storage_subcategory.empty()) {
+                storage_subcategory = folder_subcategory;
+            }
+            const std::string original_effective_subcategory =
+                original_subcategory.empty() ? original_category : original_subcategory;
+            const std::string storage_effective_subcategory =
+                storage_subcategory.empty() ? storage_category : storage_subcategory;
+            const bool unchanged_display =
+                storage_category == original_category &&
+                storage_effective_subcategory == original_effective_subcategory &&
+                !canonical_category.empty();
+            auto resolved = unchanged_display
+                ? db_manager->resolve_category(canonical_category, canonical_subcategory)
+                : db_manager->resolve_category_for_language(storage_category,
+                                                            storage_effective_subcategory,
+                                                            category_language_);
+            resolved.target_folder_relative_path = validation.normalized_path;
+            resolved.folder_tree_mode = true;
+            resolved.target_folder_suggested_new = false;
+            resolved.target_folder_exists = true;
+            resolved.folder_tree_allow_new_folders = allow_new;
+            const std::string source_db_dir = source_dir;
+            std::string suggested_name;
+            bool rename_applied = rename_active;
+            if (rename_active) {
+                suggested_name = destination_name;
+            } else if (auto cached = db_manager->get_categorized_file(source_db_dir, file_name, file_type)) {
+                suggested_name = cached->suggested_name;
+                rename_applied = cached->rename_applied;
+            }
+            db_manager->remove_file_categorization(source_db_dir, file_name, file_type);
+            db_manager->insert_or_update_file_with_categorization(
+                destination_name,
+                file_type == FileType::Directory ? "D" : "F",
+                target_dir_text,
+                resolved,
+                used_consistency_hints,
+                suggested_name,
+                false,
+                rename_applied);
+            const auto updated_catalog = FolderTreeCatalog::Catalog::scan(Utils::utf8_to_path(base_dir));
+            const auto best_existing =
+                FolderTreeCatalog::best_semantic_match(updated_catalog,
+                                                       resolved.category,
+                                                       resolved.subcategory);
+            DatabaseManager::FolderTreeRoutingRecord route;
+            route.destination_root = base_dir;
+            route.tree_fingerprint = updated_catalog.fingerprint();
+            route.allow_new_folders = allow_new;
+            route.semantic_category = resolved.category;
+            route.semantic_subcategory = resolved.subcategory;
+            route.semantic_target_folder =
+                FolderTreeCatalog::semantic_target_path(resolved.category, resolved.subcategory);
+            if (best_existing) {
+                route.best_existing_folder = best_existing->entry.relative_path;
+                route.best_existing_score = best_existing->score;
+            }
+            route.target_folder_relative_path = validation.normalized_path;
+            route.target_folder_suggested_new = false;
+            route.target_folder_exists = true;
+            db_manager->insert_or_update_folder_tree_routing(destination_name,
+                                                             file_type == FileType::Directory ? "D" : "F",
+                                                             target_dir_text,
+                                                             route);
+        }
+        if (rename_active) {
+            apply_successful_rename();
+        }
+        return;
+    }
+
     const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
     std::string validation_error;
     const bool allow_identical = !show_subcategory_column;
@@ -1510,6 +1899,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 destination_name,
                 category,
                 effective_subcategory,
+                std::string(),
+                false,
                 show_subcategory_column,
                 false});
             if (core_logger) {
@@ -1520,7 +1911,19 @@ void CategorizationDialog::handle_selected_row(int row_index,
             return;
         }
 
+        const std::string target_directory =
+            Utils::path_to_utf8(Utils::utf8_to_path(preview_paths.destination).parent_path());
+        const auto missing_directories =
+            storage_provider_
+                ? StorageUndoCleanup::missing_directories_for_target(*storage_provider_, target_directory)
+                : std::vector<std::string>{};
+
         categorized_file.create_cat_dirs(show_subcategory_column);
+        run_created_directories.insert(run_created_directories.end(),
+                                       missing_directories.begin(),
+                                       missing_directories.end());
+        const auto created_directories =
+            StorageUndoCleanup::recorded_directories_for_target(run_created_directories, target_directory);
         const auto move_result = categorized_file.move_file(show_subcategory_column);
         update_status_column(row_index,
                              move_result.success,
@@ -1548,7 +1951,8 @@ void CategorizationDialog::handle_selected_row(int row_index,
                 move_result.metadata.size_bytes,
                 move_result.metadata.mtime,
                 move_result.metadata.stable_identity,
-                move_result.metadata.revision_token);
+                move_result.metadata.revision_token,
+                created_directories);
             record_move_for_undo(row_index,
                                  preview_paths.source,
                                  preview_paths.destination,
@@ -1556,9 +1960,11 @@ void CategorizationDialog::handle_selected_row(int row_index,
                                  move_result.metadata.mtime,
                                  move_result.metadata.stable_identity,
                                  move_result.metadata.revision_token,
-                                 history_id);
+                                 history_id,
+                                 created_directories);
 
-            if (db_manager && (rename_active || include_subdirectories_)) {
+            const bool destination_root_differs = !same_directory_path(source_dir, base_dir);
+            if (db_manager && (rename_active || include_subdirectories_ || destination_root_differs)) {
                 const std::string original_category = read_role_text(category_item_ref, kOriginalCategoryRole);
                 const std::string original_subcategory = read_role_text(subcategory_item_ref, kOriginalSubcategoryRole);
                 const std::string canonical_category = read_role_text(category_item_ref, kCanonicalCategoryRole);
@@ -1574,9 +1980,9 @@ void CategorizationDialog::handle_selected_row(int row_index,
                     : db_manager->resolve_category_for_language(category,
                                                                 effective_subcategory,
                                                                 category_language_);
-                const std::string source_db_dir = include_subdirectories_ ? source_dir : base_dir;
+                const std::string source_db_dir = source_dir;
                 std::string destination_db_dir = base_dir;
-                if (include_subdirectories_) {
+                if (include_subdirectories_ || destination_root_differs) {
                     const auto dest_parent = Utils::utf8_to_path(preview_paths.destination).parent_path();
                     destination_db_dir = Utils::path_to_utf8(dest_parent);
                 }
@@ -1729,7 +2135,9 @@ bool CategorizationDialog::row_is_auto_approval_candidate(int row) const
         return false;
     }
     const bool renames = preview->source_file_name != preview->destination_file_name;
-    const bool categorizes = !preview->rename_only && !preview->category.empty();
+    const bool categorizes = !preview->rename_only &&
+                             (!preview->category.empty() ||
+                              !preview->target_folder_relative_path.empty());
     if (!renames && !categorizes) {
         return false;
     }
@@ -1909,7 +2317,8 @@ void CategorizationDialog::record_move_for_undo(int row,
                                                 std::time_t mtime,
                                                 const std::string& stable_identity,
                                                 const std::string& revision_token,
-                                                long long history_id)
+                                                long long history_id,
+                                                std::vector<std::string> created_directories)
 {
     move_history_.push_back(MoveRecord{
         row,
@@ -1919,30 +2328,13 @@ void CategorizationDialog::record_move_for_undo(int row,
         mtime,
         stable_identity,
         revision_token,
+        std::move(created_directories),
         history_id});
 }
 
-void CategorizationDialog::remove_empty_parent_directories(const std::string& destination)
-{
-    std::filesystem::path dest_path = Utils::utf8_to_path(destination);
-    auto parent = dest_path.parent_path();
-    while (!parent.empty()) {
-        std::error_code ec;
-        if (!std::filesystem::exists(parent)) {
-            parent = parent.parent_path();
-            continue;
-        }
-        if (std::filesystem::is_directory(parent) &&
-            std::filesystem::is_empty(parent, ec) && !ec) {
-            std::filesystem::remove(parent, ec);
-            parent = parent.parent_path();
-        } else {
-            break;
-        }
-    }
-}
-
-bool CategorizationDialog::move_file_back(const std::string& source, const std::string& destination)
+bool CategorizationDialog::move_file_back(const std::string& source,
+                                          const std::string& destination,
+                                          const std::vector<std::string>& created_directories)
 {
     if (!storage_provider_) {
         if (core_logger) {
@@ -1953,7 +2345,7 @@ bool CategorizationDialog::move_file_back(const std::string& source, const std::
         return false;
     }
 
-    const auto undo_result = storage_provider_->undo_move(source, destination);
+    const auto undo_result = storage_provider_->undo_move(source, destination, created_directories);
     if (!undo_result.success && core_logger) {
         core_logger->error("Undo move failed '{}' -> '{}': {}",
                            destination,
@@ -1971,10 +2363,11 @@ long long CategorizationDialog::record_review_history(int row,
                                                       const std::string& final_file_name,
                                                       const std::string& category,
                                                       const std::string& subcategory,
-                                                      std::uintmax_t size_bytes,
-                                                      std::time_t mtime,
-                                                      const std::string& stable_identity,
-                                                      const std::string& revision_token)
+                                    std::uintmax_t size_bytes,
+                                    std::time_t mtime,
+                                    const std::string& stable_identity,
+                                    const std::string& revision_token,
+                                    const std::vector<std::string>& created_directories)
 {
     if (!history_store_ || !history_store_->is_open()) {
         return 0;
@@ -1994,6 +2387,7 @@ long long CategorizationDialog::record_review_history(int row,
     entry.mtime = mtime;
     entry.stable_identity = stable_identity;
     entry.revision_token = revision_token;
+    entry.created_directories = created_directories;
 
     std::string error;
     const auto id = history_store_->record_entry(entry, &error);
@@ -2029,7 +2423,7 @@ bool CategorizationDialog::undo_move_history()
 
     bool any_success = false;
     for (auto it = move_history_.rbegin(); it != move_history_.rend(); ++it) {
-        if (move_file_back(it->source_path, it->destination_path)) {
+        if (move_file_back(it->source_path, it->destination_path, it->created_directories)) {
             if (history_store_ && it->history_id > 0) {
                 std::string history_error;
                 if (!history_store_->mark_undone(it->history_id, &history_error) && core_logger) {
@@ -2263,6 +2657,12 @@ void CategorizationDialog::on_rename_documents_only_toggled(bool checked)
 void CategorizationDialog::apply_subcategory_visibility()
 {
     if (table_view) {
+        if (folder_tree_mode_) {
+            table_view->setColumnHidden(ColumnSubcategory, true);
+            table_view->setColumnHidden(ColumnTargetFolder, false);
+            table_view->setColumnHidden(ColumnPreview, false);
+            return;
+        }
         const bool rename_images_active = rename_images_only_checkbox && rename_images_only_checkbox->isChecked();
         const bool rename_documents_active = rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked();
         auto should_hide_row = [&](int row) {
@@ -2329,6 +2729,14 @@ void CategorizationDialog::apply_subcategory_visibility()
 void CategorizationDialog::apply_category_visibility()
 {
     if (table_view) {
+        if (folder_tree_mode_) {
+            table_view->setColumnHidden(ColumnCategory, true);
+            table_view->setColumnHidden(ColumnTargetFolder, false);
+            if (bulk_edit_button) {
+                bulk_edit_button->setEnabled(false);
+            }
+            return;
+        }
         const bool rename_images_active = rename_images_only_checkbox && rename_images_only_checkbox->isChecked();
         const bool rename_documents_active = rename_documents_only_checkbox && rename_documents_only_checkbox->isChecked();
         auto should_hide_row = [&](int row) {
@@ -2527,6 +2935,13 @@ bool CategorizationDialog::row_is_already_renamed_with_category(int row) const
         return false;
     }
 
+    if (folder_tree_mode_) {
+        auto* target_item = model->item(row, ColumnTargetFolder);
+        const std::string target_folder =
+            target_item ? target_item->text().toStdString() : std::string();
+        return FolderTreeCatalog::validate_relative_folder_path(target_folder).valid;
+    }
+
     auto* category_item = model->item(row, ColumnCategory);
     std::string category = category_item ? category_item->text().toStdString() : std::string();
     if (is_missing_category_label(category)) {
@@ -2576,6 +2991,7 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
     const auto* file_item = model->item(row, ColumnFile);
     const auto* category_item = model->item(row, ColumnCategory);
     const auto* subcategory_item = model->item(row, ColumnSubcategory);
+    const auto* target_folder_item = model->item(row, ColumnTargetFolder);
     const auto* rename_item = model->item(row, ColumnSuggestedName);
     if (!file_item || !category_item) {
         return fail("Missing file/category item");
@@ -2614,6 +3030,8 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
             destination_name,
             std::string(),
             std::string(),
+            std::string(),
+            false,
             false,
             true};
     }
@@ -2621,6 +3039,41 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
     const std::string category = read_item_or_hidden_text(category_item, kHiddenCategoryRole);
     const std::string subcategory = read_item_or_hidden_text(subcategory_item, kHiddenSubcategoryRole);
     const std::string effective_subcategory = subcategory.empty() ? category : subcategory;
+
+    if (folder_tree_mode_) {
+        if (!target_folder_item) {
+            return fail("Missing target folder item");
+        }
+        std::string target_folder = target_folder_item->text().toStdString();
+        auto validation = FolderTreeCatalog::validate_relative_folder_path(target_folder);
+        if (!validation.valid) {
+            return fail("Invalid target folder: " + validation.error);
+        }
+        const auto target_dir =
+            Utils::utf8_to_path(base_dir_) / Utils::utf8_to_path(validation.normalized_path);
+        const std::string target_dir_text = Utils::path_to_utf8(target_dir);
+        const bool target_exists =
+            storage_provider_ ? storage_provider_->path_exists(target_dir_text) : std::filesystem::exists(target_dir);
+        const bool allow_new = target_folder_item->data(kFolderTreeAllowNewFoldersRole).toBool() ||
+                               folder_tree_allow_new_folders_;
+        if (!target_exists && !allow_new) {
+            return fail("Target folder does not exist");
+        }
+        const auto derived_pair = FolderTreeCatalog::derive_category_pair(validation.normalized_path);
+        const auto source_path = Utils::utf8_to_path(source_dir) / Utils::utf8_to_path(file_name);
+        const auto destination_path = target_dir / Utils::utf8_to_path(destination_name);
+        return PreviewRecord{
+            Utils::path_to_utf8(source_path),
+            Utils::path_to_utf8(destination_path),
+            file_name,
+            destination_name,
+            derived_pair.first,
+            derived_pair.second,
+            validation.normalized_path,
+            !target_exists,
+            false,
+            false};
+    }
 
     std::string validation_error;
     const bool allow_identical = !show_subcategory_column;
@@ -2644,6 +3097,8 @@ CategorizationDialog::build_preview_record_for_row(int row, std::string* debug_r
             destination_name,
             category,
             effective_subcategory,
+            std::string(),
+            false,
             show_subcategory_column,
             false};
     } catch (...) {
@@ -2773,7 +3228,8 @@ void CategorizationDialog::persist_move_plan()
             rec.size_bytes,
             rec.mtime,
             rec.stable_identity,
-            rec.revision_token});
+            rec.revision_token,
+            rec.created_directories});
     }
 
     UndoManager manager(undo_dir_);
@@ -2799,33 +3255,34 @@ void CategorizationDialog::retranslate_ui()
     };
 
     set_text_if(select_all_checkbox, tr("Select all"));
-    set_text_if(auto_approve_filenames_checkbox, tr("Auto-approve filename changes"));
-    set_text_if(auto_approve_categories_checkbox, tr("Auto-approve categorization"));
+    set_text_if(auto_approve_filenames_checkbox, tr("Automatically select rename suggestions"));
+    set_text_if(auto_approve_categories_checkbox, tr("Automatically select sorting suggestions"));
     set_text_if(select_highlighted_button, tr("Select highlighted"));
     set_text_if(bulk_edit_button, tr("Edit selected..."));
     set_text_if(show_subcategories_checkbox, tr("Create subcategory folders"));
     set_text_if(dry_run_checkbox, tr("Dry run (preview only, do not move files)"));
-    set_text_if(rename_images_only_checkbox, tr("Do not categorize picture files (only rename)"));
-    set_text_if(rename_documents_only_checkbox, tr("Do not categorize document files (only rename)"));
+    set_text_if(rename_images_only_checkbox, tr("Rename pictures without moving"));
+    set_text_if(rename_documents_only_checkbox, tr("Rename documents without moving"));
     set_text_if(preview_button, tr("Preview"));
-    set_text_if(confirm_button, tr("Confirm and Process"));
+    set_text_if(confirm_button, dry_run_checkbox && dry_run_checkbox->isChecked()
+                                    ? tr("Dry run preview") : tr("Apply changes"));
     set_text_if(continue_button, tr("Continue Later"));
     set_text_if(undo_button, tr("Undo this change"));
     set_text_if(close_button, tr("Close"));
 
     if (select_highlighted_button) {
-        select_highlighted_button->setToolTip(tr("Mark highlighted rows for processing (Ctrl+Space)."));
+        select_highlighted_button->setToolTip(tr("Select the highlighted items so their changes can be applied (Ctrl+Space)."));
     }
     if (auto_approve_filenames_checkbox) {
         auto_approve_filenames_checkbox->setToolTip(
-            tr("Preselect rows with filename changes. Rows that also categorize require categorization auto-approval too."));
+            tr("Select valid rename suggestions automatically. Items that also need sorting are selected only when automatic sorting selection is on. Review your selections before choosing %1.").arg(tr("Apply changes")));
     }
     if (auto_approve_categories_checkbox) {
         auto_approve_categories_checkbox->setToolTip(
-            tr("Preselect rows with valid categorization. Rows that also rename require filename auto-approval too."));
+            tr("Select valid sorting suggestions automatically. Items that also need renaming are selected only when automatic rename selection is on. Review your selections before choosing %1.").arg(tr("Apply changes")));
     }
     if (bulk_edit_button) {
-        bulk_edit_button->setToolTip(tr("Apply category/subcategory values to highlighted rows."));
+        bulk_edit_button->setToolTip(tr("Change the category and subcategory for all highlighted items."));
     }
 
     if (model) {
@@ -2836,6 +3293,7 @@ void CategorizationDialog::retranslate_ui()
             tr("Suggested filename"),
             tr("Category"),
             tr("Subcategory"),
+            tr("Target folder"),
             tr("Status"),
             tr("Destination")
         });
@@ -2922,6 +3380,7 @@ void CategorizationDialog::on_item_changed(QStandardItem* item)
         update_select_all_state();
     } else if (item->column() == ColumnCategory ||
                item->column() == ColumnSubcategory ||
+               item->column() == ColumnTargetFolder ||
                item->column() == ColumnSuggestedName) {
         if ((item->column() == ColumnCategory || item->column() == ColumnSubcategory) &&
             (row_is_supported_image(item->row()) || row_is_supported_document(item->row()))) {
@@ -2930,6 +3389,12 @@ void CategorizationDialog::on_item_changed(QStandardItem* item)
                 ScopedFlag guard(suppress_item_changed_);
                 item->setText(QString());
             }
+        }
+        if (item->column() == ColumnTargetFolder) {
+            item->setData(QString(), kFolderTreeRoutingExplanationRole);
+            item->setToolTip(item->data(kTargetFolderSuggestedNewRole).toBool()
+                                 ? tr("This folder will be created if approved.")
+                                 : QString());
         }
         update_preview_column(item->row());
         update_auto_approval_for_row(item->row());
@@ -2941,6 +3406,7 @@ void CategorizationDialog::on_item_changed(QStandardItem* item)
     if (item->column() == ColumnSelect ||
         item->column() == ColumnCategory ||
         item->column() == ColumnSubcategory ||
+        item->column() == ColumnTargetFolder ||
         item->column() == ColumnSuggestedName) {
         dry_run_plan_.clear();
     }
@@ -3020,6 +3486,16 @@ void CategorizationDialog::set_show_rename_column(bool enabled)
 void CategorizationDialog::test_set_entries(const std::vector<CategorizedFile>& files) {
     categorized_files = files;
     include_subdirectories_ = false;
+    folder_tree_mode_ = std::any_of(categorized_files.begin(),
+                                    categorized_files.end(),
+                                    [](const CategorizedFile& file) {
+                                        return file.folder_tree_mode;
+                                    });
+    folder_tree_allow_new_folders_ = std::any_of(categorized_files.begin(),
+                                                 categorized_files.end(),
+                                                 [](const CategorizedFile& file) {
+                                                     return file.folder_tree_allow_new_folders;
+                                                 });
     base_dir_.clear();
     if (!categorized_files.empty()) {
         base_dir_ = categorized_files.front().file_path;

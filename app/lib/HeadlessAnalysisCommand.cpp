@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "HeadlessAnalysisCommand.hpp"
 
 #include "AnalysisRunResult.hpp"
@@ -25,6 +26,7 @@
 #include <cctype>
 #include <chrono>
 #include <sstream>
+#include <string_view>
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -52,7 +54,7 @@ QString to_qstring(const std::filesystem::path& path)
 std::string lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -217,6 +219,7 @@ bool parse_value(int argc,
 }
 
 bool read_settings_overrides_file(const std::filesystem::path& path,
+                                  std::string_view job_id,
                                   HeadlessSettingsOverrides* overrides,
                                   std::string* error)
 {
@@ -240,7 +243,13 @@ bool read_settings_overrides_file(const std::filesystem::path& path,
         return false;
     }
 
-    *overrides = HeadlessSettingsOverridesJson::from_json(document.object());
+    const auto object = document.object();
+    *overrides = HeadlessSettingsOverridesJson::from_json_for_job(object, job_id);
+    if (!object.contains(QStringLiteral("sortingMode")) && overrides->sorting_mode) {
+        if (auto logger = Logger::get_logger("core_logger")) {
+            logger->info("Using generated-category sorting for legacy Explorer job '{}'.", job_id);
+        }
+    }
     return true;
 }
 
@@ -357,12 +366,13 @@ HeadlessReviewApplyService::Options preview_apply_options(
     const HeadlessAnalysisWorkflowHost& host)
 {
     HeadlessReviewApplyService::Options apply_options;
-    apply_options.base_dir = host.folder_path();
+    apply_options.base_dir = host.destination_folder();
     apply_options.undo_dir = host.undo_dir();
     apply_options.use_subcategories = host.use_subcategories();
     apply_options.include_subdirectories = host.include_subdirectories();
     apply_options.apply_suggested_names = operation_applies_suggested_names(options.operation);
     apply_options.move_categorized_entries = operation_moves_categorized_entries(options.operation);
+    apply_options.allow_new_folder_targets = host.suggest_new_folders();
     apply_options.category_language = host.category_language();
     apply_options.apply_changes = false;
     return apply_options;
@@ -424,7 +434,7 @@ std::string normalized_path_key(const std::filesystem::path& path)
     std::string key = Utils::path_to_utf8(normalized_absolute_path(path));
 #ifdef _WIN32
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
 #endif
     return key;
@@ -905,6 +915,7 @@ int HeadlessAnalysisCommand::run(const Options& options,
     if (options.settings_overrides_file) {
         std::string overrides_error;
         if (!read_settings_overrides_file(*options.settings_overrides_file,
+                                          options.job_id,
                                           &settings_overrides,
                                           &overrides_error)) {
             emit_status(options,
@@ -951,12 +962,13 @@ int HeadlessAnalysisCommand::run(const Options& options,
         history_settings.load();
         ReviewHistoryStore history_store(history_settings.get_config_dir());
         HeadlessReviewApplyService::Options apply_options;
-        apply_options.base_dir = host.folder_path();
+        apply_options.base_dir = host.destination_folder();
         apply_options.undo_dir = host.undo_dir();
         apply_options.use_subcategories = host.use_subcategories();
         apply_options.include_subdirectories = host.include_subdirectories();
         apply_options.apply_suggested_names = operation_applies_suggested_names(options.operation);
         apply_options.move_categorized_entries = operation_moves_categorized_entries(options.operation);
+        apply_options.allow_new_folder_targets = host.suggest_new_folders();
         apply_options.category_language = host.category_language();
         apply_options.apply_changes = should_apply_changes(options.apply_mode, host);
 
@@ -982,7 +994,8 @@ int HeadlessAnalysisCommand::run(const Options& options,
                                         options,
                                         host.review_entries(),
                                         apply_options,
-                                        &review_plan_error)) {
+                                        &review_plan_error,
+                                        &*apply_result)) {
                 emit_status(options,
                             "failed",
                             "Could not write headless review plan.",

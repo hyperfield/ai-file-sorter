@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QTextEdit>
 #include <QVBoxLayout>
@@ -56,6 +57,10 @@ void CustomApiDialog::setup_ui()
     form->addRow(tr("Base URL or endpoint"), base_url_edit);
     form->addRow(tr("Model"), model_edit);
     form->addRow(tr("API key (optional)"), api_key_row);
+    image_analysis_checkbox = new QCheckBox(tr("Vision-capable model"), this);
+    image_analysis_checkbox->setObjectName(QStringLiteral("apiVisionCapability"));
+    image_analysis_checkbox->setToolTip(tr("Makes this connection available in the visual model selector. Image contents are sent to the selected server."));
+    form->addRow(QString(), image_analysis_checkbox);
 
     layout->addLayout(form);
 
@@ -77,6 +82,11 @@ void CustomApiDialog::wire_signals()
     connect(name_edit, &QLineEdit::textChanged, this, &CustomApiDialog::validate_inputs);
     connect(base_url_edit, &QLineEdit::textChanged, this, &CustomApiDialog::validate_inputs);
     connect(model_edit, &QLineEdit::textChanged, this, &CustomApiDialog::validate_inputs);
+    connect(image_analysis_checkbox, &QCheckBox::clicked, this, [this](bool checked) {
+        if (checked && !confirm_image_upload()) {
+            image_analysis_checkbox->setChecked(false);
+        }
+    });
     if (show_api_key_checkbox) {
         connect(show_api_key_checkbox, &QCheckBox::toggled, this, [this](bool checked) {
             if (api_key_edit) {
@@ -86,6 +96,19 @@ void CustomApiDialog::wire_signals()
     }
 }
 
+bool CustomApiDialog::confirm_image_upload()
+{
+    QMessageBox box(this);
+    box.setObjectName(QStringLiteral("imageUploadConfirmation"));
+    box.setIcon(QMessageBox::Information);
+    box.setWindowTitle(tr("Send images to server?"));
+    box.setText(tr("When this connection is selected for image analysis, the scanned images will be sent to the configured API server for processing.\n\nClick OK to enable this setting or Cancel to leave it disabled."));
+    box.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+    box.setDefaultButton(QMessageBox::Cancel);
+    box.setEscapeButton(QMessageBox::Cancel);
+    return box.exec() == QMessageBox::Ok;
+}
+
 void CustomApiDialog::apply_existing(const CustomApiEndpoint& existing)
 {
     name_edit->setText(QString::fromStdString(existing.name));
@@ -93,6 +116,7 @@ void CustomApiDialog::apply_existing(const CustomApiEndpoint& existing)
     base_url_edit->setText(QString::fromStdString(existing.base_url));
     model_edit->setText(QString::fromStdString(existing.model));
     api_key_edit->setText(QString::fromStdString(existing.api_key));
+    image_analysis_checkbox->setChecked(existing.image_analysis_enabled);
     validate_inputs();
 }
 
@@ -114,5 +138,6 @@ CustomApiEndpoint CustomApiDialog::result() const
     endpoint.base_url = base_url_edit->text().trimmed().toStdString();
     endpoint.model = model_edit->text().trimmed().toStdString();
     endpoint.api_key = api_key_edit->text().trimmed().toStdString();
+    endpoint.image_analysis_enabled = image_analysis_checkbox->isChecked();
     return endpoint;
 }

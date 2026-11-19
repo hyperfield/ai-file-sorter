@@ -1,4 +1,8 @@
+#include "TextEncoding.hpp"
+#include "CurlTls.hpp"
 #include "GeminiClient.hpp"
+
+#include "LocalLLMPromptBuilder.hpp"
 
 #include "Logger.hpp"
 #include "RemoteApiError.hpp"
@@ -103,7 +107,7 @@ struct HttpResponseInfo {
 
 std::string trim_ws(std::string value)
 {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -116,7 +120,7 @@ size_t HeaderCallback(char* buffer, size_t size, size_t nitems, std::string* ret
     const std::string prefix = "retry-after:";
     std::string lower = line;
     std::transform(lower.begin(), lower.end(), lower.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                   [](unsigned char ch) { return static_cast<char>(TextEncoding::ascii_lower(ch)); });
     if (lower.rfind(prefix, 0) == 0) {
         *retry_after = trim_ws(line.substr(prefix.size()));
     }
@@ -134,14 +138,7 @@ CurlRequest create_curl_request(const std::shared_ptr<spdlog::logger>& logger)
         throw std::runtime_error("Initialization Error: Failed to initialize cURL.");
     }
 
-#ifdef _WIN32
-    try {
-        const auto cert_path = Utils::ensure_ca_bundle();
-        curl_easy_setopt(request.handle, CURLOPT_CAINFO, cert_path.string().c_str());
-    } catch (const std::exception& ex) {
-        throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
-    }
-#endif
+    CurlTls::configure(request.handle);
     return request;
 }
 
@@ -317,36 +314,11 @@ std::string GeminiClient::make_categorization_payload(const std::string& file_na
                                                       FileType file_type,
                                                       const std::string& consistency_context)
 {
-    std::string prompt;
-    std::string sanitized_path = file_path;
-
-    if (!sanitized_path.empty()) {
-        prompt = "Categorize the item with full path: " + sanitized_path + "\n";
-        prompt += "File name: " + file_name;
-    } else {
-        prompt = "Categorize file: " + file_name;
-    }
-
-    if (file_type == FileType::Directory) {
-        if (!sanitized_path.empty()) {
-            prompt = "Categorize the directory with full path: " + sanitized_path + "\nDirectory name: " + file_name;
-        } else {
-            prompt = "Categorize directory: " + file_name;
-        }
-    }
-
-    if (!consistency_context.empty()) {
-        prompt += "\n\n" + consistency_context;
-    }
-
+    const auto prompt = LocalLLMPromptBuilder::build_user_prompt(
+        file_name, file_path, file_type, consistency_context);
     last_prompt_ = prompt;
-    const std::string system_prompt =
-        "You are a file categorization assistant. If it's an installer, describe the type of software it installs. "
-        "Consider the filename, extension, and any directory context provided. If the user prompt includes an "
-        "'Allowed main categories' list, choose the main category from that list only. Use Other only when it is "
-        "listed and none of the other listed main categories clearly fits. Always reply with one line in the "
-        "format <Main category> : <Subcategory>. Main category must be broad (one or two words, plural). "
-        "Subcategory must be specific, relevant, and must not repeat the main category.";
+    const auto system_prompt = LocalLLMPromptBuilder::build_system_prompt(
+        file_path, file_type, consistency_context);
 
     std::ostringstream payload;
     const std::string merged_prompt = system_prompt + "\n\n" + prompt;
@@ -360,10 +332,11 @@ std::string GeminiClient::make_categorization_payload(const std::string& file_na
     return payload.str();
 }
 
-std::string GeminiClient::make_generic_payload(const std::string& system_prompt,
+std::string GeminiClient::make_completion_payload(
                                                const std::string& user_prompt,
                                                int max_tokens) const
 {
+    const std::string system_prompt(LLMPrompt::kCompletionSystemPrompt);
     const std::string merged_prompt = system_prompt + "\n\n" + user_prompt;
 
     std::ostringstream payload;
@@ -381,13 +354,11 @@ std::string GeminiClient::make_generic_payload(const std::string& system_prompt,
 std::string GeminiClient::complete_prompt(const std::string& prompt,
                                           int max_tokens)
 {
-    static const std::string kSystem =
-        "You are a precise assistant that returns well-formed JSON responses.";
     if (prompt_logging_enabled_) {
         std::cout << "\n[DEV][PROMPT] Completion request\n"
                   << prompt << "\n";
     }
-    std::string json_payload = make_generic_payload(kSystem, prompt, max_tokens);
+    std::string json_payload = make_completion_payload(prompt, max_tokens);
     std::string response = send_api_request(json_payload);
     if (prompt_logging_enabled_) {
         std::cout << "[DEV][RESPONSE] Completion reply\n" << response << "\n";

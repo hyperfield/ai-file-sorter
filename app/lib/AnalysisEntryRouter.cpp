@@ -59,7 +59,7 @@ void AnalysisEntryRouter::split_entries_for_analysis(
                 } else {
                     image_entries.push_back(entry);
                 }
-            } else if (allow_other_files) {
+            } else if (categorize_files) {
                 other_entries.push_back(entry);
             }
             continue;
@@ -79,7 +79,7 @@ void AnalysisEntryRouter::split_entries_for_analysis(
                 } else {
                     document_entries.push_back(entry);
                 }
-            } else if (allow_other_files) {
+            } else if (categorize_files) {
                 other_entries.push_back(entry);
             }
             continue;

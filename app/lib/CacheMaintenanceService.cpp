@@ -1,3 +1,4 @@
+#include "Utils.hpp"
 #include "CacheMaintenanceService.hpp"
 
 #include "Logger.hpp"
@@ -19,19 +20,19 @@ constexpr std::array<const char*, 3> kKnownLogFiles{
 
 std::filesystem::path categorization_cache_path_for_config_dir(const std::string& config_dir)
 {
-    const char* cache_file = std::getenv("CATEGORIZATION_CACHE_FILE");
-    const char* file_name = (cache_file && *cache_file) ? cache_file : "categorization_results.db";
-    return std::filesystem::path(config_dir) / file_name;
+    const auto cache_file = Utils::getenv_utf8("CATEGORIZATION_CACHE_FILE");
+    const std::string file_name = (cache_file && !cache_file->empty()) ? *cache_file : "categorization_results.db";
+    return Utils::utf8_to_path(config_dir) / Utils::utf8_to_path(file_name);
 }
 
 std::filesystem::path image_location_cache_path_for_config_dir(const std::string& config_dir)
 {
-    return std::filesystem::path(config_dir) / "image_place_cache.db";
+    return Utils::utf8_to_path(config_dir) / "image_place_cache.db";
 }
 
 bool is_known_log_filename(const std::filesystem::path& path)
 {
-    const auto filename = path.filename().string();
+    const auto filename = Utils::path_to_utf8(path.filename());
     for (const char* known : kKnownLogFiles) {
         if (filename == known) {
             return true;
@@ -53,6 +54,16 @@ const char* sqlite_cache_table_name(CacheMaintenanceTarget target)
     return nullptr;
 }
 
+bool has_content_evidence(sqlite3* db)
+{
+    sqlite3_stmt* statement = nullptr;
+    const bool prepared = sqlite3_prepare_v2(
+        db, "SELECT 1 FROM content_analysis_cache LIMIT 1;", -1, &statement, nullptr) == SQLITE_OK;
+    const bool present = prepared && sqlite3_step(statement) == SQLITE_ROW;
+    sqlite3_finalize(statement);
+    return present;
+}
+
 } // namespace
 
 CacheMaintenanceService::CacheMaintenanceService(
@@ -65,7 +76,7 @@ CacheMaintenanceService::CacheMaintenanceService(
 {
     if (!log_dir_provider_) {
         log_dir_provider_ = []() {
-            return std::filesystem::path(Logger::get_log_directory());
+            return Utils::utf8_to_path(Logger::get_log_directory());
         };
     }
 }
@@ -194,7 +205,7 @@ std::uintmax_t CacheMaintenanceService::compute_sqlite_cache_size(
     }
 
     sqlite3* db = nullptr;
-    if (sqlite3_open_v2(path.string().c_str(), &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK) {
+    if (sqlite3_open_v2(Utils::path_to_utf8(path).c_str(), &db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK) {
         if (db) {
             sqlite3_close(db);
         }
@@ -212,6 +223,9 @@ std::uintmax_t CacheMaintenanceService::compute_sqlite_cache_size(
 
     if (stmt) {
         sqlite3_finalize(stmt);
+    }
+    if (target == CacheMaintenanceTarget::Categorization && has_content_evidence(db)) {
+        estimated_size = file_size;
     }
     sqlite3_close(db);
     return estimated_size;
@@ -232,7 +246,7 @@ bool CacheMaintenanceService::remove_file_cache(const std::filesystem::path& pat
     }
     if (ec) {
         if (error) {
-            *error = "Failed to inspect cache path '" + path.string() + "'.";
+            *error = "Failed to inspect cache path '" + Utils::path_to_utf8(path) + "'.";
         }
         return false;
     }
@@ -240,7 +254,7 @@ bool CacheMaintenanceService::remove_file_cache(const std::filesystem::path& pat
     const bool removed = std::filesystem::remove(path, ec);
     if (ec || !removed) {
         if (error) {
-            *error = "Failed to remove cache file '" + path.string() + "'.";
+            *error = "Failed to remove cache file '" + Utils::path_to_utf8(path) + "'.";
         }
         return false;
     }
@@ -262,7 +276,7 @@ bool CacheMaintenanceService::clear_directory_cache(const std::filesystem::path&
     }
     if (ec) {
         if (error) {
-            *error = "Failed to inspect cache path '" + path.string() + "'.";
+            *error = "Failed to inspect cache path '" + Utils::path_to_utf8(path) + "'.";
         }
         return false;
     }
@@ -270,7 +284,7 @@ bool CacheMaintenanceService::clear_directory_cache(const std::filesystem::path&
     for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
         if (ec) {
             if (error) {
-                *error = "Failed to enumerate cache directory '" + path.string() + "'.";
+                *error = "Failed to enumerate cache directory '" + Utils::path_to_utf8(path) + "'.";
             }
             return false;
         }
@@ -289,7 +303,7 @@ bool CacheMaintenanceService::clear_directory_cache(const std::filesystem::path&
 
         if (ec) {
             if (error) {
-                *error = "Failed to clear cache entry '" + entry_path.string() + "'.";
+                *error = "Failed to clear cache entry '" + Utils::path_to_utf8(entry_path) + "'.";
             }
             return false;
         }

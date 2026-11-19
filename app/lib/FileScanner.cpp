@@ -1,4 +1,5 @@
 #include "FileScanner.hpp"
+#include "FolderPurposeMetadata.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <algorithm>
@@ -203,7 +204,7 @@ bool FileScanner::is_junk_file(const std::string& name) const {
     static const std::unordered_set<std::string> junk = {
         ".DS_Store", "Thumbs.db", "desktop.ini"
     };
-    return junk.contains(name);
+    return name == FolderPurposeMetadata::kFileName || junk.contains(name);
 }
 
 bool FileScanner::is_additional_junk_file(const std::string& name,

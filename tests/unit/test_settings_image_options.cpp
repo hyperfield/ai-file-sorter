@@ -112,6 +112,95 @@ TEST_CASE("Settings defaults use subcategories on when config key is missing") {
     REQUIRE(reloaded.get_use_subcategories());
 }
 
+TEST_CASE("Settings persists existing folder-tree sorting mode") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_suggest_new_folders(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_sorting_mode() == SortingMode::ExistingFolderTree);
+    REQUIRE(reloaded.get_suggest_new_folders());
+}
+
+TEST_CASE("Settings defaults to existing folders while retaining an explicit sorting choice", "[sorting-rules]") {
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings defaults;
+    CHECK(defaults.get_sorting_mode() == SortingMode::ExistingFolderTree);
+    CHECK_FALSE(defaults.get_suggest_new_folders());
+
+    const auto path = std::filesystem::path(defaults.get_config_dir()) / "config.ini";
+    for (const auto* value : {"missing", "", "invalid", "ExistingFolderTree", "GeneratedCategories"}) {
+        QSettings config(QString::fromStdString(path.string()), QSettings::IniFormat);
+        config.clear();
+        config.setValue("Settings/CategorizeFiles", true);
+        if (std::string(value) != "missing") config.setValue("Settings/SortingMode", value);
+        config.sync();
+
+        Settings loaded;
+        REQUIRE(loaded.load());
+        CHECK(loaded.get_sorting_mode() == (std::string(value) == "GeneratedCategories"
+            ? SortingMode::GeneratedCategories : SortingMode::ExistingFolderTree));
+        REQUIRE(loaded.save());
+        Settings reloaded;
+        REQUIRE(reloaded.load());
+        CHECK(reloaded.get_sorting_mode() == loaded.get_sorting_mode());
+    }
+}
+
+TEST_CASE("Settings persists Johnny.Decimal plugin suggestion suppression") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    REQUIRE_FALSE(settings.get_hide_johnny_decimal_plugin_suggestion());
+    settings.set_hide_johnny_decimal_plugin_suggestion(true);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    REQUIRE(reloaded.get_hide_johnny_decimal_plugin_suggestion());
+}
+
+TEST_CASE("Settings persists destination folder separately from analyzed folder") {
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+#ifdef _WIN32
+    EnvVarGuard appdata_guard("APPDATA", temp.path().string());
+#endif
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    const std::string source = (temp.path() / "source").string();
+    const std::string destination = (temp.path() / "destination").string();
+
+    Settings settings;
+    settings.set_sort_folder(source);
+    settings.set_destination_folder(destination);
+    REQUIRE(settings.save());
+
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    CHECK(reloaded.get_sort_folder() == source);
+    CHECK(reloaded.get_destination_folder() == destination);
+    CHECK(reloaded.get_effective_destination_folder(source) == destination);
+
+    reloaded.set_destination_folder(std::string());
+    CHECK(reloaded.get_effective_destination_folder(source) == source);
+}
+
 TEST_CASE("Settings enforces rename-only implies offer rename") {
     TempDir temp;
     EnvVarGuard home_guard("HOME", temp.path().string());
@@ -277,4 +366,32 @@ TEST_CASE("Settings persists selected visual model backend") {
     Settings reloaded;
     REQUIRE(reloaded.load());
     REQUIRE(reloaded.get_visual_model_id() == "gemma-3-4b-it");
+}
+
+TEST_CASE("Settings makes whole-folder sorting nonrecursive") {
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    for (unsigned flags = 0; flags < 4; ++flags) {
+        Settings settings;
+        const bool folders = (flags & 1) != 0;
+        const bool recursive = (flags & 2) != 0;
+        settings.set_categorize_directories(false);
+        settings.set_include_subdirectories(recursive);
+        settings.set_categorize_directories(folders);
+        settings.set_include_subdirectories(recursive);
+        CHECK(settings.get_categorize_directories() == folders);
+        CHECK(settings.get_include_subdirectories() == (recursive && !folders));
+        REQUIRE(settings.save());
+        Settings reloaded;
+        REQUIRE(reloaded.load());
+        CHECK(reloaded.get_categorize_directories() == folders);
+        CHECK(reloaded.get_include_subdirectories() == (recursive && !folders));
+    }
+    Settings stored;
+    const auto path = Utils::utf8_to_path(stored.get_config_dir()) / "config.ini";
+    { std::ofstream legacy(path); legacy << "[Settings]\nCategorizeDirectories=true\nIncludeSubdirectories=true\n"; }
+    Settings legacy;
+    REQUIRE(legacy.load());
+    CHECK(legacy.get_categorize_directories());
+    CHECK_FALSE(legacy.get_include_subdirectories());
 }

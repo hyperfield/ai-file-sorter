@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "CategoryDateSuffix.hpp"
 
 #include <cctype>
@@ -7,7 +8,7 @@ namespace {
 bool is_digit_at(std::string_view value, std::size_t index)
 {
     return index < value.size() &&
-           std::isdigit(static_cast<unsigned char>(value[index])) != 0;
+           TextEncoding::ascii_digit(static_cast<unsigned char>(value[index])) != 0;
 }
 
 bool has_suffix(std::string_view value, std::string_view suffix)

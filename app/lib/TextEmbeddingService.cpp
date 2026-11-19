@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "TextEmbeddingService.hpp"
 
 #include <algorithm>
@@ -31,7 +32,7 @@ std::string normalize_token(std::string token)
     for (auto& ch : token) {
         const auto byte = static_cast<unsigned char>(ch);
         if (byte < 128) {
-            ch = static_cast<char>(std::tolower(byte));
+            ch = static_cast<char>(TextEncoding::ascii_lower(byte));
         }
     }
 
@@ -51,7 +52,7 @@ std::vector<std::string> tokenize(std::string_view text)
     std::vector<std::string> tokens;
     std::string current;
     for (unsigned char ch : text) {
-        if (std::isalnum(ch) || ch >= 128) {
+        if (TextEncoding::ascii_alnum(ch) || ch >= 128) {
             current.push_back(static_cast<char>(ch));
             continue;
         }

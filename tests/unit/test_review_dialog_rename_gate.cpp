@@ -54,10 +54,10 @@ TEST_CASE("Review dialog rename-only toggles disabled when renames are not allow
 
     QCheckBox* image_disabled = find_checkbox_by_text(
         dialog_disabled,
-        QStringLiteral("Do not categorize picture files (only rename)"));
+        QStringLiteral("Rename pictures without moving"));
     QCheckBox* document_disabled = find_checkbox_by_text(
         dialog_disabled,
-        QStringLiteral("Do not categorize document files (only rename)"));
+        QStringLiteral("Rename documents without moving"));
 
     REQUIRE(image_disabled != nullptr);
     REQUIRE(document_disabled != nullptr);
@@ -71,10 +71,10 @@ TEST_CASE("Review dialog rename-only toggles disabled when renames are not allow
 
     QCheckBox* image_enabled = find_checkbox_by_text(
         dialog_enabled,
-        QStringLiteral("Do not categorize picture files (only rename)"));
+        QStringLiteral("Rename pictures without moving"));
     QCheckBox* document_enabled = find_checkbox_by_text(
         dialog_enabled,
-        QStringLiteral("Do not categorize document files (only rename)"));
+        QStringLiteral("Rename documents without moving"));
 
     REQUIRE(image_enabled != nullptr);
     REQUIRE(document_enabled != nullptr);

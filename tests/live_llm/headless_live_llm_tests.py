@@ -13,6 +13,7 @@ import configparser
 import json
 import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,7 @@ from urllib.parse import unquote, urlparse
 
 
 SKIP_EXIT_CODE = 77
+PROCESS_TREE_TERMINATION_TIMEOUT_SECONDS = 10
 LIVE_BACKENDS = {"auto", "cpu", "cuda", "vulkan"}
 TERMINAL_STATUS_VALUES = {"completed", "failed", "review_required"}
 PROGRESS_LOG_PATH: Path | None = None
@@ -1593,6 +1595,24 @@ def shell_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
+def terminate_process_tree(proc: subprocess.Popen) -> None:
+    """Stop the complete test job, including the Windows bootstrapper's children."""
+    if os.name == "nt":
+        result = subprocess.run(
+            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=PROCESS_TREE_TERMINATION_TIMEOUT_SECONDS, check=False,
+        )
+        if result.returncode and proc.poll() is None:
+            raise LiveTestFailure(f"Failed to terminate test process tree {proc.pid}: taskkill exited {result.returncode}")
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    proc.wait(timeout=PROCESS_TREE_TERMINATION_TIMEOUT_SECONDS)
+
+
 def run_command_with_status_progress(
     *,
     command: list[str],
@@ -1619,26 +1639,26 @@ def run_command_with_status_progress(
             errors="replace",
             stdout=stdout_file,
             stderr=stderr_file,
+            start_new_session=os.name != "nt",
         )
 
-        while True:
-            returncode = proc.poll()
-            last_signature = maybe_log_status_progress(status_path, case_name, last_signature)
-            now = time.monotonic()
-            update_case_progress()
-            if returncode is not None:
-                stdout_file.flush()
-                stderr_file.flush()
-                last_signature = maybe_log_status_progress(status_path, case_name, last_signature, force=True)
-                return returncode, last_signature
-            if now >= deadline:
-                proc.kill()
-                try:
-                    proc.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    pass
-                raise LiveTestFailure(f"{case_name} timed out after {timeout_seconds}s; logs: {stdout_path.parent}")
-            time.sleep(1)
+        try:
+            while True:
+                returncode = proc.poll()
+                last_signature = maybe_log_status_progress(status_path, case_name, last_signature)
+                now = time.monotonic()
+                update_case_progress()
+                if returncode is not None:
+                    stdout_file.flush()
+                    stderr_file.flush()
+                    last_signature = maybe_log_status_progress(status_path, case_name, last_signature, force=True)
+                    return returncode, last_signature
+                if now >= deadline:
+                    raise LiveTestFailure(f"{case_name} timed out after {timeout_seconds}s; logs: {stdout_path.parent}")
+                time.sleep(1)
+        finally:
+            if proc.poll() is None:
+                terminate_process_tree(proc)
 
 
 def maybe_log_status_progress(
@@ -1737,6 +1757,7 @@ def seed_config(config_root: Path, ctx: LiveContext) -> None:
                 ("CategoryLanguage", "English"),
                 ("HeadlessReviewBeforeApply", "true"),
                 ("UseSubcategories", "true"),
+                ("SortingMode", "GeneratedCategories"),
                 ("UseWhitelist", "false"),
                 ("CategorizeFiles", "true"),
                 ("CategorizeDirectories", "false"),

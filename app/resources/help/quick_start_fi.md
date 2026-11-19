@@ -1,8 +1,8 @@
 # Pika-aloitusopas
 
-AI File Sorter auttaa jarjestamaan tiedostoja tarkistus ensin -tyonkululla ja valinnaisella automaattisella hyvaksyntaa varten niille muutoksille, joihin haluat luottaa.
+AI File Sorter auttaa järjestämään tiedostoja tarkistamalla muutokset ensin. Valinnainen automaattinen hyväksyntä voi esivalita muutoksia tarkistuslistasta.
 
-AI ohjaa analyysia ja ehdottaa kategorioita, alakategorioita ja nimia. Se ei muuta tiedostojasi suoraan. Sovellus siirtaa tai nimeaa tiedostoja uudelleen, kun vahvistat tarkistetut muutokset, tai automaattisesti vain silloin, kun vastaava auto-hyvaksynta on otettu kayttoon.
+Tekoäly ehdottaa kategorioita, kohdekansioita ja nimiä. Sovellus siirtää tai nimeää tiedostot uudelleen vasta, kun vahvistat valitut muutokset tarkistusikkunassa.
 
 ## Turvallinen ensimmainen ajo
 
@@ -16,6 +16,32 @@ Hyvia ensimmaisen ajon kansioita ovat:
 
 Tama pitaa ensimmaisen ajon helppona tarkistaa. Tiedostosi pysyvat tietokoneellasi, kun kaytat paikallisia malleja, ja AI vain ehdottaa kategorioita ja nimia. Jata auto-hyvaksynta pois paalta ensimmaisella ajolla, jotta mitaan ei siirreta tai nimeta uudelleen ennen kuin hyvaksytyt tarkistuslistan.
 
+Valinnainen verkkopaikkahaku lähettää kuvien GPS-koordinaatit kolmen desimaalin tarkkuuteen pyöristettyinä OpenStreetMapin Nominatim-palveluun myös paikallisia malleja käytettäessä. Palveluntarjoaja näkee myös IP-osoitteesi ja pyynnön ajankohdan. Kuvatiedostoja, tiedostonimiä tai kuvauspäivämääriä ei lähetetä; pelkkien päivämäärien lisääminen luokkiin tapahtuu paikallisesti.
+
+## Ota LLM käyttöön
+
+Avaa **Settings -> Select LLM**. Valitse malli avattavasta **Local LLMs** -luettelosta tai palveluntarjoaja kohdasta **API connections**.
+
+**Qwen3.5 4B (Recommended)** on ensimmäinen paikallinen vaihtoehto ja uusien asetusten oletusmalli. Se tarjoaa tarkkaa kategorisointia, ja sitä suositellaan olemassa oleviin kansiorakenteisiin. Aiemmin tallennettu mallivalintasi säilyy. Jos haluat käyttää omaa GGUF-tiedostoa, valitse **Custom local LLM (gguf)** ja sitten **Add**.
+
+Jos käytät sovelluksen tarjoamaa paikallista mallia, laajenna **Downloads**, napsauta **Download** ja odota ilmoitusta **Model ready** ennen kuin vahvistat painikkeella **OK**. **Model storage** määrittää latauskansion. **See details** näyttää latausosoitteen, paikallisen polun ja tekniset tiedot.
+
+Valitse paikallista kuva-analyysiä varten **Visuaalinen malli** kohdasta **Kuva-analyysimallit** ja lataa tarvittavat tiedostot. Kuvamalli valitaan erikseen tekstimallista.
+
+Valitse kohdasta **API connections** Gemini, ChatGPT (OpenAI) tai oma OpenAI-yhteensopiva päätepiste ja anna tarvittavat yhteystiedot sekä mallin nimi. Pilvi-API:t vaativat internetyhteyden ja lähettävät analyysin syötteet määritettyyn palveluun. Omat päätepisteet voivat toimia myös paikallisesti.
+
+Jos haluat analysoida kuvia OpenAI-yhteensopivan API-yhteyden kautta, ota yhteydelle käyttöön **Kuvia ymmärtävä malli** ja valitse se kohdasta **Kuva-analyysimallit** → **Visuaalinen malli**. Paikallista mallia tai projektoria ei tarvitse ladata. Kuvatuen käyttöönotto pyytää vahvistamaan, että kuvien sisältö lähetetään määritettyyn palvelimeen.
+
+## Tarkista paikallinen suorituskyky (valinnainen)
+
+Kun mallit on ladattu, avaa **File -> System compatibility check** ja napsauta **Run benchmark**. Sulje ensin muut suoritinta tai grafiikkasuoritinta kuormittavat sovellukset. Tarkistus testaa ladatut paikalliset mallit, myös omat GGUF-mallit.
+
+Jätä **Backend** asetukseen **Automatic (try CPU if GPU fails)** tai valitse **All available backends**, jos haluat vertailla suoritinta ja tuettuja grafiikkasuoritinvaihtoehtoja. Tulokset tallennetaan erikseen kullekin mallille ja taustajärjestelmälle; yhden epäonnistuminen ei sulje pois toimivaa yhdistelmää toisella.
+
+Valitse tulos ja käytä **Retry selected** testataksesi saman yhdistelmän uudelleen, **Retry failed** testataksesi epäonnistuneet yhdistelmät uudelleen tai **Try chosen backend** testataksesi valittua mallia avattavan luettelon tietyllä taustajärjestelmällä.
+
+Suositukset arvioivat paikallista suorituskykyä. Tarkistus ei testaa API-palveluja eikä olemassa olevien kansioiden valinnan tarkkuutta, eikä se vaihda valittua mallia automaattisesti.
+
 ## 1. Valitse kansio
 
 Valitse jarjestettava kansio kayttamalla **Browse**-painiketta tai **File Explorer** -paneelia.
@@ -28,6 +54,8 @@ Tyypillisia esimerkkeja:
 - verkko- tai pilvisynkronoitu kansio
 - projektiarkisto
 
+**Destination** määrittää lajiteltujen tiedostojen kohteen. Pidä **Use analyzed folder** käytössä, jos haluat lajitella valitun kansion sisällä, tai poista se käytöstä ja valitse toinen kohde.
+
 ## 2. Valitse mita sovelluksen tulee tehda
 
 Paavaihtoehdoilla paatat, tuleeko sovelluksen:
@@ -37,20 +65,33 @@ Paavaihtoehdoilla paatat, tuleeko sovelluksen:
 - analysoida dokumentteja
 - tarjota uudelleennimeamisehdotuksia tuetuille tiedostoille
 
-Jos haluat vain uudelleennimeamisehdotuksia, ota kayttoon vastaava vain uudelleennimeaminen -tila.
+Jos haluat vain nimiehdotuksia, ota käyttöön **Tarjoa kuvatiedostojen uudelleennimeämistä** tai **Tarjoa asiakirjatiedostojen uudelleennimeämistä** ja sitten tiedostotyypin mukaan **Nimeä kuvat uudelleen siirtämättä** tai **Nimeä asiakirjat uudelleen siirtämättä**.
 
-## 3. Valitse kategorisointityyli
+**Lajittele kansiot** siirtää kokonaiset kansiot sisältöineen ja poistaa asetuksen **Skannaa alikansiot** käytöstä. Jos haluat etsiä tiedostoja alikansioista, poista **Lajittele kansiot** käytöstä ja ota **Skannaa alikansiot** käyttöön.
 
-Valitse tyyli, joka sopii parhaiten tavoitteeseesi:
+## 3. Valitse lajittelutapa
+
+Uusien profiilien oletus on **Käytä olemassa olevaa kansiorakennetta**. Tallennetut lajitteluvalinnat säilyvät. Valitse **Määränpää**, joka sisältää käytettävät kansiot, tai luo ne valitsemalla **Luo luokkakansiot**.
+
+Valitse lajittelutila:
+
+- **Create category folders** luo kansioita ehdotetuista kategorianimistä.
+- **Use existing folder structure** valitsee kansioita **Destination**-kohteen kansiopuusta. Ota **Suggest new folders when needed** käyttöön salliaksesi uudet kohteet, kun mikään kansio ei sovi hyvin; jätä se pois käytöstä käyttääksesi vain olemassa olevia kansioita.
+
+Lisää kohteeseen aloitusrakenne valinnalla **Luo kansiorakenne...**. **Folder language** käyttää aluksi luokkien kieltä, ja sen voi vaihtaa vain tätä rakennetta varten. Valittu LLM kääntää muut kuin englanninkieliset kansionimet. Tarkista käännetty esikatselu ennen valintaa **Luo**; numerointi ja sisäkkäisyys säilyvät.
+
+Suosittelemme olemassa oleviin kansioihin mallia **Qwen3.5 4B**. Myös **Gemma 1.1 7B** ja API:n kautta käytetyt mallit sopivat tähän. Muut paikalliset mallit näyttävät ohjeen; voit pitää mallisi tai vaihtaa sen kohdassa **Settings -> Select LLM**.
+
+Valitse **Create category folders** -tilassa kategorisointityyli:
 
 - **More refined** yleiseen kayttoon ja tarkempaan ryhmittelyyn
 - **More consistent**, jos haluat vahvempaa nimikkeiden yhdenmukaisuutta samankaltaisille tiedostoille
 
-Voit myos ottaa kayttoon kategoriavalkolistat, jos haluat sovelluksen pysyvan rajatummassa kategorianimien joukossa.
+Sallittujen nimien luettelot rajaavat ehdotettuja luokkien ja aliluokkien nimiä tilassa **Luo luokkakansiot**. Ne ovat poissa käytöstä ja ne ohitetaan tilassa **Käytä olemassa olevaa kansiorakennetta**, joka käyttää kohdekansioiden rakennetta. Luetteloasetus säilyy tilaa vaihdettaessa.
 
 ## 4. Aloita analyysi
 
-Napsauta **Analyze and categorize files**.
+Napsauta **Analyze folder**.
 
 Sovellus skannaa valitun kansion, keraa tarvitsemansa tiedot ja valmistelee tarkistuslistan.
 
@@ -66,13 +107,19 @@ Tarkistusikkunassa voit tarkistaa:
 
 Voit saataa tai hylata ehdotuksia ennen minkaan vahvistamista.
 
+Ota **Dry run (preview only, do not move files)** käyttöön esikatsellaksesi suunnitellut siirrot ja uudelleennimeämiset tekemättä niitä.
+
 ## 6. Ota muutokset kayttoon
 
-Kun vahvistat, sovellus luo tarvittavat kansiot ja tekee siirrot tai uudelleennimeamiset. Jos auto-hyvaksynta on kaytossa, kelvolliset kategoria- tai tiedostonimimuutokset voidaan ottaa kayttoon pysahtymatta tarkistusikkunaan.
+Valitse käsiteltävät rivit ja napsauta **Käytä muutoksia**. Sovellus luo tarvittavat kansiot ja suorittaa valitut siirrot tai uudelleennimeämiset.
+
+**Kuivakäynnin esikatselu**: Ota **Dry run (preview only, do not move files)** käyttöön esikatsellaksesi suunnitellut siirrot ja uudelleennimeämiset tekemättä niitä.
+
+**Valitse nimeämisehdotukset automaattisesti** ja **Valitse lajitteluehdotukset automaattisesti** esivalitsevat sopivat rivit. Sinun on silti vahvistettava ennen muutosten tekemistä.
 
 ## 7. Kumoa viimeisin ajo
 
-Jos otat muutokset kayttoon ja haluat peruuttaa ne, kayta valikosta **Undo last run**.
+Jos otat muutokset kayttoon ja haluat peruuttaa ne, kayta valikosta **Edit -> Undo last run**.
 
 Kumoaminen on tarkoitettu viimeisimmalle vahvistetulle lajitteluajolle. Se kayttaa sovelluksen tallentamaa ajohistoriaa tiedostojen palauttamiseen ja tuettujen uudelleennimeamisten peruuttamiseen mahdollisuuksien mukaan.
 

@@ -1,9 +1,12 @@
+#include "TextEncoding.hpp"
 #include "FilenameLocalizationService.hpp"
 
 #include "ILLMClient.hpp"
 #include "Utils.hpp"
 
 #include <QString>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <algorithm>
 #include <exception>
@@ -51,7 +54,7 @@ std::vector<std::string> split_words(const QString& value)
 std::string trim_copy(const std::string& value)
 {
     auto result = value;
-    const auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    const auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     result.erase(result.begin(), std::find_if(result.begin(), result.end(), not_space));
     result.erase(std::find_if(result.rbegin(), result.rend(), not_space).base(), result.end());
     return result;
@@ -123,7 +126,21 @@ std::string FilenameLocalizationService::localize_filename(const std::string& su
     try {
         const std::string response =
             llm.complete_prompt(prompt, kFilenameLocalizationCompletionTokens);
-        const std::string localized_stem = sanitize_stem(response, max_words, max_length);
+        auto stem_response = QString::fromStdString(response).trimmed();
+        if (stem_response.startsWith("```")) {
+            const auto newline = stem_response.indexOf('\n');
+            if (newline < 0 || !stem_response.endsWith("```")) return suggested_name;
+            stem_response = stem_response.mid(newline + 1, stem_response.size() - newline - 4).trimmed();
+        }
+        if (stem_response.startsWith('{') || stem_response.startsWith('[')) {
+            // Some providers still wrap plain-text tasks. Never turn JSON keys into filename words.
+            const auto document = QJsonDocument::fromJson(stem_response.toUtf8());
+            if (!document.isObject()) return suggested_name;
+            const auto object = document.object();
+            if (object.size() != 1 || !object.value("filename").isString()) return suggested_name;
+            stem_response = object.value("filename").toString();
+        }
+        const std::string localized_stem = sanitize_stem(stem_response.toStdString(), max_words, max_length);
         if (localized_stem.empty()) {
             return suggested_name;
         }
@@ -148,7 +165,7 @@ std::string FilenameLocalizationService::build_prompt(const std::string& stem,
         "Return only the translated filename stem.\n"
         "Rules:\n"
         "- Preserve the original meaning.\n"
-        "- Keep proper nouns unchanged when appropriate.\n"
+        "- Translate descriptive words; preserve proper nouns, acronyms and identifiers.\n"
         "- Use lowercase words separated by underscores.\n"
         "- Do not include a file extension.\n"
         "- Do not include quotes, JSON, or explanations.\n"

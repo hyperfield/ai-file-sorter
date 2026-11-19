@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "CategorizationResponseParser.hpp"
 
 #include "Utils.hpp"
@@ -19,19 +20,19 @@
 
 namespace {
 
-constexpr size_t kMaxLabelLength = 80;
+constexpr unsigned kMaxEmbeddedJsonDepth = 64;
 
 std::string to_lower_copy_str(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return value;
 }
 
 std::string trim_copy(std::string value)
 {
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !Utils::is_ascii_space(ch); };
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
     return value;
@@ -43,7 +44,7 @@ std::string collapse_spaces_copy(std::string value)
     collapsed.reserve(value.size());
     bool previous_space = false;
     for (unsigned char ch : value) {
-        if (std::isspace(ch)) {
+        if (Utils::is_ascii_space(ch)) {
             if (!previous_space) {
                 collapsed.push_back(' ');
             }
@@ -77,11 +78,11 @@ std::string strip_wrapping_punctuation(std::string value)
         }
     };
 
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.front())) ||
+    while (!value.empty() && (Utils::is_ascii_space(static_cast<unsigned char>(value.front())) ||
                               is_wrapping(static_cast<unsigned char>(value.front())))) {
         value.erase(value.begin());
     }
-    while (!value.empty() && (std::isspace(static_cast<unsigned char>(value.back())) ||
+    while (!value.empty() && (Utils::is_ascii_space(static_cast<unsigned char>(value.back())) ||
                               is_wrapping(static_cast<unsigned char>(value.back())) ||
                               value.back() == '.' || value.back() == ',' ||
                               value.back() == ':' || value.back() == ';')) {
@@ -105,9 +106,7 @@ std::string strip_trailing_parenthetical_gloss(std::string value)
             gloss = trim_copy(std::move(gloss));
         }
 
-        const bool has_alpha_chars = std::any_of(gloss.begin(), gloss.end(), [](unsigned char ch) {
-            return std::isalpha(ch);
-        });
+        const bool has_alpha_chars = TextEncoding::contains_letter(gloss);
         if (!has_alpha_chars) {
             break;
         }
@@ -124,8 +123,8 @@ bool starts_with_case_insensitive(std::string_view value, std::string_view prefi
     }
 
     for (std::size_t i = 0; i < prefix.size(); ++i) {
-        if (std::tolower(static_cast<unsigned char>(value[i])) !=
-            std::tolower(static_cast<unsigned char>(prefix[i]))) {
+        if (TextEncoding::ascii_lower(static_cast<unsigned char>(value[i])) !=
+            TextEncoding::ascii_lower(static_cast<unsigned char>(prefix[i]))) {
             return false;
         }
     }
@@ -137,7 +136,7 @@ std::size_t find_case_insensitive(const std::string& value, std::string_view nee
     const std::string lower_value = to_lower_copy_str(value);
     std::string lower_needle(needle);
     std::transform(lower_needle.begin(), lower_needle.end(), lower_needle.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return lower_value.find(lower_needle);
 }
@@ -225,7 +224,7 @@ std::string strip_inline_label_artifacts(std::string value, bool category_label)
 
             std::size_t label_start = idx + 1;
             while (label_start < lower.size() &&
-                   std::isspace(static_cast<unsigned char>(lower[label_start]))) {
+                   Utils::is_ascii_space(static_cast<unsigned char>(lower[label_start]))) {
                 ++label_start;
             }
 
@@ -239,7 +238,7 @@ std::string strip_inline_label_artifacts(std::string value, bool category_label)
 
                 const std::size_t after_label = label_start + label.size();
                 if (after_label == lower.size() ||
-                    std::isspace(static_cast<unsigned char>(lower[after_label])) ||
+                    Utils::is_ascii_space(static_cast<unsigned char>(lower[after_label])) ||
                     lower[after_label] == ':' ||
                     lower[after_label] == '=') {
                     return idx;
@@ -313,7 +312,7 @@ std::string strip_leading_label_artifacts(std::string value)
         std::size_t pos = marker.size();
         while (pos < value.size()) {
             const unsigned char ch = static_cast<unsigned char>(value[pos]);
-            if (std::isspace(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
+            if (Utils::is_ascii_space(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
                 ch == '"' || ch == '\'' || ch == '`') {
                 ++pos;
                 continue;
@@ -350,17 +349,17 @@ std::string strip_list_prefix(std::string line)
     }
 
     if ((line.front() == '-' || line.front() == '*') && line.size() > 1 &&
-        std::isspace(static_cast<unsigned char>(line[1]))) {
+        Utils::is_ascii_space(static_cast<unsigned char>(line[1]))) {
         return trim_copy(line.substr(1));
     }
 
     size_t idx = 0;
-    while (idx < line.size() && std::isdigit(static_cast<unsigned char>(line[idx]))) {
+    while (idx < line.size() && TextEncoding::ascii_digit(static_cast<unsigned char>(line[idx]))) {
         ++idx;
     }
     if (idx > 0 && idx + 1 < line.size() &&
         (line[idx] == '.' || line[idx] == ')') &&
-        std::isspace(static_cast<unsigned char>(line[idx + 1]))) {
+        Utils::is_ascii_space(static_cast<unsigned char>(line[idx + 1]))) {
         return trim_copy(line.substr(idx + 1));
     }
 
@@ -369,9 +368,7 @@ std::string strip_list_prefix(std::string line)
 
 bool has_alpha(const std::string& value)
 {
-    return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
-    });
+    return TextEncoding::contains_letter(value);
 }
 
 bool is_heading_like_label(const std::string& value)
@@ -459,7 +456,7 @@ std::optional<std::string> extract_relaxed_labeled_value(const std::string& line
         std::size_t pos = variant.size();
         while (pos < cleaned.size()) {
             const unsigned char ch = static_cast<unsigned char>(cleaned[pos]);
-            if (std::isspace(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
+            if (Utils::is_ascii_space(ch) || ch == ':' || ch == '=' || ch == '-' || ch == '>' ||
                 ch == '"' || ch == '\'' || ch == '`') {
                 ++pos;
                 continue;
@@ -512,8 +509,26 @@ std::string strip_code_fence(std::string output)
     return trim_copy(output.substr(first_newline + 1, last_fence - first_newline - 1));
 }
 
+bool split_collapsed_pair(const std::string& line, std::string& category, std::string& subcategory)
+{
+    const auto lower = to_lower_copy_str(line);
+    for (const char* marker : {", subcategory", ", sub category", ", sub_category",
+                               "; subcategory", " - subcategory"}) {
+        const auto pos = lower.find(marker);
+        if (pos == std::string::npos) continue;
+        const auto end = pos + std::char_traits<char>::length(marker);
+        if (end < lower.size() && !Utils::is_ascii_space(lower[end]) && lower[end] != ':' && lower[end] != '=') continue;
+        category = normalize_candidate_label(line.substr(0, pos), true);
+        const auto start = line.find_first_not_of(" \t:=", end);
+        subcategory = start == std::string::npos ? std::string() : normalize_candidate_label(line.substr(start), false);
+        return !category.empty() && !subcategory.empty();
+    }
+    return false;
+}
+
 bool split_inline_pair(const std::string& line, std::string& category, std::string& subcategory)
 {
+    if (split_collapsed_pair(line, category, subcategory)) return true;
     for (std::string_view delimiter : {std::string_view(" : "), std::string_view(":")}) {
         const auto segments = split_segments(line, delimiter);
         if (segments.size() < 2) {
@@ -542,8 +557,9 @@ bool split_inline_pair(const std::string& line, std::string& category, std::stri
 
 bool contains_only_allowed_chars(const std::string& value)
 {
+    if (value == "." || value == "..") return false;
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             return false;
         }
         static const std::string forbidden = R"(<>:"/\|?*)";
@@ -561,7 +577,7 @@ bool has_leading_or_trailing_space_or_dot(const std::string& value)
     }
     const unsigned char first = static_cast<unsigned char>(value.front());
     const unsigned char last = static_cast<unsigned char>(value.back());
-    return std::isspace(first) || std::isspace(last);
+    return Utils::is_ascii_space(first) || Utils::is_ascii_space(last);
 }
 
 bool is_reserved_windows_name(const std::string& value)
@@ -572,7 +588,7 @@ bool is_reserved_windows_name(const std::string& value)
         "lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"
     };
     const std::string lower = to_lower_copy_str(value);
-    return std::find(reserved.begin(), reserved.end(), lower) != reserved.end();
+    return std::find(reserved.begin(), reserved.end(), lower.substr(0, lower.find('.'))) != reserved.end();
 }
 
 bool looks_like_extension_label(const std::string& value)
@@ -586,16 +602,103 @@ bool looks_like_extension_label(const std::string& value)
         return false;
     }
     return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) {
-        return std::isalpha(ch);
+        return TextEncoding::ascii_alpha(ch);
     });
+}
+
+void advance_json_string(char ch, bool& quoted, bool& escaped)
+{
+    if (escaped) escaped = false;
+    else if (ch == '\\') escaped = true;
+    else if (ch == '"') quoted = false;
+}
+
+std::optional<std::size_t> json_object_end(const std::string& response, std::size_t start)
+{
+    unsigned depth = 0;
+    bool quoted = false;
+    bool escaped = false;
+    for (auto pos = start; pos < response.size(); ++pos) {
+        const char ch = response[pos];
+        if (quoted) {
+            advance_json_string(ch, quoted, escaped);
+            continue;
+        }
+        switch (ch) {
+        case '"': quoted = true; break;
+        case '{': case '[':
+            if (++depth > kMaxEmbeddedJsonDepth) return std::nullopt;
+            break;
+        case '}': case ']':
+            if (--depth == 0) return ch == '}' ? std::make_optional(pos + 1) : std::nullopt;
+            break;
+        default: break;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<Json::Value> embedded_json_object(const std::string& response)
+{
+    constexpr unsigned kMaxJsonCandidates = 16;
+    Json::CharReaderBuilder builder;
+    // JsonCpp also counts the terminal scalar in its value stack.
+    builder["stackLimit"] = kMaxEmbeddedJsonDepth + 1;
+    builder["failIfExtra"] = true;
+    const std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+    std::size_t next = 0;
+    for (unsigned count = 0; count < kMaxJsonCandidates; ++count) {
+        const auto start = response.find('{', next);
+        if (start == std::string::npos) break;
+        const auto end = json_object_end(response, start);
+        if (!end) break;
+        Json::Value root;
+        std::string errors;
+        if (reader->parse(response.data() + start, response.data() + *end, &root, &errors) && root.isObject()) return root;
+        next = *end;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::pair<std::string, std::string>> translated_json_labels(const Json::Value& root)
+{
+    if (!root["category"].isString() ||
+        (root.isMember("subcategory") && !root["subcategory"].isString())) return std::nullopt;
+    const std::string category = normalize_candidate_label(root["category"].asString(), true);
+    const std::string subcategory = root.isMember("subcategory")
+        ? normalize_candidate_label(root["subcategory"].asString(), false) : std::string();
+    if (category.empty()) return std::nullopt;
+    return std::make_pair(Utils::sanitize_path_label(category),
+        Utils::sanitize_path_label(subcategory.empty() ? category : subcategory));
+}
+
+std::optional<std::pair<std::string, std::string>> translated_text_labels(const std::string& response)
+{
+    // Broken JSON and code fences must never become folder names through loose parsing.
+    if (response.find_first_of("{}[]`\"") != std::string::npos) return std::nullopt;
+    auto [category, subcategory] = CategorizationResponseParser::split_category_subcategory(response);
+    if (category.empty() || !TextEncoding::contains_letter(category) ||
+        !TextEncoding::label_within_limits(category)) return std::nullopt;
+    if (subcategory.empty()) {
+        if (response.find('\n') != std::string::npos) return std::nullopt;
+        subcategory = category;
+    }
+    return std::make_pair(category, subcategory);
 }
 
 } // namespace
 
 namespace CategorizationResponseParser {
 
+bool is_category_abstention(const std::string& response)
+{
+    const auto text = to_lower_copy_str(strip_wrapping_punctuation(strip_code_fence(response)));
+    return text == "no_match" || text == "no match";
+}
+
 std::pair<std::string, std::string> split_category_subcategory(const std::string& input)
 {
+    if (is_category_abstention(input)) return {};
     std::vector<std::string> lines;
     lines.reserve(4);
 
@@ -671,27 +774,12 @@ std::pair<std::string, std::string> split_category_subcategory(const std::string
 std::optional<std::pair<std::string, std::string>> parse_translated_category_response(
     const std::string& response)
 {
-    Json::Value root;
-    Json::CharReaderBuilder reader;
-    std::string errors;
-    std::istringstream stream(response);
-    if (Json::parseFromStream(reader, stream, &root, &errors) && root.isObject()) {
-        const std::string category = normalize_candidate_label(root.get("category", "").asString(), true);
-        const std::string subcategory = normalize_candidate_label(root.get("subcategory", "").asString(), false);
-        if (!category.empty()) {
-            return std::make_pair(Utils::sanitize_path_label(category),
-                                  Utils::sanitize_path_label(subcategory.empty() ? category : subcategory));
-        }
+    constexpr std::size_t kMaxTranslationResponseBytes = 64 * 1024;
+    if (response.size() > kMaxTranslationResponseBytes || is_category_abstention(response)) return std::nullopt;
+    if (const auto object = embedded_json_object(response)) {
+        return translated_json_labels(*object);
     }
-
-    auto [category, subcategory] = split_category_subcategory(response);
-    if (category.empty()) {
-        return std::nullopt;
-    }
-    if (subcategory.empty()) {
-        subcategory = category;
-    }
-    return std::make_pair(category, subcategory);
+    return translated_text_labels(response);
 }
 
 LabelValidationResult validate_labels(const std::string& category,
@@ -700,7 +788,7 @@ LabelValidationResult validate_labels(const std::string& category,
     if (category.empty() || subcategory.empty()) {
         return {false, "Category or subcategory is empty"};
     }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+    if (!TextEncoding::label_within_limits(category) || !TextEncoding::label_within_limits(subcategory)) {
         return {false, "Category or subcategory exceeds max length"};
     }
     if (!contains_only_allowed_chars(category) || !contains_only_allowed_chars(subcategory)) {

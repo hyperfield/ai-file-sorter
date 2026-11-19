@@ -76,7 +76,7 @@ Bucket expected_bucket(const FileEntry& entry,
             }
             return Bucket::Image;
         }
-        return allow_other_files ? Bucket::Other : Bucket::None;
+        return combo.categorize_files ? Bucket::Other : Bucket::None;
     }
 
     if (is_document) {
@@ -90,7 +90,7 @@ Bucket expected_bucket(const FileEntry& entry,
             }
             return Bucket::Document;
         }
-        return allow_other_files ? Bucket::Other : Bucket::None;
+        return combo.categorize_files ? Bucket::Other : Bucket::None;
     }
 
     return allow_other_files ? Bucket::Other : Bucket::None;

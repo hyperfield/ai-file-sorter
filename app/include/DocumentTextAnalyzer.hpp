@@ -1,14 +1,16 @@
 #pragma once
 
+#include "FilenameWordLimits.hpp"
 #include <cstddef>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 
 class ILLMClient;
 
 inline constexpr std::size_t kDefaultDocumentAnalyzerMaxCharacters = 8000;
-inline constexpr std::size_t kDefaultDocumentAnalyzerMaxFilenameWords = 3;
+inline constexpr std::size_t kDefaultDocumentAnalyzerMaxFilenameWords = kDefaultFilenameWords;
 inline constexpr std::size_t kDefaultDocumentAnalyzerMaxFilenameLength = 50;
 inline constexpr int kDefaultDocumentAnalyzerMaxTokens = 256;
 
@@ -21,6 +23,12 @@ struct DocumentAnalysisResult {
      * @brief Suggested filename based on the analyzed content (including extension).
      */
     std::string suggested_name;
+    /** @brief Completion attempts, including intermediate summaries and budget rejections. */
+    std::size_t summary_requests{0};
+    /** @brief Number of source chunks summarized (one for an unsplit document). */
+    std::size_t summarized_chunks{0};
+    /** @brief True when bounded extractive evidence was needed instead of a model summary. */
+    bool used_extractive_fallback{false};
 };
 
 /**
@@ -33,7 +41,7 @@ public:
      */
     struct Settings {
         /**
-         * @brief Maximum characters to include in the excerpt sent to the LLM.
+         * @brief Maximum useful UTF-8 text bytes to extract and summarize across all chunks.
          */
         size_t max_characters = kDefaultDocumentAnalyzerMaxCharacters;
         /**
@@ -48,6 +56,8 @@ public:
          * @brief Maximum number of tokens to generate for the response.
          */
         int max_tokens = kDefaultDocumentAnalyzerMaxTokens;
+        /** @brief Optional cooperative cancellation check between extraction/chunk steps. */
+        std::function<bool()> should_stop;
     };
 
     /**
@@ -84,7 +94,7 @@ public:
 private:
     std::string extract_text(const std::filesystem::path& path) const;
     std::string build_prompt(const std::string& excerpt,
-                             const std::string& file_name) const;
+                             const std::string& file_name, bool merging = false) const;
     std::string sanitize_filename(const std::string& value,
                                   size_t max_words,
                                   size_t max_length) const;

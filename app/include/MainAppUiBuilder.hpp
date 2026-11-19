@@ -26,6 +26,8 @@ public:
 
 private:
     void build_central_panel(MainApp& app);
+    /** @brief Builds the sorting controls in their shared dialog. @param app Owning window. */
+    void build_sorting_rules(MainApp& app);
     void build_menus(MainApp& app);
     void build_file_menu(MainApp& app);
     void build_edit_menu(MainApp& app);

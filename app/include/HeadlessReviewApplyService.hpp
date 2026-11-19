@@ -37,6 +37,8 @@ public:
         bool apply_suggested_names{false};
         /** @brief Whether categorized entries should be moved into category folders. */
         bool move_categorized_entries{true};
+        /** @brief Whether existing-folder sorting may create approved new target folders. */
+        bool allow_new_folder_targets{false};
         /** @brief Language used by display labels when canonical labels are absent. */
         CategoryLanguage category_language{CategoryLanguage::English};
         /** @brief Whether planned changes should be committed to storage and cache. */
@@ -53,6 +55,13 @@ public:
         std::string destination_name;
         std::string category;
         std::string subcategory;
+        std::string target_folder;
+        /** @brief App-generated explanation of the chosen folder-tree route; display metadata only. */
+        std::string folder_tree_routing_explanation;
+        /** @brief Whether the analyzed entry uses a relative folder-tree destination. */
+        bool folder_tree_mode{false};
+        bool target_folder_suggested_new{false};
+        bool target_folder_exists{false};
         std::string message;
         bool rename_only{false};
         bool moved{false};
@@ -100,6 +109,7 @@ private:
         std::time_t mtime{0};
         std::string stable_identity;
         std::string revision_token;
+        std::vector<std::string> created_directories;
     };
 
     /**
@@ -108,11 +118,13 @@ private:
      * @param options Apply options.
      * @param result Aggregate result to update.
      * @param move_history Successful move records for undo.
+     * @param run_created_directories Directories created earlier in this apply run.
      */
     void apply_entry(const CategorizedFile& entry,
                      const Options& options,
                      Result& result,
-                     std::vector<MoveRecord>& move_history) const;
+                     std::vector<MoveRecord>& move_history,
+                     std::vector<std::string>& run_created_directories) const;
 
     /**
      * @brief Persist an undo plan for successful moves.
@@ -133,6 +145,7 @@ private:
      * @param category Category label.
      * @param subcategory Subcategory label.
      * @param metadata Provider metadata captured after the move.
+     * @param created_directories Directories created by this apply action.
      */
     void record_history_entry(const CategorizedFile& entry,
                               ReviewHistoryStore::Operation operation,
@@ -141,7 +154,8 @@ private:
                               const std::string& destination_name,
                               const std::string& category,
                               const std::string& subcategory,
-                              const StorageEntryMetadata& metadata) const;
+                              const StorageEntryMetadata& metadata,
+                              const std::vector<std::string>& created_directories = {}) const;
 
     DatabaseManager* db_manager_{nullptr};
     IStorageProvider& storage_provider_;

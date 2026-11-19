@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CloudCompatibilityProvider.hpp"
 #include "FileScanner.hpp"
+#include "FolderPurposeMetadata.hpp"
 #include "TestHelpers.hpp"
 #include <algorithm>
 #include <fstream>
@@ -50,6 +51,18 @@ TEST_CASE("junk files are skipped regardless of flags") {
     auto entries = scanner.get_directory_entries(temp_dir.path().string(),
         FileScanOptions::Files | FileScanOptions::HiddenFiles);
     REQUIRE(entries.empty());
+}
+
+TEST_CASE("Folder purpose control files are never queued for sorting", "[folder-purpose]") {
+    TempDir root;
+    write_file(root.path() / FolderPurposeMetadata::kFileName);
+    write_file(root.path() / "nested" / FolderPurposeMetadata::kFileName);
+    write_file(root.path() / "ordinary.json");
+    FileScanner scanner;
+    const auto entries = scanner.get_directory_entries(root.path().string(),
+        FileScanOptions::Files | FileScanOptions::HiddenFiles | FileScanOptions::Recursive);
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().file_name == "ordinary.json");
 }
 
 TEST_CASE("application bundles are treated as files") {

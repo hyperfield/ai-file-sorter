@@ -1,11 +1,17 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include "AnalysisRuntimeLock.hpp"
+#include "ChatCompletionTestServer.hpp"
+#include "TestHelpers.hpp"
 #include "DatabaseManager.hpp"
 #include "HeadlessAnalysisCommand.hpp"
+#include "FolderTreeCatalog.hpp"
 #include "HeadlessReviewApplyService.hpp"
 #include "LocalFsProvider.hpp"
 #include "Settings.hpp"
+#include "StorageProviderRegistry.hpp"
+#include "UndoManager.hpp"
 #include "Utils.hpp"
 
 #include <QByteArray>
@@ -15,10 +21,13 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
 #include <QTemporaryDir>
 #include <QtGlobal>
 
 #include <algorithm>
+#include <QtEndian>
+#include <memory>
 #include <sstream>
 #include <vector>
 
@@ -310,6 +319,48 @@ TEST_CASE("HeadlessAnalysisCommand reports busy runtime lock")
     CHECK(out.str().find("\"blocked\"") != std::string::npos);
 }
 
+TEST_CASE("HeadlessAnalysisCommand enforces destination depth only for existing-folder categorization", "[destination-depth]")
+{
+    QtAppContext qt;
+    TempDir config, source, destination, runtime;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_language(Language::English);
+    REQUIRE(settings.save());
+    std::filesystem::path relative;
+    for (int i = 0; i <= FolderTreeCatalog::kDefaultMaxDepth; ++i) relative /= "Nested";
+    std::filesystem::create_directories(destination.path() / relative);
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths = {source.path()};
+    options.status_file = config.path() / "status.json";
+    options.settings_overrides.destination_folder = Utils::path_to_utf8(destination.path());
+    options.settings_overrides.sorting_mode = SortingMode::ExistingFolderTree;
+    bool should_fail = true;
+    SECTION("Existing-folder categorization rejects depth nine") {}
+    SECTION("Generated categories do not impose a destination depth check") {
+        options.settings_overrides.sorting_mode = SortingMode::GeneratedCategories;
+        should_fail = false;
+    }
+    SECTION("Rename-only does not impose a destination depth check") {
+        options.operation = HeadlessAnalysisCommand::Operation::Rename;
+        should_fail = false;
+    }
+    std::ostringstream out, err;
+    const int code = HeadlessAnalysisCommand::run(options, runtime.path(), out, err);
+    const auto status = read_status(*options.status_file);
+    if (should_fail) {
+        CHECK(code == HeadlessAnalysisCommand::Failure);
+        CHECK(status.value(QStringLiteral("status")).toString() == QStringLiteral("failed"));
+        CHECK(out.str().find(relative.generic_string()) != std::string::npos);
+    } else {
+        INFO(err.str());
+        CHECK(code == HeadlessAnalysisCommand::Success);
+    }
+    AnalysisRuntimeLock lock(runtime.path());
+    CHECK_FALSE(lock.is_locked());
+}
+
 TEST_CASE("HeadlessAnalysisCommand runs categorization for an empty folder")
 {
     QTemporaryDir dir;
@@ -483,6 +534,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorization for a folder")
     const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_headless_review_before_apply(false);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -541,6 +594,8 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "input.txt", "Documents", "Reports");
 
@@ -603,6 +658,110 @@ TEST_CASE("HeadlessAnalysisCommand prepares review before applying by default")
     CHECK(plan.value(QStringLiteral("kind")).toString() == QStringLiteral("aifs.headlessReviewPlan"));
     CHECK(plan.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize"));
     CHECK(plan.value(QStringLiteral("entries")).toArray().size() == 1);
+    const auto planned_entry = plan.value(QStringLiteral("entries")).toArray().at(0).toObject();
+    CHECK(planned_entry.value(QStringLiteral("plannedDestination")) ==
+          flat_entries.at(0).toObject().value(QStringLiteral("destination")));
+    CHECK(planned_entry.contains(QStringLiteral("folderTreeRoutingExplanation")));
+}
+
+TEST_CASE("HeadlessAnalysisCommand preserves legacy Explorer sorting through review and apply", "[headless][explorer-compat]")
+{
+    bool apply_names = false;
+    bool saved_sorting_mode = true;
+    SECTION("categorize with existing-folder app preferences") {}
+    SECTION("categorize without a saved sorting preference") { saved_sorting_mode = false; }
+    SECTION("categorize and rename with existing-folder app preferences") { apply_names = true; }
+
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto root = Utils::utf8_to_path(dir.path().toStdString());
+    const auto target = root / "inbox";
+    const auto archive = root / "archive";
+    std::filesystem::create_directories(target);
+    std::filesystem::create_directories(archive);
+    const auto source = make_file_at(target / "input.txt");
+    const auto sibling = make_file_at(target / "unselected.txt");
+    const auto reviewed_name = apply_names ? "renamed.txt" : "input.txt";
+    const auto preview = target / "Documents" / "Reports" / reviewed_name;
+    const auto edited_destination = target / "Edited Category" / "Reports" / reviewed_name;
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_destination_folder(Utils::path_to_utf8(archive));
+    settings.set_suggest_new_folders(true);
+    settings.set_offer_rename_documents(true);
+    REQUIRE(settings.save());
+    const auto config_path = Utils::utf8_to_path(settings.get_config_dir()) / "config.ini";
+    if (!saved_sorting_mode) {
+        QSettings config(QString::fromStdString(Utils::path_to_utf8(config_path)), QSettings::IniFormat);
+        config.remove(QStringLiteral("Settings/SortingMode"));
+        config.sync();
+    }
+    const auto config_bytes = [&]() {
+        QFile config(QString::fromStdString(Utils::path_to_utf8(config_path)));
+        REQUIRE(config.open(QIODevice::ReadOnly));
+        return config.readAll();
+    };
+    const auto before = config_bytes();
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, target, "input.txt", "Documents", "Reports", "renamed.txt");
+
+    const auto overrides_path = root / "explorer-104.settings.json";
+    QFile overrides_file(QString::fromStdString(Utils::path_to_utf8(overrides_path)));
+    REQUIRE(overrides_file.open(QIODevice::WriteOnly));
+    REQUIRE(overrides_file.write(R"json({"useSubcategories":true,"categorizeFiles":true,
+        "categorizeDirectories":false,"includeSubdirectories":false})json") > 0);
+    overrides_file.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = apply_names ? HeadlessAnalysisCommand::Operation::CategorizeAndRename
+                                    : HeadlessAnalysisCommand::Operation::Categorize;
+    options.paths = {source};
+    options.job_id = "explorer-104";
+    options.settings_overrides_file = overrides_path;
+    options.status_file = root / "explorer-104.json";
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    const auto runtime = root / "runtime";
+    std::ostringstream out;
+    std::ostringstream err;
+    REQUIRE(HeadlessAnalysisCommand::run(options, runtime, out, err) == HeadlessAnalysisCommand::Success);
+    const auto status = read_status(*options.status_file);
+    REQUIRE(status.value(QStringLiteral("status")).toString() == QStringLiteral("review_required"));
+    const auto review_path = Utils::utf8_to_path(status.value(QStringLiteral("reviewFile")).toString().toStdString());
+    auto plan = read_status(review_path);
+    auto entries = plan.value(QStringLiteral("entries")).toArray();
+    REQUIRE(entries.size() == 1);
+    auto entry = entries.at(0).toObject();
+    CHECK_FALSE(entry.value(QStringLiteral("folderTreeMode")).toBool());
+    CHECK(Utils::utf8_to_path(entry.value(QStringLiteral("plannedDestination")).toString().toStdString()) == preview);
+    CHECK(std::filesystem::exists(source));
+    CHECK_FALSE(std::filesystem::exists(preview));
+    CHECK(config_bytes() == before);
+
+    // Model the old extension's category edit, preserving unknown review fields.
+    entry.insert(QStringLiteral("category"), QStringLiteral("Edited Category"));
+    entry.insert(QStringLiteral("canonicalCategory"), QString());
+    entry.insert(QStringLiteral("canonicalSubcategory"), QString());
+    entries.replace(0, entry);
+    plan.insert(QStringLiteral("entries"), entries);
+    const auto approved_path = root / "approved.review.json";
+    QFile approved(QString::fromStdString(Utils::path_to_utf8(approved_path)));
+    REQUIRE(approved.open(QIODevice::WriteOnly));
+    REQUIRE(approved.write(QJsonDocument(plan).toJson()) > 0);
+    approved.close();
+    HeadlessAnalysisCommand::Options apply;
+    apply.request_mode = HeadlessAnalysisCommand::RequestMode::ApplyReview;
+    apply.review_file = approved_path;
+    apply.status_file = options.status_file;
+    apply.job_id = options.job_id + "-apply";
+    REQUIRE(HeadlessAnalysisCommand::run(apply, runtime, out, err) == HeadlessAnalysisCommand::Success);
+    CHECK(std::filesystem::exists(edited_destination));
+    CHECK_FALSE(std::filesystem::exists(source));
+    CHECK(std::filesystem::exists(sibling));
+    CHECK(std::filesystem::is_empty(archive));
+    CHECK(config_bytes() == before);
 }
 
 TEST_CASE("HeadlessAnalysisCommand preserves UTF-8 filenames in review status")
@@ -623,6 +782,8 @@ TEST_CASE("HeadlessAnalysisCommand preserves UTF-8 filenames in review status")
     const std::filesystem::path source = make_file_at(target / Utils::utf8_to_path(file_name));
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, file_name, "Documents", "Reports");
 
@@ -651,8 +812,12 @@ TEST_CASE("HeadlessAnalysisCommand preserves UTF-8 filenames in review status")
                                    .value(QStringLiteral("entries")).toArray();
     REQUIRE(entries.size() == 1);
     const QJsonObject entry = entries.at(0).toObject();
-    const QString expected_name =
-        QString::fromUtf8(file_name.data(), static_cast<qsizetype>(file_name.size()));
+    const std::filesystem::directory_iterator on_disk(target);
+    REQUIRE(on_disk != std::filesystem::directory_iterator{});
+    const QString expected_name = QString::fromStdString(Utils::path_to_utf8(on_disk->path().filename()));
+    CHECK(expected_name.normalized(QString::NormalizationForm_C) ==
+          QString::fromUtf8(file_name.data(), static_cast<qsizetype>(file_name.size()))
+              .normalized(QString::NormalizationForm_C));
     const QString actual_name = entry.value(QStringLiteral("fileName")).toString();
     CHECK(actual_name == expected_name);
     CHECK_FALSE(actual_name.contains(QChar::ReplacementCharacter));
@@ -677,6 +842,8 @@ TEST_CASE("HeadlessAnalysisCommand applies saved review plan")
     const std::filesystem::path destination = target / "Documents" / "Reports" / "input.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "input.txt", "Documents", "Reports");
 
@@ -746,6 +913,8 @@ TEST_CASE("HeadlessAnalysisCommand categorizes only a selected file target")
         target / "Documents" / "Reports" / "sibling.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "selected.txt", "Documents", "Reports");
 
@@ -793,6 +962,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached rename for a folder")
     const std::filesystem::path destination = target / "renamed_report.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_offer_rename_documents(true);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -852,6 +1023,8 @@ TEST_CASE("HeadlessAnalysisCommand renames only a selected file target")
     const std::filesystem::path sibling_destination = target / "renamed_notes.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_offer_rename_documents(true);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -884,6 +1057,387 @@ TEST_CASE("HeadlessAnalysisCommand renames only a selected file target")
     CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
 }
 
+namespace {
+
+/** @brief Builds a minimal MP4 atom containing the supplied payload. */
+QByteArray media_test_atom(const QByteArray& type, const QByteArray& payload)
+{
+    constexpr quint32 atom_header_bytes = 8;
+    QByteArray atom(4, '\0');
+    qToBigEndian<quint32>(atom_header_bytes + static_cast<quint32>(payload.size()),
+                         reinterpret_cast<uchar*>(atom.data()));
+    return atom + type + payload;
+}
+
+/** @brief Writes readable title metadata without a decoder, model, or external media tool. */
+void write_headless_media_fixture(const std::filesystem::path& path, bool with_metadata)
+{
+    QByteArray bytes;
+    if (with_metadata) {
+        const auto data = media_test_atom("data", QByteArray::fromHex("0000000100000000") + "Celestial Echoes");
+        const auto title = media_test_atom(QByteArray::fromHex("a96e616d"), data);
+        const auto meta = media_test_atom("meta", QByteArray(4, '\0') + media_test_atom("ilst", title));
+        bytes = media_test_atom("ftyp", QByteArray::fromHex("69736f6d0000000169736f6d6d703431")) +
+                media_test_atom("moov", media_test_atom("udta", meta));
+    }
+    QFile output(QString::fromStdString(Utils::path_to_utf8(path)));
+    REQUIRE(output.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    REQUIRE(output.write(bytes) == bytes.size());
+}
+
+} // namespace
+
+TEST_CASE("HeadlessAnalysisCommand sorts and renames documents with main-app analysis disabled")
+{
+    QtAppContext qt;
+    ChatCompletionTestServer server;
+    server.respond = [](const auto&) {
+        return ChatCompletionTestServer::answer(QStringLiteral("quarterly budget revenue"));
+    };
+    const bool auto_apply = GENERATE(false, true);
+    const bool explicit_analysis_off = GENERATE(false, true);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+    REQUIRE(std::filesystem::create_directories(target));
+    const auto source = make_file_at(target / "report.txt");
+    const auto sibling = make_file_at(target / "unselected.txt");
+    QFile document(QString::fromStdString(Utils::path_to_utf8(source)));
+    REQUIRE(document.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    const QByteArray contents = QByteArray("Quarterly budget report: Revenue increased, expenses fell, and the team approved the next release.\n").repeated(5);
+    REQUIRE(document.write(contents) == contents.size());
+    document.close();
+    QFile unselected(QString::fromStdString(Utils::path_to_utf8(sibling)));
+    REQUIRE(unselected.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    REQUIRE(unselected.write("UNSELECTED_SECRET") > 0);
+    unselected.close();
+    Settings settings;
+    settings.set_llm_choice(LLMChoice::Remote_Custom);
+    const auto endpoint = settings.upsert_custom_api_endpoint(
+        {"document-test", "Local document server", "", server.url(), "", "document-model", false});
+    settings.set_active_custom_api_id(endpoint);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(false);
+    settings.set_offer_rename_documents(false);
+    settings.set_process_images_only(false);
+    settings.set_process_documents_only(false);
+    settings.set_categorize_files(false);
+    settings.set_categorize_directories(false);
+    REQUIRE(settings.save());
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto original_config = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+    options.paths = {source};
+    options.status_file = target.parent_path() / "status.json";
+    options.job_id = "sort-document-analysis-dependency";
+    options.settings_overrides.respect_rename_preferences = true;
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = true;
+    options.settings_overrides.rename_documents_only = true;
+    if (explicit_analysis_off) {
+        options.settings_overrides.analyze_documents_by_content = false;
+    }
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    const int exit_code = server.run([&] {
+        return HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err);
+    });
+    REQUIRE(exit_code == HeadlessAnalysisCommand::Success);
+    REQUIRE_FALSE(server.requests.empty());
+    bool sent_source_content = false;
+    for (const auto& request : server.requests) {
+        const auto payload = QJsonDocument(request.json).toJson();
+        sent_source_content = sent_source_content || payload.contains("Quarterly budget report");
+        CHECK_FALSE(payload.contains("UNSELECTED_SECRET"));
+    }
+    CHECK(sent_source_content);
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject().value(QStringLiteral("entries")).toArray();
+    REQUIRE(rows.size() == 1);
+    CHECK(rows.at(0).toObject().value(QStringLiteral("fileName")).toString() == QStringLiteral("report.txt"));
+    const auto suggested = rows.at(0).toObject().value(QStringLiteral("destinationName")).toString().toStdString();
+    REQUIRE_FALSE(suggested.empty());
+    CHECK(suggested != "report.txt");
+    const auto destination = target / Utils::utf8_to_path(suggested);
+    CHECK(destination.parent_path() == target);
+    CHECK(destination.extension() == ".txt");
+    CHECK(rows.at(0).toObject().value(QStringLiteral("renameOnly")).toBool());
+    CHECK(std::filesystem::exists(source) == !auto_apply);
+    CHECK(std::filesystem::exists(destination) == auto_apply);
+    CHECK(std::filesystem::exists(sibling));
+    CHECK_FALSE(std::filesystem::exists(target / "clearer_unselected.txt"));
+    CHECK(status.value(QStringLiteral("apply")).toObject().value(QStringLiteral("movedCount")).toInt() == 0);
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == original_config);
+}
+
+TEST_CASE("HeadlessAnalysisCommand honors file-type filters throughout sorting")
+{
+    const unsigned filters = GENERATE(1U, 2U, 3U);
+    const auto operation = GENERATE(HeadlessAnalysisCommand::Operation::Categorize,
+                                    HeadlessAnalysisCommand::Operation::CategorizeAndRename);
+    const bool selected_files = GENERATE(false, true);
+    const bool auto_apply = GENERATE(false, true);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+    const auto child = target / "Unselected folder";
+    REQUIRE(std::filesystem::create_directories(child));
+    const std::vector<std::string> names{"photo.jpg", "notes.txt", "clip.mp4", "archive.bin"};
+    std::vector<std::filesystem::path> sources;
+    for (const auto& name : names) {
+        sources.push_back(make_file_at(target / name));
+    }
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    // Excluded cached groups must never be scheduled for content analysis.
+    settings.set_analyze_images_by_content(filters == 2);
+    settings.set_analyze_documents_by_content(filters == 1);
+    settings.set_process_images_only((filters & 1) == 0);
+    settings.set_process_documents_only((filters & 2) == 0);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    for (const auto& name : names) {
+        cache_categorization(db, target, name, "Sorted", "Items");
+    }
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto original_config = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = operation;
+    options.paths = selected_files ? sources : std::vector<std::filesystem::path>{target};
+    options.status_file = target.parent_path() / "status.json";
+    options.job_id = "filtered-sort";
+    options.settings_overrides.respect_rename_preferences = true;
+    // Exercise processing scope independently of naming and model availability.
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = false;
+    options.settings_overrides.process_images_only = (filters & 1) != 0;
+    options.settings_overrides.process_documents_only = (filters & 2) != 0;
+    options.settings_overrides.categorize_files = true;
+    options.settings_overrides.categorize_directories = true;
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    REQUIRE(HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err) ==
+            HeadlessAnalysisCommand::Success);
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject()
+                         .value(QStringLiteral("entries")).toArray();
+    const int expected_count = filters == 3 ? 2 : 1;
+    REQUIRE(rows.size() == expected_count);
+    for (const auto& row : rows) {
+        const auto name = row.toObject().value(QStringLiteral("fileName")).toString();
+        const bool permitted = ((filters & 1) != 0 && name == QStringLiteral("photo.jpg")) ||
+                               ((filters & 2) != 0 && name == QStringLiteral("notes.txt"));
+        CHECK(permitted);
+    }
+    for (std::size_t i = 0; i < names.size(); ++i) {
+        const bool allowed = (i == 0 && (filters & 1) != 0) || (i == 1 && (filters & 2) != 0);
+        CHECK(std::filesystem::exists(sources[i]) == !(auto_apply && allowed));
+        CHECK(std::filesystem::exists(target / "Sorted" / "Items" / names[i]) == (auto_apply && allowed));
+    }
+    CHECK(std::filesystem::is_directory(child));
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == original_config);
+}
+
+TEST_CASE("HeadlessAnalysisCommand sorts media with independent metadata naming")
+{
+    QtAppContext qt;
+    ChatCompletionTestServer server;
+    server.respond = [](const auto&) {
+        return ChatCompletionTestServer::answer(QStringLiteral("Category: Media\nSubcategory: Clips"));
+    };
+    enum class CacheState { Fresh, Categorized, Named };
+    const auto cache = GENERATE(CacheState::Fresh, CacheState::Categorized, CacheState::Named);
+    const bool audio = GENERATE(false, true);
+    const bool metadata_naming = GENERATE(false, true);
+    const bool auto_apply = GENERATE(false, true);
+    CAPTURE(cache, audio, metadata_naming, auto_apply);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+    REQUIRE(std::filesystem::create_directories(target));
+    const std::string extension = audio ? ".m4a" : ".mp4";
+    const auto source = target / ("source" + extension);
+    const auto sibling = target / ("unselected" + extension);
+    write_headless_media_fixture(source, true);
+    write_headless_media_fixture(sibling, true);
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_llm_choice(LLMChoice::Remote_Custom);
+    const auto endpoint = settings.upsert_custom_api_endpoint(
+        {"media-sort", "Local categorization server", "", server.url(), "", "text-model", false});
+    settings.set_active_custom_api_id(endpoint);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    settings.set_offer_rename_images(false);
+    settings.set_offer_rename_documents(false);
+    settings.set_process_images_only(false);
+    settings.set_process_documents_only(false);
+    settings.set_categorize_files(true);
+    settings.set_categorize_directories(false);
+    settings.set_add_audio_video_metadata_to_filename(!metadata_naming);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    const std::string cached_name = "cached_title" + extension;
+    cache_categorization(db, target, "unselected" + extension, "Media", "Clips");
+    if (cache != CacheState::Fresh) {
+        cache_categorization(db, target, "source" + extension, "Media", "Clips",
+                             cache == CacheState::Named ? cached_name : std::string());
+    }
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto original_config = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+    options.paths = {source};
+    options.status_file = target.parent_path() / "status.json";
+    options.job_id = "sort-media-metadata";
+    options.settings_overrides.respect_rename_preferences = true;
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = false;
+    options.settings_overrides.add_audio_video_metadata_to_filename = metadata_naming;
+    options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    const auto exit_code = server.run([&] {
+        return HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err);
+    });
+    INFO(err.str());
+    REQUIRE(exit_code == HeadlessAnalysisCommand::Success);
+    CHECK(server.requests.empty() == (cache != CacheState::Fresh));
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject().value(QStringLiteral("entries")).toArray();
+    REQUIRE(rows.size() == 1);
+    const std::string expected_name = !metadata_naming ? "source" + extension :
+        cache == CacheState::Named ? cached_name : "celestial_echoes" + extension;
+    const auto destination = target / "Media" / "Clips" / expected_name;
+    const auto row = rows.at(0).toObject();
+    CHECK(row.value(QStringLiteral("fileName")).toString().toStdString() == "source" + extension);
+    CHECK(row.value(QStringLiteral("destinationName")).toString().toStdString() == expected_name);
+    CHECK_FALSE(row.value(QStringLiteral("renameOnly")).toBool());
+    const auto cached_sibling = db.get_categorized_file(normalized_path_key(target),
+                                                        "unselected" + extension, FileType::File);
+    REQUIRE(cached_sibling.has_value());
+    CHECK(cached_sibling->suggested_name.empty());
+    CHECK(std::filesystem::exists(source) == !auto_apply);
+    CHECK(std::filesystem::exists(destination) == auto_apply);
+    CHECK(std::filesystem::exists(sibling));
+    if (auto_apply) {
+        const auto apply = status.value(QStringLiteral("apply")).toObject();
+        CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
+        CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == (metadata_naming ? 1 : 0));
+    }
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == original_config);
+}
+
+TEST_CASE("HeadlessAnalysisCommand explicitly renames selected media despite disabled file-type preferences")
+{
+    bool audio = false;
+    bool review_only = false;
+    bool with_metadata = true;
+    SECTION("video metadata") {}
+    SECTION("audio metadata") { audio = true; }
+    SECTION("review before applying") { review_only = true; }
+    SECTION("missing metadata keeps the original name") { with_metadata = false; }
+    for (unsigned groups = 0; groups < 4; ++groups) {
+        QTemporaryDir dir;
+        QTemporaryDir config_root;
+        REQUIRE(dir.isValid());
+        REQUIRE(config_root.isValid());
+        ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+        const auto target = Utils::utf8_to_path(dir.path().toStdString()) / "target";
+        REQUIRE(std::filesystem::create_directories(target));
+        const std::string extension = audio ? ".m4a" : ".mp4";
+        const auto source = target / ("source" + extension);
+        const auto sibling = target / ("unselected" + extension);
+        const auto destination = target / ("celestial_echoes" + extension);
+        write_headless_media_fixture(source, with_metadata);
+        write_headless_media_fixture(sibling, true);
+
+        Settings settings;
+        settings.set_analyze_images_by_content(false);
+        settings.set_analyze_documents_by_content(false);
+        settings.set_offer_rename_images((groups & 1) != 0);
+        settings.set_offer_rename_documents((groups & 2) != 0);
+        settings.set_add_audio_video_metadata_to_filename(false);
+        settings.set_process_images_only(true);
+        settings.set_process_documents_only(true);
+        REQUIRE(settings.save());
+        QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+        REQUIRE(config.open(QIODevice::ReadOnly));
+        const auto original_config = config.readAll();
+        config.close();
+
+        HeadlessAnalysisCommand::Options options;
+        options.operation = HeadlessAnalysisCommand::Operation::Rename;
+        options.paths = {source};
+        options.status_file = target.parent_path() / "status.json";
+        options.job_id = "explicit-media-rename";
+        options.settings_overrides.analyze_images_by_content = false;
+        options.settings_overrides.analyze_documents_by_content = false;
+        options.settings_overrides.add_audio_video_metadata_to_filename = false;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = false;
+        enable_auto_apply(options);
+        if (review_only) {
+            options.apply_mode = HeadlessAnalysisCommand::ApplyMode::ReviewOnly;
+        }
+        std::ostringstream out;
+        std::ostringstream err;
+        const int result = HeadlessAnalysisCommand::run(options, target.parent_path() / "runtime", out, err);
+        CHECK(result == HeadlessAnalysisCommand::Success);
+        const bool applied = with_metadata && !review_only;
+        CHECK(std::filesystem::exists(source) == !applied);
+        CHECK(std::filesystem::exists(destination) == applied);
+        CHECK(std::filesystem::exists(sibling));
+        const auto status = read_status(*options.status_file);
+        if (applied) {
+            const auto apply = status.value(QStringLiteral("apply")).toObject();
+            CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+            CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
+        }
+        if (review_only) {
+            CHECK(status.value(QStringLiteral("status")).toString() == QStringLiteral("review_required"));
+            const auto entries = status.value(QStringLiteral("review")).toObject()
+                                       .value(QStringLiteral("entries")).toArray();
+            REQUIRE(entries.size() == 1);
+            CHECK(entries.at(0).toObject().value(QStringLiteral("destinationName")).toString() ==
+                  QStringLiteral("celestial_echoes.mp4"));
+        }
+        REQUIRE(config.open(QIODevice::ReadOnly));
+        CHECK(config.readAll() == original_config);
+    }
+}
+
 TEST_CASE("HeadlessAnalysisCommand skips rename when no cached suggestion exists")
 {
     QTemporaryDir dir;
@@ -899,6 +1453,8 @@ TEST_CASE("HeadlessAnalysisCommand skips rename when no cached suggestion exists
     const std::filesystem::path source = make_file_at(target / "archive.bin");
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     const auto resolved = db.resolve_category("Archives", "Binary");
     REQUIRE(db.insert_or_update_file_with_categorization("archive.bin",
@@ -943,10 +1499,12 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
         std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
     REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
     const std::filesystem::path source = make_file_at(target / "summary.txt");
-    const std::filesystem::path destination =
+    std::filesystem::path destination =
         target / "Documents" / "Reports" / "renamed_summary.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     settings.set_offer_rename_documents(true);
     REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
@@ -967,6 +1525,32 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
     options.status_file = status;
     options.job_id = "headless-cached-categorize-rename";
     enable_auto_apply(options);
+    int expected_moves = 1;
+    int expected_renames = 1;
+    SECTION("legacy combined operation retains cached renaming") {}
+    SECTION("explicit legacy preferences retain cached renaming") {
+        options.settings_overrides.respect_rename_preferences = false;
+    }
+    SECTION("disabled document renaming ignores its cached filename suggestion") {
+        options.settings_overrides.respect_rename_preferences = true;
+        options.settings_overrides.offer_rename_images = true;
+        options.settings_overrides.offer_rename_documents = false;
+        destination = target / "Documents" / "Reports" / "summary.txt";
+        expected_renames = 0;
+    }
+    SECTION("document renaming remains independent of picture renaming") {
+        options.settings_overrides.respect_rename_preferences = true;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = true;
+    }
+    SECTION("rename documents without moving keeps cached files in their source folder") {
+        options.settings_overrides.respect_rename_preferences = true;
+        options.settings_overrides.offer_rename_images = false;
+        options.settings_overrides.offer_rename_documents = true;
+        options.settings_overrides.rename_documents_only = true;
+        destination = target / "renamed_summary.txt";
+        expected_moves = 0;
+    }
 
     std::ostringstream out;
     std::ostringstream err;
@@ -980,8 +1564,8 @@ TEST_CASE("HeadlessAnalysisCommand applies cached categorize and rename for a fo
     CHECK(object.value(QStringLiteral("status")).toString() == QStringLiteral("completed"));
     CHECK(object.value(QStringLiteral("operation")).toString() == QStringLiteral("categorize-and-rename"));
     const QJsonObject apply = object.value(QStringLiteral("apply")).toObject();
-    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 1);
-    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == expected_moves);
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == expected_renames);
     CHECK(apply.value(QStringLiteral("skippedCount")).toInt() == 0);
     CHECK(apply.value(QStringLiteral("undoPlanSaved")).toBool());
 }
@@ -1009,6 +1593,8 @@ TEST_CASE("HeadlessAnalysisCommand applies same-folder multi-select only")
         target / "Documents" / "Reports" / "third.txt";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     cache_categorization(db, target, "first.txt", "Documents", "Reports");
     cache_categorization(db, target, "second.txt", "Documents", "Reports");
@@ -1070,6 +1656,8 @@ TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage
     entry.canonical_subcategory = "Monthly Statements";
 
     Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
     DatabaseManager db(settings.get_config_dir());
     LocalFsProvider storage_provider;
     HeadlessReviewApplyService service(&db, storage_provider, nullptr);
@@ -1096,6 +1684,216 @@ TEST_CASE("HeadlessReviewApplyService uses display folders and canonical storage
     REQUIRE(cached.has_value());
     CHECK(cached->category == "Records");
     CHECK(cached->subcategory == "Monthly Statements");
+}
+
+TEST_CASE("HeadlessReviewApplyService moves folder-tree entries into existing targets")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    const std::filesystem::path destination_dir =
+        target / "10-19 Admin" / "11 Reports";
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(destination_dir))));
+    const std::filesystem::path source = make_file_at(target / "statement.txt");
+    const std::filesystem::path destination = destination_dir / "statement.txt";
+
+    CategorizedFile entry;
+    entry.file_path = Utils::path_to_utf8(target);
+    entry.file_name = "statement.txt";
+    entry.type = FileType::File;
+    entry.folder_tree_mode = true;
+    entry.target_folder_relative_path = "10-19 Admin/11 Reports";
+    entry.target_folder_exists = true;
+
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(nullptr, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(target);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+
+    const auto result = service.apply({entry}, options);
+
+    CHECK(result.planned_count == 1);
+    CHECK(result.moved_count == 1);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 1);
+    CHECK(result.entries.at(0).target_folder == "10-19 Admin/11 Reports");
+    CHECK(result.entries.at(0).target_folder_exists);
+    CHECK_FALSE(result.entries.at(0).target_folder_suggested_new);
+    CHECK(result.entries.at(0).category == "10-19 Admin");
+    CHECK(result.entries.at(0).subcategory == "11 Reports");
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+}
+
+TEST_CASE("HeadlessReviewApplyService creates suggested folder-tree targets when allowed")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    const std::filesystem::path source = make_file_at(target / "receipt.pdf");
+    const std::filesystem::path destination =
+        target / "10-19 Admin" / "12 Receipts" / "receipt.pdf";
+
+    CategorizedFile entry;
+    entry.file_path = Utils::path_to_utf8(target);
+    entry.file_name = "receipt.pdf";
+    entry.type = FileType::File;
+    entry.folder_tree_mode = true;
+    entry.target_folder_relative_path = "10-19 Admin/12 Receipts";
+    entry.target_folder_suggested_new = true;
+    entry.folder_tree_allow_new_folders = true;
+
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(nullptr, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(target);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+    options.allow_new_folder_targets = true;
+
+    const auto result = service.apply({entry}, options);
+
+    CHECK(result.planned_count == 1);
+    CHECK(result.moved_count == 1);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 1);
+    CHECK(result.entries.at(0).target_folder == "10-19 Admin/12 Receipts");
+    CHECK_FALSE(result.entries.at(0).target_folder_exists);
+    CHECK(result.entries.at(0).target_folder_suggested_new);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+
+    StorageProviderRegistry registry;
+    auto undo_provider = std::make_shared<LocalFsProvider>();
+    registry.register_builtin(undo_provider);
+
+    UndoManager undo_manager(options.undo_dir, &registry);
+    const auto plan_path = undo_manager.latest_plan_path();
+    REQUIRE(plan_path.has_value());
+    const auto undo_result = undo_manager.undo_plan(*plan_path);
+    CHECK(undo_result.restored == 1);
+    CHECK(undo_result.skipped == 0);
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination.parent_path()))));
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination.parent_path().parent_path()))));
+}
+
+TEST_CASE("HeadlessReviewApplyService records shared suggested target ownership")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir history_dir;
+    REQUIRE(history_dir.isValid());
+
+    const std::filesystem::path target =
+        std::filesystem::path(dir.filePath(QStringLiteral("target")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(target))));
+    make_file_at(target / "receipt_a.pdf");
+    make_file_at(target / "receipt_b.pdf");
+
+    CategorizedFile first;
+    first.file_path = Utils::path_to_utf8(target);
+    first.file_name = "receipt_a.pdf";
+    first.type = FileType::File;
+    first.folder_tree_mode = true;
+    first.target_folder_relative_path = "10-19 Admin/12 Receipts";
+    first.target_folder_suggested_new = true;
+    first.folder_tree_allow_new_folders = true;
+
+    CategorizedFile second = first;
+    second.file_name = "receipt_b.pdf";
+
+    LocalFsProvider storage_provider;
+    ReviewHistoryStore history_store(history_dir.path().toStdString());
+    REQUIRE(history_store.is_open());
+    HeadlessReviewApplyService service(nullptr, storage_provider, nullptr, &history_store);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(target);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+    options.allow_new_folder_targets = true;
+
+    const auto result = service.apply({first, second}, options);
+
+    CHECK(result.moved_count == 2);
+    const auto entries = history_store.entries();
+    REQUIRE(entries.size() == 2);
+    for (const auto& entry : entries) {
+        CHECK(entry.created_directories.size() == 2);
+        CHECK(entry.created_directories.back().find("12 Receipts") != std::string::npos);
+    }
+}
+
+TEST_CASE("HeadlessReviewApplyService moves generated categories into custom destination root")
+{
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    QTemporaryDir config_root;
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR",
+                                         config_root.path().toUtf8());
+
+    const std::filesystem::path source_root =
+        std::filesystem::path(dir.filePath(QStringLiteral("incoming")).toStdString());
+    const std::filesystem::path destination_root =
+        std::filesystem::path(dir.filePath(QStringLiteral("sorted")).toStdString());
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(source_root))));
+    REQUIRE(QDir().mkpath(QString::fromStdString(Utils::path_to_utf8(destination_root))));
+
+    const std::filesystem::path source = make_file_at(source_root / "statement.txt");
+    const std::filesystem::path destination =
+        destination_root / "Documents" / "Reports" / "statement.txt";
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
+    DatabaseManager db(settings.get_config_dir());
+    cache_categorization(db, source_root, "statement.txt", "Inbox", "Inbox");
+
+    CategorizedFile entry;
+    entry.file_path = normalized_path_key(source_root);
+    entry.file_name = "statement.txt";
+    entry.type = FileType::File;
+    entry.category = "Documents";
+    entry.subcategory = "Reports";
+
+    LocalFsProvider storage_provider;
+    HeadlessReviewApplyService service(&db, storage_provider, nullptr);
+
+    HeadlessReviewApplyService::Options options;
+    options.base_dir = normalized_path_key(destination_root);
+    options.undo_dir = Utils::path_to_utf8(std::filesystem::path(dir.path().toStdString()) / "undo");
+    options.use_subcategories = true;
+
+    const auto result = service.apply({entry}, options);
+
+    CHECK(result.planned_count == 1);
+    CHECK(result.moved_count == 1);
+    CHECK(result.skipped_count == 0);
+    CHECK(result.undo_plan_saved);
+    REQUIRE(result.entries.size() == 1);
+    CHECK_FALSE(QFile::exists(QString::fromStdString(Utils::path_to_utf8(source))));
+    CHECK(QFile::exists(QString::fromStdString(Utils::path_to_utf8(destination))));
+    CHECK_FALSE(db.get_categorized_file(normalized_path_key(source_root),
+                                        entry.file_name,
+                                        FileType::File)
+                    .has_value());
+
+    const auto cached = db.get_categorized_file(normalized_path_key(destination.parent_path()),
+                                                entry.file_name,
+                                                FileType::File);
+    REQUIRE(cached.has_value());
+    CHECK(cached->category == "Documents");
+    CHECK(cached->subcategory == "Reports");
 }
 
 TEST_CASE("HeadlessReviewApplyService deduplicates duplicate suggested filenames")
@@ -1182,4 +1980,130 @@ TEST_CASE("HeadlessAnalysisCommand rejects cross-folder file selections")
 
     AnalysisRuntimeLock lock(runtime_dir);
     CHECK_FALSE(lock.is_locked());
+}
+
+
+TEST_CASE("HeadlessAnalysisCommand sorts whole folders without analyzing their contents")
+{
+    QtAppContext qt;
+    ChatCompletionTestServer server;
+    server.respond = [](const auto&) {
+        return ChatCompletionTestServer::answer(QStringLiteral("Category: Sorted\nSubcategory: Items"));
+    };
+    const bool auto_apply = GENERATE(false, true);
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto source = Utils::utf8_to_path(dir.path().toStdString()) / "source";
+    const auto folder = source / "Candidate folder";
+    REQUIRE(std::filesystem::create_directories(folder));
+    make_file_at(source / "top.bin");
+    const auto document_path = folder / "inside.txt";
+    const QByteArray contents = QByteArray("NESTED_CONTENT_MUST_NOT_BE_SENT ").repeated(20);
+    QFile document(QString::fromStdString(Utils::path_to_utf8(document_path)));
+    REQUIRE(document.open(QIODevice::WriteOnly));
+    REQUIRE(document.write(contents) == contents.size());
+    document.close();
+    write_headless_media_fixture(folder / "inside.mp4", true);
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    settings.set_categorize_files(true);
+    settings.set_categorize_directories(true);
+    settings.set_analyze_documents_by_content(true);
+    settings.set_llm_choice(LLMChoice::Remote_Custom);
+    const auto endpoint = settings.upsert_custom_api_endpoint(
+        {"folder-boundary", "Local sorting server", "", server.url(), "", "text-model", false});
+    settings.set_active_custom_api_id(endpoint);
+    REQUIRE(settings.save());
+    QFile config(QString::fromStdString(settings.get_config_dir()) + "/config.ini");
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    const auto before = config.readAll();
+    config.close();
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::CategorizeAndRename;
+    options.paths = {source};
+    options.status_file = source.parent_path() / "status.json";
+    options.job_id = "whole-folder-boundary";
+    options.include_subdirectories = true;
+    options.settings_overrides.categorize_directories = true;
+    options.settings_overrides.include_subdirectories = true;
+    options.settings_overrides.respect_rename_preferences = true;
+    options.settings_overrides.offer_rename_images = false;
+    options.settings_overrides.offer_rename_documents = false;
+    options.settings_overrides.add_audio_video_metadata_to_filename = true;
+    if (auto_apply) {
+        enable_auto_apply(options);
+    }
+    std::ostringstream out;
+    std::ostringstream err;
+    const int result = server.run([&] {
+        return HeadlessAnalysisCommand::run(options, source.parent_path() / "runtime", out, err);
+    });
+    INFO(err.str());
+    REQUIRE(result == HeadlessAnalysisCommand::Success);
+    REQUIRE_FALSE(server.requests.empty());
+    for (const auto& request : server.requests) {
+        const auto payload = QJsonDocument(request.json).toJson();
+        CHECK_FALSE(payload.contains("inside.txt"));
+        CHECK_FALSE(payload.contains("inside.mp4"));
+        CHECK_FALSE(payload.contains("NESTED_CONTENT_MUST_NOT_BE_SENT"));
+    }
+    const auto status = read_status(*options.status_file);
+    const auto rows = status.value(QStringLiteral("review")).toObject().value(QStringLiteral("entries")).toArray();
+    REQUIRE(rows.size() == 2);
+    for (const auto& value : rows) {
+        const auto row = value.toObject();
+        const auto name = row.value(QStringLiteral("fileName")).toString();
+        CHECK((name == QStringLiteral("Candidate folder") || name == QStringLiteral("top.bin")));
+        CHECK(row.value(QStringLiteral("destinationName")).toString() == name);
+    }
+    const auto current_folder = auto_apply ? source / "Sorted" / "Items" / "Candidate folder" : folder;
+    CHECK(std::filesystem::is_directory(current_folder));
+    CHECK(std::filesystem::exists(current_folder / "inside.mp4"));
+    QFile nested(QString::fromStdString(Utils::path_to_utf8(current_folder / "inside.txt")));
+    REQUIRE(nested.open(QIODevice::ReadOnly));
+    CHECK(nested.readAll() == contents);
+    CHECK(std::filesystem::exists(source / "top.bin") == !auto_apply);
+    if (auto_apply) {
+        CHECK(status.value(QStringLiteral("apply")).toObject().value(QStringLiteral("movedCount")).toInt() == 2);
+        CHECK(status.value(QStringLiteral("apply")).toObject().value(QStringLiteral("renamedCount")).toInt() == 0);
+    }
+    REQUIRE(config.open(QIODevice::ReadOnly));
+    CHECK(config.readAll() == before);
+}
+
+TEST_CASE("HeadlessAnalysisCommand recursive Rename changes files and leaves folder names intact")
+{
+    QTemporaryDir dir;
+    QTemporaryDir config_root;
+    REQUIRE(dir.isValid());
+    REQUIRE(config_root.isValid());
+    ScopedEnvironmentVariable config_env("AI_FILE_SORTER_CONFIG_DIR", config_root.path().toUtf8());
+    const auto source = Utils::utf8_to_path(dir.path().toStdString()) / "source";
+    const auto folder = source / "Keep this folder name";
+    REQUIRE(std::filesystem::create_directories(folder));
+    write_headless_media_fixture(folder / "inside.mp4", true);
+    Settings settings;
+    settings.set_categorize_directories(false);
+    settings.set_include_subdirectories(true);
+    REQUIRE(settings.save());
+    HeadlessAnalysisCommand::Options options;
+    options.operation = HeadlessAnalysisCommand::Operation::Rename;
+    options.paths = {source};
+    options.status_file = source.parent_path() / "status.json";
+    options.job_id = "recursive-file-rename";
+    options.include_subdirectories = true;
+    enable_auto_apply(options);
+    std::ostringstream out;
+    std::ostringstream err;
+    REQUIRE(HeadlessAnalysisCommand::run(options, source.parent_path() / "runtime", out, err) ==
+            HeadlessAnalysisCommand::Success);
+    CHECK(std::filesystem::is_directory(folder));
+    CHECK_FALSE(std::filesystem::exists(folder / "inside.mp4"));
+    CHECK(std::filesystem::exists(folder / "celestial_echoes.mp4"));
+    const auto apply = read_status(*options.status_file).value(QStringLiteral("apply")).toObject();
+    CHECK(apply.value(QStringLiteral("renamedCount")).toInt() == 1);
+    CHECK(apply.value(QStringLiteral("movedCount")).toInt() == 0);
 }

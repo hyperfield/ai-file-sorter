@@ -27,6 +27,7 @@ struct BackendProbeGuard {
 TEST_CASE("LlavaImageAnalyzer uses conservative default visual batch sizing") {
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(false, "vulkan") == 512);
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "metal") == 1024);
+    CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "MTL") == 1024);
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "vulkan") == 512);
 #if defined(_WIN32)
     CHECK(LlavaImageAnalyzerTestAccess::default_visual_batch_size(true, "cuda") == 512);
@@ -102,7 +103,7 @@ TEST_CASE("LlavaImageAnalyzer exposes structured multimodal prompt policy") {
         VisualPromptPolicy::StructuredVisionInstruct,
         "Invoice with handwritten totals and customer notes.");
     CHECK(filename_prompt.find("maximum 3 words") != std::string::npos);
-    CHECK(filename_prompt.find("lowercase letters only") != std::string::npos);
+    CHECK(filename_prompt.find("lowercase letters and numbers only") != std::string::npos);
     CHECK(filename_prompt.find("Output only the filename stem.") != std::string::npos);
 }
 
@@ -184,10 +185,15 @@ TEST_CASE("LlavaImageAnalyzer honors visual-specific GPU layer override") {
 TEST_CASE("LlavaImageAnalyzer lowers visual ngl when reserving mmproj headroom") {
     TempModelFile model(34, 2489757856ULL);
     TempModelFile mmproj(1, 624451168ULL);
+    TempDir root;
+    const auto model_path = root.path() / Utils::utf8_to_path("modèle_Иван.gguf");
+    const auto mmproj_path = root.path() / Utils::utf8_to_path("projecteur_東京.gguf");
+    std::filesystem::rename(model.path(), model_path);
+    std::filesystem::rename(mmproj.path(), mmproj_path);
 
     const int32_t actual = LlavaImageAnalyzerTestAccess::visual_model_n_gpu_layers_with_headroom(
-        model.path().string(),
-        mmproj.path().string(),
+        Utils::path_to_utf8(model_path),
+        Utils::path_to_utf8(mmproj_path),
         "cuda",
         3676ULL * 1024ULL * 1024ULL,
         3768ULL * 1024ULL * 1024ULL);

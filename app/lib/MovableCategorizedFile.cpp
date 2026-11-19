@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "MovableCategorizedFile.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
@@ -18,14 +19,15 @@ void with_core_logger(Callable callable)
 
 std::string to_lower_copy_str(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+        return static_cast<char>(TextEncoding::ascii_lower(c));
     });
     return value;
 }
 
 bool contains_only_allowed_chars(const std::string& value) {
+    if (value == "." || value == "..") return false;
     for (unsigned char ch : value) {
-        if (std::iscntrl(ch)) {
+        if (Utils::is_ascii_control(ch)) {
             return false;
         }
         static const std::string forbidden = R"(<>:"/\|?*)";
@@ -44,7 +46,7 @@ bool has_leading_or_trailing_space_or_dot(const std::string& value) {
     const unsigned char first = static_cast<unsigned char>(value.front());
     const unsigned char last = static_cast<unsigned char>(value.back());
     // Only guard leading/trailing whitespace; dots are allowed.
-    return std::isspace(first) || std::isspace(last);
+    return Utils::is_ascii_space(first) || Utils::is_ascii_space(last);
 }
 
 bool is_reserved_windows_name(const std::string& value) {
@@ -54,7 +56,7 @@ bool is_reserved_windows_name(const std::string& value) {
         "lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9"
     };
     const std::string lower = to_lower_copy_str(value);
-    return std::find(reserved.begin(), reserved.end(), lower) != reserved.end();
+    return std::find(reserved.begin(), reserved.end(), lower.substr(0, lower.find('.'))) != reserved.end();
 }
 
 bool looks_like_extension_label(const std::string& value) {
@@ -66,18 +68,18 @@ bool looks_like_extension_label(const std::string& value) {
     if (ext.empty() || ext.size() > 5) {
         return false;
     }
-    return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return std::isalpha(ch); });
+    return std::all_of(ext.begin(), ext.end(), [](unsigned char ch) { return TextEncoding::ascii_alpha(ch); });
 }
 
 bool validate_labels(const std::string& category,
                      const std::string& subcategory,
                      std::string& error) {
-    constexpr size_t kMaxLabelLength = 80;
+
     if (category.empty() || subcategory.empty()) {
         error = "Category or subcategory is empty";
         return false;
     }
-    if (category.size() > kMaxLabelLength || subcategory.size() > kMaxLabelLength) {
+    if (!TextEncoding::label_within_limits(category) || !TextEncoding::label_within_limits(subcategory)) {
         error = "Category or subcategory exceeds max length";
         return false;
     }

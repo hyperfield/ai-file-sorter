@@ -1,8 +1,8 @@
 # Snabbstartguide
 
-AI File Sorter hjalper dig att organisera filer med ett granska-forst-arbetsflode och valfritt automatiskt godkannande for andringar du valjer att lita pa.
+AI File Sorter hjälper dig att organisera filer med granskning innan ändringar genomförs. Valfritt automatiskt godkännande kan förvälja ändringar i granskningslistan.
 
-AI:n styr analysen och foreslar kategorier, underkategorier och namn. Den andrar inte dina filer direkt. Appen flyttar eller byter namn pa filer efter att du bekraftar de granskade andringarna, eller automatiskt endast nar du har aktiverat relevant automatiskt godkannande.
+AI:n föreslår kategorier, målmappar och namn. Appen flyttar eller byter namn på filer först efter att du har bekräftat de valda ändringarna i granskningsdialogen.
 
 ## Saker forsta korning
 
@@ -16,6 +16,32 @@ Bra mappar for forsta korningen ar:
 
 Detta gor den forsta korningen enkel att granska. Dina filer stannar pa datorn nar du anvander lokala modeller, och AI:n foreslar bara kategorier och namn. Lat automatiskt godkannande vara av vid forsta korningen sa att inget flyttas eller byter namn innan du godkanner granskningslistan.
 
+Den valfria platssökningen online skickar bildernas GPS-koordinater, avrundade till tre decimaler, till OpenStreetMaps Nominatim-tjänst, även med lokala modeller. Leverantören kan också se din IP-adress och tidpunkten för begäran. Bildfiler, filnamn och fotograferingsdatum skickas inte; att endast lägga till datum i kategorier sker lokalt.
+
+## Ställ in en LLM
+
+Öppna **Settings -> Select LLM**. Välj en modell i listrutan **Local LLMs** eller en leverantör under **API connections**.
+
+**Qwen3.5 4B (Recommended)** är det första lokala alternativet och standardvalet för nya inställningar. Modellen ger hög precision vid kategorisering och rekommenderas för befintliga mappstrukturer. Ditt tidigare sparade modellval behålls. För att använda en egen GGUF-fil väljer du **Custom local LLM (gguf)** och sedan **Add**.
+
+För en lokal modell som appen erbjuder, fäll ut **Downloads**, klicka på **Download** och vänta på **Model ready** innan du bekräftar med **OK**. Med **Model storage** väljer du nedladdningsmapp. **See details** visar nedladdningsadressen, den lokala sökvägen och teknisk information.
+
+För lokal bildanalys väljer du en **Visuell modell** under **Bildanalysmodeller** och hämtar filerna som behövs. Bildmodellen väljs separat från textmodellen.
+
+Under **API connections** väljer du Gemini, ChatGPT (OpenAI) eller en egen OpenAI-kompatibel ändpunkt och anger nödvändiga anslutningsuppgifter och modellnamn. Moln-API:er kräver internet och skickar analysunderlaget till den konfigurerade tjänsten. Egna ändpunkter kan också köras lokalt.
+
+För att analysera bilder via en OpenAI-kompatibel API-anslutning aktiverar du **Modell med bildstöd** för anslutningen och väljer den under **Bildanalysmodeller** → **Visuell modell**. Ingen lokal modell eller projektor behöver hämtas. När bildstödet aktiveras får du bekräfta att bildernas innehåll skickas till den inställda servern.
+
+## Kontrollera lokal prestanda (valfritt)
+
+När modellerna har laddats ned öppnar du **File -> System compatibility check** och klickar på **Run benchmark**. Stäng först andra appar som belastar CPU eller GPU mycket. Kontrollen testar nedladdade lokala modeller, även egna GGUF-modeller.
+
+Låt **Backend** stå på **Automatic (try CPU if GPU fails)** eller välj **All available backends** för att jämföra CPU och GPU-alternativ som stöds. Resultaten sparas separat för varje modell och backend; ett fel på en backend utesluter inte en fungerande kombination på en annan.
+
+Välj ett resultat och använd **Retry selected** för att testa samma kombination igen, **Retry failed** för att testa misslyckade kombinationer igen eller **Try chosen backend** för att testa den valda modellen med en viss backend i listrutan.
+
+Rekommendationerna uppskattar lokal prestanda. Kontrollen testar varken API-tjänster eller träffsäkerheten vid val av befintliga mappar och ändrar inte din valda modell automatiskt.
+
 ## 1. Valj en mapp
 
 Anvand **Browse** eller panelen **File Explorer** for att valja mappen du vill sortera.
@@ -28,6 +54,8 @@ Typiska exempel:
 - en natverks- eller molnsynkroniserad mapp
 - ett projektarkiv
 
+**Destination** avgör var sorterade filer hamnar. Låt **Use analyzed folder** vara aktiverat för att sortera i den valda mappen, eller stäng av det och välj ett annat mål.
+
 ## 2. Valj vad appen ska gora
 
 Anvand huvudalternativen for att bestamma om appen ska:
@@ -37,20 +65,33 @@ Anvand huvudalternativen for att bestamma om appen ska:
 - analysera dokument
 - erbjuda namnbytesforslag for filer som stods
 
-Om du bara vill ha namnbytesforslag, aktivera relevant endast-byta-namn-lage.
+Om du bara vill ha namnförslag aktiverar du **Erbjud dig att byta namn på bildfiler** eller **Erbjud dig att byta namn på dokumentfiler** och sedan **Byt namn på bilder utan att flytta dem** eller **Byt namn på dokument utan att flytta dem** för den aktuella filtypen.
 
-## 3. Valj kategoriseringsstil
+**Sortera mappar** flyttar hela mappar med deras innehåll och stänger av **Skanna undermappar**. För att i stället söka igenom filer i undermappar stänger du av **Sortera mappar** och aktiverar **Skanna undermappar**.
 
-Valj den stil som passar ditt mal bast:
+## 3. Välj hur filerna ska sorteras
+
+Nya profiler börjar med **Använd befintlig mappstruktur**. Sparade sorteringsval behålls. Välj en **Destination** som innehåller mapparna du vill använda, eller välj **Skapa kategorimappar** för att skapa dem.
+
+Välj ett sorteringsläge:
+
+- **Create category folders** skapar mappar från föreslagna kategorinamn.
+- **Use existing folder structure** väljer mappar i mappträdet under **Destination**. Aktivera **Suggest new folders when needed** för att tillåta nya målmappar när ingen passar bra; låt det vara av för att bara använda befintliga mappar.
+
+Använd **Skapa mappstruktur...** för att lägga till en startstruktur i målet. **Folder language** utgår från kategorispråket och kan ändras enbart för den strukturen. Icke-engelska mappnamn översätts med vald LLM. Granska den översatta förhandsvisningen innan du väljer **Skapa**; numrering och nivåer behålls.
+
+För befintliga mappar rekommenderar vi **Qwen3.5 4B**. **Gemma 1.1 7B** och modeller som används via API är också lämpliga alternativ. Andra lokala modeller visar ett råd; du kan behålla modellen eller ändra den i **Settings -> Select LLM**.
+
+I läget **Create category folders** väljer du en kategoriseringsstil:
 
 - **More refined** for allman anvandning och finare gruppering
 - **More consistent** om du vill ha starkare etikettkonsekvens mellan liknande filer
 
-Du kan ocksa aktivera kategorivitlistor om du vill att appen ska halla sig inom en smalare uppsattning kategorinamn.
+Tillåtelselistor begränsar föreslagna kategori- och underkategorinamn i läget **Skapa kategorimappar**. De är avstängda och ignoreras i **Använd befintlig mappstruktur**, som använder målets mappstruktur. Din listinställning behålls när du byter läge.
 
 ## 4. Starta analysen
 
-Klicka pa **Analyze and categorize files**.
+Klicka pa **Analyze folder**.
 
 Appen skannar den valda mappen, samlar den information den behover och forbereder en granskningslista.
 
@@ -66,13 +107,19 @@ Granskningsdialogen later dig kontrollera:
 
 Du kan justera eller avvisa forslag innan du bekraftar nagot.
 
+Aktivera **Dry run (preview only, do not move files)** för att förhandsgranska planerade flyttningar och namnbyten utan att genomföra dem.
+
 ## 6. Tillampa andringarna
 
-Nar du bekraftar skapar appen nodvandiga mappar och genomfor flyttningar eller namnbyten. Om automatiskt godkannande ar aktiverat kan giltiga kategori- eller filnamnsandringar tillampas utan att stanna vid granskningsdialogen.
+Välj raderna du vill behandla och klicka på **Verkställ ändringar**. Appen skapar nödvändiga mappar och genomför de valda flyttningarna eller namnbytena.
+
+**Förhandsvisning av torrkörning**: Aktivera **Dry run (preview only, do not move files)** för att förhandsgranska planerade flyttningar och namnbyten utan att genomföra dem.
+
+**Markera namnförslag automatiskt** och **Markera sorteringsförslag automatiskt** förväljer lämpliga rader. Du måste fortfarande bekräfta innan ändringarna genomförs.
 
 ## 7. Angra senaste korningen
 
-Om du tillampar andringar och sedan vill vanda dem, anvand **Undo last run** fran menyn.
+Om du tillampar andringar och sedan vill vanda dem, anvand **Edit -> Undo last run** fran menyn.
 
 Angra ar utformat for den senast bekraftade sorteringskorningen. Det anvander appens registrerade korhistorik for att flytta tillbaka filer och angra namnbyten som stods nar det ar mojligt.
 

@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include "FilenameWordLimits.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -74,9 +76,13 @@ struct ImageAnalysisResult {
 };
 
 /**
- * @brief Shared configuration for local image analyzers.
+ * @brief Shared configuration for local and API image analyzers.
  */
 struct ImageAnalyzerSettings {
+    /** Require an exact backend when measuring a model/backend pair. */
+    std::string required_backend;
+    /** @brief Maximum words in a suggested filename, independent of its description. */
+    size_t max_filename_words = kDefaultFilenameWords;
     /** @brief Context length (tokens). */
     int32_t n_ctx = kDefaultImageAnalyzerContextTokens;
     /** @brief Maximum tokens to predict. */
@@ -89,6 +95,8 @@ struct ImageAnalyzerSettings {
     bool use_gpu = true;
     /** @brief Enable verbose visual model logging. */
     bool log_visual_output = false;
+    /** @brief Optional cancellation probe for in-flight API requests. */
+    std::function<bool()> should_cancel;
     /**
      * @brief Optional callback for image batch progress.
      * @param current_batch Batch index (1-based).

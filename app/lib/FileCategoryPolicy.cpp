@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "FileCategoryPolicy.hpp"
 
 #include <algorithm>
@@ -24,7 +25,7 @@ enum class FamilyKind {
 std::string to_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }

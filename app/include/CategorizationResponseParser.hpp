@@ -15,6 +15,9 @@ struct LabelValidationResult {
     std::string error;
 };
 
+/** @brief Recognize an explicit no-match response, including common quote/code-fence wrappers. */
+bool is_category_abstention(const std::string& response);
+
 /**
  * @brief Parse a model response into sanitized category and subcategory labels.
  * @param input Raw LLM categorization response.

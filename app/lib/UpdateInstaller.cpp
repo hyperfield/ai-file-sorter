@@ -1,3 +1,5 @@
+#include "TextEncoding.hpp"
+#include "CurlTls.hpp"
 #include "UpdateInstaller.hpp"
 
 #include "UpdateArchiveExtractor.hpp"
@@ -46,28 +48,18 @@ void update_installer_log(spdlog::level::level_enum level, const char* fmt, Args
 std::string ascii_lower_copy(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
-}
-
-void configure_tls(CURL* curl)
-{
-#if defined(_WIN32)
-    const auto cert_path = Utils::ensure_ca_bundle();
-    curl_easy_setopt(curl, CURLOPT_CAINFO, cert_path.string().c_str());
-#else
-    (void)curl;
-#endif
 }
 
 std::string normalize_sha256(std::string value)
 {
     value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
-        return std::isspace(ch) != 0;
+        return TextEncoding::ascii_space(ch) != 0;
     }), value.end());
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }
@@ -75,7 +67,7 @@ std::string normalize_sha256(std::string value)
 std::string safe_version_fragment(std::string version)
 {
     std::transform(version.begin(), version.end(), version.begin(), [](unsigned char ch) {
-        if (std::isalnum(ch) || ch == '.' || ch == '_' || ch == '-') {
+        if (TextEncoding::ascii_alnum(ch) || ch == '.' || ch == '_' || ch == '-') {
             return static_cast<char>(ch);
         }
         return '_';
@@ -363,11 +355,15 @@ void UpdateInstaller::default_download(const std::string& url,
     };
 
     try {
-        configure_tls(curl);
+        CurlTls::configure(curl);
     } catch (const std::exception& ex) {
         std::fclose(file);
         curl_easy_cleanup(curl);
+#ifdef _WIN32
         throw std::runtime_error(std::string("Failed to stage CA bundle: ") + ex.what());
+#else
+        throw;
+#endif
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());

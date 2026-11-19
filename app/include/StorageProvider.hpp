@@ -93,6 +93,12 @@ public:
      */
     virtual std::string id() const = 0;
     /**
+     * @brief Builds a filename or full-path lookup key using provider comparison rules.
+     * @param path Original filename or full path, which remains unchanged in stored metadata.
+     * @return Comparison key; defaults to literal identity for providers without native rules.
+     */
+    virtual std::string comparison_key(const std::string& path) const { return path; }
+    /**
      * @brief Detects whether the provider should handle a given root path.
      * @param root_path Candidate root path selected by the user.
      * @return Detection metadata including confidence and user-facing diagnostics.
@@ -148,10 +154,20 @@ public:
                                              const std::string& destination) const = 0;
     /**
      * @brief Reverses a previously recorded provider-owned move.
-     * @param source Current path of the moved entry.
-     * @param destination Original destination to restore.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
      * @return Mutation result describing the undo outcome.
      */
     virtual StorageMutationResult undo_move(const std::string& source,
                                             const std::string& destination) const = 0;
+    /**
+     * @brief Reverses a move and removes only directories recorded as app-created.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @param created_directories Directories the app created for the move.
+     * @return Mutation result describing the undo outcome.
+     */
+    virtual StorageMutationResult undo_move(const std::string& source,
+                                            const std::string& destination,
+                                            const std::vector<std::string>& created_directories) const = 0;
 };

@@ -1,8 +1,8 @@
 # Hizli Baslangic Kilavuzu
 
-AI File Sorter, once inceleme yapilan bir is akisi ve guvenmeyi sectiginiz degisiklikler icin istege bagli otomatik onay ile dosyalari duzenlemenize yardim eder.
+AI File Sorter, değişiklikleri önce inceleyerek dosyaları düzenlemenize yardımcı olur. İsteğe bağlı otomatik onay, inceleme listesindeki değişiklikleri önceden seçebilir.
 
-AI analizi yurutur ve kategoriler, alt kategoriler ve adlar onerir. Dosyalariniza dogrudan dokunmaz. Uygulama, incelediginiz degisiklikleri onayladiktan sonra tasima veya yeniden adlandirma yapar; ya da yalnizca ilgili otomatik onay ayarini etkinlestirdiyseniz otomatik olarak uygular.
+Yapay zekâ kategoriler, hedef klasörler ve adlar önerir. Uygulama, dosyaları yalnızca inceleme penceresindeki seçili değişiklikleri onayladıktan sonra taşır veya yeniden adlandırır.
 
 ## Guvenli Ilk Calistirma
 
@@ -16,6 +16,32 @@ Ilk calistirma icin iyi klasorler sunlardir:
 
 Bu, ilk calistirmayi incelemeyi kolaylastirir. Yerel modeller kullandiginizda dosyalariniz bilgisayarinizda kalir ve AI yalnizca kategoriler ve adlar onerir. Ilk calistirmada otomatik onay seceneklerini kapali birakin; boylece inceleme listesini onaylayana kadar hicbir sey tasinmaz veya yeniden adlandirilmaz.
 
+İsteğe bağlı çevrimiçi yer arama, yerel modellerle de fotoğrafların GPS koordinatlarını üç ondalık basamağa yuvarlayarak OpenStreetMap'in Nominatim hizmetine gönderir. Sağlayıcı IP adresinizi ve istek zamanını da görebilir. Fotoğraf dosyaları, dosya adları ve çekim tarihleri gönderilmez; kategorilere yalnızca tarih ekleme işlemi yerel olarak yapılır.
+
+## Bir LLM ayarlayın
+
+**Settings -> Select LLM** menüsünü açın. **Local LLMs** açılır listesinden bir model veya **API connections** bölümünden bir sağlayıcı seçin.
+
+**Qwen3.5 4B (Recommended)** ilk yerel seçenektir ve yeni kurulumlarda varsayılandır. Kategorilendirmede yüksek hassasiyet sunar ve mevcut klasör yapıları için önerilir. Önceden kaydedilmiş model seçiminiz korunur. Kendi GGUF dosyanızı kullanmak için **Custom local LLM (gguf)** seçeneğini ve ardından **Add** düğmesini kullanın.
+
+Uygulamanın sunduğu bir yerel model için **Downloads** bölümünü genişletin, **Download** düğmesine tıklayın ve **OK** ile onaylamadan önce **Model ready** durumunu bekleyin. **Model storage**, indirme klasörünü seçmenizi sağlar. **See details**, indirme URL'sini, yerel yolu ve teknik bilgileri gösterir.
+
+Yerel görüntü analizi için **Görüntü analizi modelleri** bölümünden bir **Görsel model** seçin ve gerekli dosyaları indirin. Görsel model, metin modelinden ayrı seçilir.
+
+**API connections** altında Gemini, ChatGPT (OpenAI) veya özel bir OpenAI uyumlu uç nokta seçip gerekli bağlantı bilgilerini ve model adını girin. Bulut API'leri internet gerektirir ve analiz girdilerini yapılandırılmış hizmete gönderir. Özel uç noktalar yerel olarak da çalışabilir.
+
+Görüntüleri OpenAI uyumlu bir API bağlantısıyla analiz etmek için bağlantıda **Görüntü destekleyen model** seçeneğini etkinleştirin ve bağlantıyı **Görüntü analizi modelleri** → **Görsel model** bölümünden seçin. Yerel model veya projektör indirmeniz gerekmez. Görüntü desteğini etkinleştirdiğinizde, görüntü içeriklerinin yapılandırılmış sunucuya gönderilmesini onaylamanız istenir.
+
+## Yerel performansı kontrol edin (isteğe bağlı)
+
+Modelleri indirdikten sonra **File -> System compatibility check** menüsünü açıp **Run benchmark** düğmesine tıklayın. Önce CPU veya GPU'yu yoğun kullanan diğer uygulamaları kapatın. Kontrol, özel GGUF modelleri de dahil olmak üzere indirilmiş yerel modelleri test eder.
+
+**Backend** seçeneğini **Automatic (try CPU if GPU fails)** olarak bırakın veya CPU ile desteklenen GPU seçeneklerini karşılaştırmak için **All available backends** seçin. Sonuçlar her model ve arka uç için ayrı kaydedilir; birindeki hata, diğerindeki çalışan bir birleşimi dışlamaz.
+
+Bir sonuç seçip aynı birleşimi tekrarlamak için **Retry selected**, başarısız birleşimleri tekrarlamak için **Retry failed** veya seçili modeli açılır listedeki belirli bir arka uçla denemek için **Try chosen backend** kullanın.
+
+Öneriler yerel performansı tahmin eder. Kontrol, API hizmetlerini veya mevcut klasörleri seçme doğruluğunu test etmez ve seçili modelinizi otomatik olarak değiştirmez.
+
 ## 1. Bir klasor secin
 
 Siralayacaginiz klasoru secmek icin **Browse** veya **File Explorer** bolmesini kullanin.
@@ -28,6 +54,8 @@ Tipik ornekler:
 - ag veya bulutla senkronize edilen klasor
 - proje arsivi
 
+**Destination**, sıralanan dosyaların nereye gideceğini belirler. Seçili klasör içinde sıralamak için **Use analyzed folder** seçeneğini açık bırakın veya kapatıp başka bir hedef seçin.
+
 ## 2. Uygulamanin ne yapacagini secin
 
 Ana secenekleri kullanarak uygulamanin sunlari yapip yapmayacagina karar verin:
@@ -37,20 +65,33 @@ Ana secenekleri kullanarak uygulamanin sunlari yapip yapmayacagina karar verin:
 - belgeleri analiz etme
 - desteklenen dosyalar icin yeniden adlandirma onerileri sunma
 
-Yalnizca yeniden adlandirma onerileri istiyorsaniz, ilgili yalnizca-yeniden-adlandirma modunu etkinlestirin.
+Yalnızca ad önerileri istiyorsanız ilgili dosya türü için **Resim dosyalarını yeniden adlandırmayı öner** veya **Belge dosyalarını yeniden adlandırmayı öner** seçeneğini, ardından **Resimleri taşımadan yeniden adlandır** veya **Belgeleri taşımadan yeniden adlandır** seçeneğini etkinleştirin.
 
-## 3. Kategorilendirme stilinizi secin
+**Klasörleri sırala**, klasörleri içerikleriyle birlikte taşır ve **Alt klasörleri tara** seçeneğini kapatır. Bunun yerine alt klasörlerdeki dosyaları taramak için **Klasörleri sırala** seçeneğini kapatıp **Alt klasörleri tara** seçeneğini açın.
 
-Hedefinize en uygun stili secin:
+## 3. Nasıl sıralanacağını seçin
+
+Yeni profiller varsayılan olarak **Mevcut klasör yapısını kullan** seçeneğini kullanır. Kayıtlı sıralama tercihleriniz korunur. Kullanacağınız klasörleri içeren bir **Hedef** seçin veya yeni klasörler oluşturmak için **Kategori klasörleri oluştur** seçeneğini kullanın.
+
+Bir sıralama modu seçin:
+
+- **Create category folders**, önerilen kategori adlarından klasörler oluşturur.
+- **Use existing folder structure**, **Destination** altındaki klasör ağacından klasörler seçer. Hiçbiri uygun değilse yeni hedeflere izin vermek için **Suggest new folders when needed** seçeneğini açın; yalnızca mevcut klasörleri kullanmak için kapalı bırakın.
+
+Hedefe başlangıç yapısı eklemek için **Klasör yapısı oluştur...** seçeneğini kullanın. **Folder language**, başlangıçta kategori diliyle aynıdır ve yalnızca bu yapı için değiştirilebilir. İngilizce olmayan klasör adları seçili LLM ile çevrilir. **Oluştur** seçeneğine basmadan önce çevrilmiş önizlemeyi inceleyin; numaralandırma ve iç içe yapı korunur.
+
+Mevcut klasörler için **Qwen3.5 4B** öneriyoruz. **Gemma 1.1 7B** ve API üzerinden kullanılan modeller de uygun seçeneklerdir. Diğer yerel modeller bir öneri penceresi gösterir; modelinizi koruyabilir veya **Settings -> Select LLM** bölümünden değiştirebilirsiniz.
+
+**Create category folders** modunda bir kategorilendirme stili seçin:
 
 - **More refined** genel kullanim ve daha ayrintili gruplama icin
 - **More consistent** benzer dosyalar arasinda daha guclu etiket tutarliligi istiyorsaniz
 
-Uygulamanin daha dar bir kategori adi kumesi icinde kalmasini istiyorsaniz kategori beyaz listelerini de etkinlestirebilirsiniz.
+İzin listeleri, **Kategori klasörleri oluştur** modunda önerilen kategori ve alt kategori adlarını sınırlar. Hedef klasör ağacını kullanan **Mevcut klasör yapısını kullan** modunda devre dışıdır ve dikkate alınmaz. Mod değiştirdiğinizde liste tercihiniz korunur.
 
 ## 4. Analizi baslatin
 
-**Analyze and categorize files** dugmesine tiklayin.
+**Analyze folder** dugmesine tiklayin.
 
 Uygulama secilen klasoru tarar, ihtiyac duydugu bilgileri toplar ve bir inceleme listesi hazirlar.
 
@@ -66,13 +107,19 @@ Inceleme penceresi sunlari kontrol etmenizi saglar:
 
 Herhangi bir seyi onaylamadan once onerileri duzenleyebilir veya reddedebilirsiniz.
 
+Planlanan taşıma ve yeniden adlandırmaları uygulamadan önizlemek için **Dry run (preview only, do not move files)** seçeneğini açın.
+
 ## 6. Degisiklikleri uygulayin
 
-Onayladiginizda uygulama gerekli klasorleri olusturur ve tasima veya yeniden adlandirmalari yapar. Otomatik onay etkinse, uygun kategori veya dosya adi degisiklikleri inceleme penceresinde durmadan uygulanabilir.
+İşlenecek satırları seçip **Değişiklikleri uygula** düğmesine tıklayın. Uygulama gerekli klasörleri oluşturur ve seçilen taşıma veya yeniden adlandırmaları gerçekleştirir.
+
+**Deneme çalıştırma önizlemesi**: Planlanan taşıma ve yeniden adlandırmaları uygulamadan önizlemek için **Dry run (preview only, do not move files)** seçeneğini açın.
+
+**Yeniden adlandırma önerilerini otomatik olarak seç** ve **Sıralama önerilerini otomatik olarak seç**, uygun satırları önceden seçer. Bu değişiklikler uygulanmadan önce yine de onay vermeniz gerekir.
 
 ## 7. Son calistirmayi geri al
 
-Degisiklikleri uyguladiktan sonra geri almak isterseniz menuden **Undo last run** secenegini kullanin.
+Degisiklikleri uyguladiktan sonra geri almak isterseniz menuden **Edit -> Undo last run** secenegini kullanin.
 
 Geri alma, en son onaylanmis siralama calistirmasi icin tasarlanmistir. Uygulamanin kaydettigi calistirma gecmisini kullanarak dosyalari geri tasir ve desteklenen yeniden adlandirmalari mumkun oldugunda geri alir.
 

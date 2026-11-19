@@ -1,6 +1,6 @@
 /**
  * @file VisualModelCatalog.hpp
- * @brief Descriptor catalog for supported local visual model backends.
+ * @brief Descriptors and persisted ids for local and HTTP visual model backends.
  */
 #pragma once
 
@@ -11,10 +11,11 @@
 #include <vector>
 
 /**
- * @brief Supported local visual inference stacks.
+ * @brief Supported visual inference stacks.
  */
 enum class VisualModelArchitecture {
     MtmdProjector,
+    HttpChatCompletion,
 };
 
 /**
@@ -112,6 +113,30 @@ std::optional<std::string> custom_llm_id_from_visual_model_id(std::string_view v
  * @return True when the id uses the `custom:<id>` form.
  */
 bool is_custom_visual_model_id(std::string_view visual_model_id);
+
+/** @brief Return the descriptor for image analysis through an API connection. */
+const VisualModelDescriptor& http_visual_model_descriptor();
+
+/**
+ * @brief Build a persisted visual backend id for an API connection.
+ * @param endpoint_id Configured API connection id.
+ * @return Backend id, or empty when the connection id is empty.
+ */
+std::string http_visual_model_id(std::string_view endpoint_id);
+
+/**
+ * @brief Extract the API connection id from a visual backend id.
+ * @param visual_model_id Persisted backend id.
+ * @return Connection id when the backend uses HTTP image analysis.
+ */
+std::optional<std::string> http_endpoint_id_from_visual_model_id(std::string_view visual_model_id);
+
+/**
+ * @brief Check whether a backend id selects HTTP image analysis.
+ * @param visual_model_id Persisted backend id.
+ * @return True for a nonempty HTTP connection id.
+ */
+bool is_http_visual_model_id(std::string_view visual_model_id);
 
 /**
  * @brief Return the canonical on-disk location for a visual model artifact.

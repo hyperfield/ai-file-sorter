@@ -1,3 +1,4 @@
+#include "TextEncoding.hpp"
 #include "UpdateFeed.hpp"
 
 #include <algorithm>
@@ -20,7 +21,7 @@ namespace {
 std::string trim_copy(const std::string& value)
 {
     auto trimmed = value;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     return trimmed;
@@ -30,7 +31,7 @@ std::string normalized_sha256(std::string value)
 {
     value = trim_copy(value);
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
     return value;
 }

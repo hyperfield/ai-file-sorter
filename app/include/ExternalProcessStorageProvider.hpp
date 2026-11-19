@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 /**
  * @brief Proxies storage-provider operations to an external plugin process over stdio JSON.
@@ -34,6 +35,16 @@ public:
                                      const std::string& destination) const override;
     StorageMutationResult undo_move(const std::string& source,
                                     const std::string& destination) const override;
+    /**
+     * @brief Requests an undo and passes app-created directory metadata to the plugin.
+     * @param source Original path to restore.
+     * @param destination Current path of the moved entry.
+     * @param created_directories Directories the app created for the move.
+     * @return Mutation result returned by the external provider.
+     */
+    StorageMutationResult undo_move(const std::string& source,
+                                    const std::string& destination,
+                                    const std::vector<std::string>& created_directories) const override;
 
 private:
     std::optional<StorageProviderCapabilities> fetch_capabilities() const;

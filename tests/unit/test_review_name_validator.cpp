@@ -31,6 +31,7 @@ TEST_CASE("ReviewNameValidator validates category labels")
     std::string error;
 
     CHECK(ReviewNameValidator::validate_labels("Documents", "Reports", error));
+    CHECK(ReviewNameValidator::validate_labels("Økonomi ☁️", "Ġ", error));
     CHECK(ReviewNameValidator::validate_labels(
         std::string("Rapports ") + "\xC3\xA9" + "nergie",
         "Q2",

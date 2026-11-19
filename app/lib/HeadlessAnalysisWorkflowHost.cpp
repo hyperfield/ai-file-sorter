@@ -1,13 +1,20 @@
+#include "AnalysisProgressTranslation.hpp"
+#include "TranslationManager.hpp"
+#include "TextEncoding.hpp"
 #include "HeadlessAnalysisWorkflowHost.hpp"
 
 #include "AnalysisCoordinator.hpp"
 #include "CategorizationService.hpp"
 #include "CategorizationSession.hpp"
 #include "DatabaseManager.hpp"
+#include "DocumentTextAnalyzer.hpp"
+#include "LlavaImageAnalyzer.hpp"
+#include "FolderStructurePluginManager.hpp"
 #include "GeminiClient.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "LocalLLMClient.hpp"
+#include "MediaRenameMetadataService.hpp"
 #include "Logger.hpp"
 #include "ResultsCoordinator.hpp"
 #include "UserLearningStore.hpp"
@@ -25,6 +32,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
@@ -38,7 +46,7 @@ std::string to_utf8(const QString& value)
 
 QString translate_main_app(const char* text)
 {
-    return QCoreApplication::translate("MainApp", text);
+    return AnalysisProgressTranslation::translate(text);
 }
 
 std::shared_ptr<spdlog::logger> resolve_core_logger()
@@ -51,11 +59,11 @@ std::shared_ptr<spdlog::logger> resolve_core_logger()
 
 std::string env_value_or_unset(const char* name)
 {
-    const char* value = std::getenv(name);
-    if (!value || value[0] == '\0') {
+    const auto value = Utils::getenv_utf8(name);
+    if (!value || value->empty()) {
         return "<unset>";
     }
-    return value;
+    return *value;
 }
 
 std::string text_llm_backend_request_summary()
@@ -75,21 +83,33 @@ HeadlessAnalysisWorkflowHost::HeadlessAnalysisWorkflowHost(Options options)
     : options_(std::move(options))
 {
     settings_.load();
+    settings_.set_sort_folder(normalize_folder_path(options_.folder_path));
+    // Headless callers default to the analyzed root unless they explicitly override it.
+    settings_.set_destination_folder(std::string());
     if (options_.include_subdirectories) {
         settings_.set_include_subdirectories(*options_.include_subdirectories);
     }
     apply_settings_overrides();
+    TranslationManager::instance().initialize_for_app(QCoreApplication::instance(), settings_.get_language());
     apply_operation_settings_overlay();
     runtime_data_dir_ = settings_.get_config_dir();
     core_logger_ = resolve_core_logger();
     db_manager_ = std::make_unique<DatabaseManager>(runtime_data_dir_);
+    db_manager_->set_storage_provider(storage_provider_);
     user_learning_store_ = std::make_unique<UserLearningStore>(runtime_data_dir_);
     whitelist_store_ = std::make_unique<WhitelistStore>(runtime_data_dir_);
+    folder_structure_plugin_manager_ =
+        std::make_unique<FolderStructurePluginManager>(runtime_data_dir_);
     categorization_service_ =
         std::make_unique<CategorizationService>(settings_,
                                                 *db_manager_,
                                                 core_logger_,
                                                 user_learning_store_.get());
+    categorization_service_->set_folder_structure_profile_provider([this]() {
+        return folder_structure_plugin_manager_
+            ? folder_structure_plugin_manager_->installed_profiles()
+            : std::vector<FolderStructurePluginProfile>{};
+    });
     results_coordinator_ = std::make_unique<ResultsCoordinator>(storage_provider_);
     using_local_llm_ = !is_remote_choice(settings_.get_llm_choice());
     initialize_whitelists();
@@ -102,8 +122,58 @@ AnalysisRunResult HeadlessAnalysisWorkflowHost::execute()
     AnalysisRunResult result = AnalysisCoordinator(make_context()).execute();
     if (result.status == AnalysisRunStatus::Completed) {
         filter_review_entries_to_selected_paths();
+        append_media_rename_suggestions();
+        if (should_stop()) {
+            return {AnalysisRunStatus::Cancelled, {}};
+        }
+        apply_rename_only_preferences(new_files_to_sort_);
     }
     return result;
+}
+
+void HeadlessAnalysisWorkflowHost::append_media_rename_suggestions()
+{
+    if (options_.operation_mode != OperationMode::Rename) {
+        return;
+    }
+    auto files = results_coordinator_->list_directory(folder_path(), effective_scan_options());
+    filter_file_entries_to_selected_paths(files);
+    std::unordered_map<std::string, std::size_t> review_indices;
+    for (std::size_t i = 0; i < new_files_to_sort_.size(); ++i) {
+        const auto& entry = new_files_to_sort_[i];
+        review_indices.emplace(selected_path_key(Utils::utf8_to_path(entry.file_path) /
+                                                  Utils::utf8_to_path(entry.file_name)), i);
+    }
+    MediaRenameMetadataService metadata;
+    for (const auto& file : files) {
+        if (should_stop()) {
+            return;
+        }
+        const auto path = Utils::utf8_to_path(file.full_path);
+        if (file.type != FileType::File || !MediaRenameMetadataService::is_supported_media(path)) {
+            continue;
+        }
+        const auto existing = review_indices.find(selected_path_key(path));
+        if (existing != review_indices.end() && !new_files_to_sort_[existing->second].suggested_name.empty()) {
+            continue;
+        }
+        const auto suggested = metadata.suggest_name(path);
+        if (!suggested || *suggested == file.file_name) {
+            continue;
+        }
+        if (existing != review_indices.end()) {
+            new_files_to_sort_[existing->second].suggested_name = *suggested;
+            new_files_to_sort_[existing->second].rename_only = true;
+            continue;
+        }
+        CategorizedFile entry{};
+        entry.file_path = Utils::path_to_utf8(path.parent_path());
+        entry.file_name = file.file_name;
+        entry.type = FileType::File;
+        entry.suggested_name = *suggested;
+        entry.rename_only = true;
+        new_files_to_sort_.push_back(std::move(entry));
+    }
 }
 
 void HeadlessAnalysisWorkflowHost::request_stop()
@@ -141,6 +211,7 @@ std::vector<CategorizedFile> HeadlessAnalysisWorkflowHost::preview_review_entrie
                        }),
         entries.end());
 
+    apply_rename_only_preferences(entries);
     if (options_.selected_paths.empty()) {
         return entries;
     }
@@ -173,6 +244,11 @@ std::string HeadlessAnalysisWorkflowHost::folder_path() const
     return normalize_folder_path(options_.folder_path);
 }
 
+std::string HeadlessAnalysisWorkflowHost::destination_folder() const
+{
+    return settings_.get_effective_destination_folder(folder_path());
+}
+
 bool HeadlessAnalysisWorkflowHost::use_subcategories() const
 {
     return settings_.get_use_subcategories();
@@ -181,6 +257,11 @@ bool HeadlessAnalysisWorkflowHost::use_subcategories() const
 bool HeadlessAnalysisWorkflowHost::include_subdirectories() const
 {
     return settings_.get_include_subdirectories();
+}
+
+bool HeadlessAnalysisWorkflowHost::suggest_new_folders() const
+{
+    return settings_.get_suggest_new_folders();
 }
 
 CategoryLanguage HeadlessAnalysisWorkflowHost::category_language() const
@@ -243,6 +324,7 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
             filter_file_entries_to_selected_paths(entries);
         },
         [this]() { notify_review_preview_changed(); },
+        []() { return false; },
         [](const std::vector<AnalysisWorkflowContext::StagePlan>&) {},
         [](AnalysisWorkflowContext::StageId, const std::vector<FileEntry>&) {},
         [](AnalysisWorkflowContext::StageId) {},
@@ -258,7 +340,10 @@ AnalysisWorkflowContext HeadlessAnalysisWorkflowHost::make_context()
         },
         [this](const CategorizedFile& entry, const std::string& reason) {
             notify_recategorization_reset(entry, reason);
-        }};
+        },
+        true,
+        options_.operation_mode == OperationMode::CategorizeAndRename &&
+            !options_.settings_overrides.respect_rename_preferences.value_or(false)};
 }
 
 FileScanOptions HeadlessAnalysisWorkflowHost::effective_scan_options() const
@@ -273,8 +358,8 @@ FileScanOptions HeadlessAnalysisWorkflowHost::effective_scan_options() const
 
     const bool analyze_images = settings_.get_analyze_images_by_content();
     const bool analyze_documents = settings_.get_analyze_documents_by_content();
-    const bool images_only = analyze_images && settings_.get_process_images_only();
-    const bool documents_only = analyze_documents && settings_.get_process_documents_only();
+    const bool images_only = settings_.get_process_images_only();
+    const bool documents_only = settings_.get_process_documents_only();
     if (images_only || documents_only) {
         FileScanOptions options = FileScanOptions::Files;
         if (settings_.get_include_subdirectories()) {
@@ -444,13 +529,20 @@ void HeadlessAnalysisWorkflowHost::sync_whitelists_to_learning_store()
 
 void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
 {
-    settings_.set_process_images_only(false);
-    settings_.set_process_documents_only(false);
-
     switch (options_.operation_mode) {
     case OperationMode::Rename:
+        settings_.set_process_images_only(false);
+        settings_.set_process_documents_only(false);
+        settings_.set_analyze_images_by_content(true);
+        settings_.set_analyze_documents_by_content(true);
+        settings_.set_add_audio_video_metadata_to_filename(true);
         settings_.set_categorize_files(false);
         settings_.set_categorize_directories(false);
+        // Explicit Rename does not sort whole folders; restore its requested recursion after clearing that default.
+        if (const auto recursive = options_.settings_overrides.include_subdirectories
+                ? options_.settings_overrides.include_subdirectories : options_.include_subdirectories) {
+            settings_.set_include_subdirectories(*recursive);
+        }
         settings_.set_offer_rename_images(true);
         settings_.set_offer_rename_documents(true);
         settings_.set_rename_images_only(true);
@@ -459,10 +551,7 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
         settings_.set_add_document_date_to_category(false);
         return;
     case OperationMode::CategorizeAndRename:
-        settings_.set_offer_rename_images(true);
-        settings_.set_offer_rename_documents(true);
-        settings_.set_rename_images_only(false);
-        settings_.set_rename_documents_only(false);
+        apply_combined_operation_settings();
         return;
     case OperationMode::Categorize:
     default:
@@ -474,11 +563,44 @@ void HeadlessAnalysisWorkflowHost::apply_operation_settings_overlay()
     }
 }
 
+void HeadlessAnalysisWorkflowHost::apply_combined_operation_settings()
+{
+    const auto& overrides = options_.settings_overrides;
+    const bool respect = overrides.respect_rename_preferences.value_or(false);
+    const bool images = !respect || overrides.offer_rename_images.value_or(true);
+    const bool documents = !respect || overrides.offer_rename_documents.value_or(true);
+    settings_.set_offer_rename_images(images);
+    settings_.set_offer_rename_documents(documents);
+    settings_.set_rename_images_only(respect && images && overrides.rename_images_only.value_or(false));
+    settings_.set_rename_documents_only(respect && documents && overrides.rename_documents_only.value_or(false));
+    if (!respect) {
+        return;
+    }
+    if (images) {
+        settings_.set_analyze_images_by_content(true);
+    }
+    if (documents) {
+        settings_.set_analyze_documents_by_content(true);
+    }
+}
+
 void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
 {
     const HeadlessSettingsOverrides& overrides = options_.settings_overrides;
     if (overrides.use_subcategories) {
         settings_.set_use_subcategories(*overrides.use_subcategories);
+    }
+    if (overrides.sorting_mode) {
+        settings_.set_sorting_mode(*overrides.sorting_mode);
+    }
+    if (overrides.destination_folder) {
+        settings_.set_destination_folder(overrides.destination_folder->empty()
+                                             ? std::string()
+                                             : normalize_folder_path(
+                                                   Utils::utf8_to_path(*overrides.destination_folder)));
+    }
+    if (overrides.suggest_new_folders) {
+        settings_.set_suggest_new_folders(*overrides.suggest_new_folders);
     }
     if (overrides.use_consistency_hints) {
         settings_.set_use_consistency_hints(*overrides.use_consistency_hints);
@@ -516,6 +638,9 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     if (overrides.offer_rename_images) {
         settings_.set_offer_rename_images(*overrides.offer_rename_images);
     }
+    if (overrides.image_filename_words) {
+        settings_.set_image_filename_words(*overrides.image_filename_words);
+    }
     if (overrides.rename_images_only) {
         settings_.set_rename_images_only(*overrides.rename_images_only);
     }
@@ -530,6 +655,9 @@ void HeadlessAnalysisWorkflowHost::apply_settings_overrides()
     }
     if (overrides.offer_rename_documents) {
         settings_.set_offer_rename_documents(*overrides.offer_rename_documents);
+    }
+    if (overrides.document_filename_words) {
+        settings_.set_document_filename_words(*overrides.document_filename_words);
     }
     if (overrides.rename_documents_only) {
         settings_.set_rename_documents_only(*overrides.rename_documents_only);
@@ -699,6 +827,25 @@ void HeadlessAnalysisWorkflowHost::notify_recategorization_reset(const Categoriz
     append_progress("[WARN] " + entry.file_name + " will be re-categorized: " + reason);
 }
 
+void HeadlessAnalysisWorkflowHost::apply_rename_only_preferences(std::vector<CategorizedFile>& entries) const
+{
+    if (options_.operation_mode != OperationMode::CategorizeAndRename ||
+        !options_.settings_overrides.respect_rename_preferences.value_or(false)) {
+        return;
+    }
+    for (auto& entry : entries) {
+        if (entry.type != FileType::File) {
+            continue;
+        }
+        const auto path = Utils::utf8_to_path(entry.file_name);
+        if (LlavaImageAnalyzer::is_supported_image(path)) {
+            entry.rename_only = settings_.get_rename_images_only();
+        } else if (DocumentTextAnalyzer::is_supported_document(path)) {
+            entry.rename_only = settings_.get_rename_documents_only();
+        }
+    }
+}
+
 void HeadlessAnalysisWorkflowHost::filter_review_entries_to_selected_paths()
 {
     if (options_.selected_paths.empty()) {
@@ -737,7 +884,7 @@ std::string HeadlessAnalysisWorkflowHost::selected_path_key(const std::filesyste
     std::string key = normalize_folder_path(path);
 #ifdef _WIN32
     std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
     });
 #endif
     return key;

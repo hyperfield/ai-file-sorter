@@ -1,9 +1,11 @@
+#include "TextEncoding.hpp"
 #include "Settings.hpp"
 #include "Types.hpp"
 #include "Logger.hpp"
 #include "Language.hpp"
 #include "Utils.hpp"
 #include "VisualModelCatalog.hpp"
+#include <utility>
 #include <filesystem>
 #include <cstdio>
 #include <iostream>
@@ -48,7 +50,7 @@ std::vector<std::string> parse_list(const std::string& value) {
     std::stringstream ss(value);
     std::string item;
     while (std::getline(ss, item, ',')) {
-        auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+        auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
         item.erase(item.begin(), std::find_if(item.begin(), item.end(), not_space));
         item.erase(std::find_if(item.rbegin(), item.rend(), not_space).base(), item.end());
         if (!item.empty()) {
@@ -60,7 +62,7 @@ std::vector<std::string> parse_list(const std::string& value) {
 
 std::string trim_copy(const std::string& value) {
     auto trimmed = value;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     return trimmed;
@@ -75,6 +77,34 @@ std::string join_list(const std::vector<std::string>& items) {
         oss << items[i];
     }
     return oss.str();
+}
+
+SortingMode sorting_mode_from_string(std::string value)
+{
+    value = trim_copy(std::move(value));
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(TextEncoding::ascii_lower(ch));
+    });
+    if (value == "existingfoldertree" || value == "existing-folder-tree" ||
+        value == "existing_folder_tree" || value == "foldertree" || value == "folder-tree") {
+        return SortingMode::ExistingFolderTree;
+    }
+    if (value == "generatedcategories" || value == "generated-categories" ||
+        value == "generated_categories" || value == "categories") {
+        return SortingMode::GeneratedCategories;
+    }
+    return SortingMode::ExistingFolderTree;
+}
+
+std::string sorting_mode_to_string(SortingMode mode)
+{
+    switch (mode) {
+    case SortingMode::ExistingFolderTree:
+        return "ExistingFolderTree";
+    case SortingMode::GeneratedCategories:
+    default:
+        return "GeneratedCategories";
+    }
 }
 
 std::string escape_map_token(const std::string& value)
@@ -308,6 +338,7 @@ std::string llm_choice_to_string(LLMChoice choice) {
         case LLMChoice::Remote_Gemini: return "Remote_Gemini";
         case LLMChoice::Remote_Custom: return "Remote_Custom";
         case LLMChoice::Local_4b_Gemma: return "Local_4b_Gemma";
+        case LLMChoice::Local_4b_Qwen35: return "Local_4b_Qwen35";
         case LLMChoice::Local_3b_legacy: return "Local_3b_legacy";
         case LLMChoice::Local_7b: return "Local_7b";
         case LLMChoice::Local_7b_Gemma: return "Local_7b_Gemma";
@@ -352,7 +383,7 @@ std::string normalize_visual_model_id(const std::string& value)
     if (trimmed.empty()) {
         return default_visual_model_descriptor().id;
     }
-    if (is_custom_visual_model_id(trimmed)) {
+    if (is_custom_visual_model_id(trimmed) || is_http_visual_model_id(trimmed)) {
         return trimmed;
     }
     if (find_visual_model_descriptor(trimmed)) {
@@ -364,30 +395,37 @@ std::string normalize_visual_model_id(const std::string& value)
 Language system_default_language()
 {
     const QLocale locale = QLocale::system();
-    switch (locale.language()) {
-        case QLocale::Chinese:
-            if (locale.script() == QLocale::SimplifiedHanScript
-                || locale.territory() == QLocale::China
-                || locale.territory() == QLocale::Singapore) {
-                return Language::SimplifiedChinese;
-            }
-            return Language::English;
-        case QLocale::Danish: return Language::Danish;
-        case QLocale::Finnish: return Language::Finnish;
-        case QLocale::French: return Language::French;
-        case QLocale::German: return Language::German;
-        case QLocale::Hindi: return Language::Hindi;
-        case QLocale::Icelandic: return Language::Icelandic;
-        case QLocale::Italian: return Language::Italian;
-        case QLocale::NorwegianBokmal: return Language::Norwegian;
-        case QLocale::NorwegianNynorsk: return Language::Norwegian;
-        case QLocale::Swedish: return Language::Swedish;
-        case QLocale::Spanish: return Language::Spanish;
-        case QLocale::Turkish: return Language::Turkish;
-        case QLocale::Korean: return Language::Korean;
-        case QLocale::Dutch: return Language::Dutch;
-        default: return Language::English;
+    if (locale.language() == QLocale::Chinese) {
+        return locale.script() == QLocale::SimplifiedHanScript
+            || locale.territory() == QLocale::China
+            || locale.territory() == QLocale::Singapore
+            ? Language::SimplifiedChinese : Language::English;
     }
+    const std::pair<QLocale::Language, Language> languages[] = {
+        {QLocale::English, Language::English},
+        {QLocale::French, Language::French},
+        {QLocale::German, Language::German},
+        {QLocale::Hindi, Language::Hindi},
+        {QLocale::Italian, Language::Italian},
+        {QLocale::Spanish, Language::Spanish},
+        {QLocale::Turkish, Language::Turkish},
+        {QLocale::Korean, Language::Korean},
+        {QLocale::Dutch, Language::Dutch},
+        {QLocale::Swedish, Language::Swedish},
+        {QLocale::Icelandic, Language::Icelandic},
+        {QLocale::Finnish, Language::Finnish},
+        {QLocale::Danish, Language::Danish},
+        {QLocale::Portuguese, Language::Portuguese},
+        {QLocale::Polish, Language::Polish},
+        {QLocale::Russian, Language::Russian},
+        {QLocale::Ukrainian, Language::Ukrainian},
+        {QLocale::NorwegianBokmal, Language::Norwegian},
+        {QLocale::NorwegianNynorsk, Language::Norwegian},
+    };
+    for (const auto& [system_language, interface_language] : languages) {
+        if (locale.language() == system_language) return interface_language;
+    }
+    return Language::English;
 }
 
 std::string path_from_env_url(const char* env_key)
@@ -428,7 +466,7 @@ Settings::Settings()
     std::string AppName = "AIFileSorter";
     config_path = define_config_path();
 
-    config_dir = std::filesystem::path(config_path).parent_path();
+    config_dir = Utils::utf8_to_path(config_path).parent_path();
 
     try {
         if (!std::filesystem::exists(config_dir)) {
@@ -482,6 +520,7 @@ LLMChoice Settings::parse_llm_choice() const
     if (value == "Remote_Gemini") return LLMChoice::Remote_Gemini;
     if (value == "Remote_Custom") return LLMChoice::Remote_Custom;
     if (value == "Local_3b" || value == "Local_4b_Gemma") return LLMChoice::Local_4b_Gemma;
+    if (value == "Local_4b_Qwen35") return LLMChoice::Local_4b_Qwen35;
     if (value == "Local_3b_legacy") return LLMChoice::Local_3b_legacy;
     if (value == "Local_7b") return LLMChoice::Local_7b;
     if (value == "Local_7b_Gemma") return LLMChoice::Local_7b_Gemma;
@@ -503,12 +542,16 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     visual_model_id = normalize_visual_model_id(
         config.getValue("Settings", "VisualModelId", default_visual_model_descriptor().id));
     use_subcategories = load_bool("UseSubcategories", true);
+    sorting_mode = sorting_mode_from_string(
+        config.getValue("Settings", "SortingMode", "ExistingFolderTree"));
+    suggest_new_folders = load_bool("SuggestNewFolders", false);
     use_consistency_hints = load_bool("UseConsistencyHints", false);
     categorize_files = load_bool("CategorizeFiles", true);
     categorize_directories = load_bool("CategorizeDirectories", false);
     include_subdirectories = load_bool("IncludeSubdirectories", false);
     analyze_images_by_content = load_bool("AnalyzeImagesByContent", false);
     offer_rename_images = load_bool("OfferRenameImages", false);
+    set_image_filename_words(load_int("ImageFilenameWords", kDefaultFilenameWords, kMinimumFilenameWords));
     add_image_date_place_to_filename = load_bool("AddImageDatePlaceToFilename", false);
     add_audio_video_metadata_to_filename = load_bool("AddAudioVideoMetadataToFilename", true);
     add_image_date_to_category = load_bool("AddImageDateToCategory", false);
@@ -516,6 +559,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     process_images_only = load_bool("ProcessImagesOnly", false);
     analyze_documents_by_content = load_bool("AnalyzeDocumentsByContent", false);
     offer_rename_documents = load_bool("OfferRenameDocuments", false);
+    set_document_filename_words(load_int("DocumentFilenameWords", kDefaultFilenameWords, kMinimumFilenameWords));
     rename_documents_only = load_bool("RenameDocumentsOnly", false);
     process_documents_only = load_bool("ProcessDocumentsOnly", false);
     add_document_date_to_category = load_bool("AddDocumentDateToCategory", false);
@@ -545,9 +589,10 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
         offer_rename_documents = true;
     }
     if (include_subdirectories && categorize_directories) {
-        categorize_directories = false;
+        include_subdirectories = false;
     }
     sort_folder = config.getValue("Settings", "SortFolder", default_sort_folder.empty() ? std::string("/") : default_sort_folder);
+    destination_folder = config.getValue("Settings", "DestinationFolder", "");
     show_file_explorer = load_bool("ShowFileExplorer", true);
     recent_network_locations = parse_multiline_list(
         config.getValue("Settings", "RecentNetworkLocations", ""));
@@ -555,6 +600,7 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     suitability_benchmark_suppressed = load_bool("SuitabilityBenchmarkSuppressed", false);
     benchmark_last_report = decode_multiline(config.getValue("Settings", "BenchmarkLastReport", ""));
     benchmark_last_run = config.getValue("Settings", "BenchmarkLastRun", "");
+    benchmark_results_json = decode_multiline(config.getValue("Settings", "BenchmarkResults", ""));
     consistency_pass_enabled = load_bool("ConsistencyPass", false);
     development_prompt_logging = load_bool("DevelopmentPromptLogging", false);
     headless_review_before_apply = load_bool("HeadlessReviewBeforeApply", true);
@@ -572,10 +618,8 @@ void Settings::load_basic_settings(const std::function<bool(const char*, bool)>&
     category_language = categoryLanguageFromString(QString::fromStdString(config.getValue("Settings", "CategoryLanguage", "English")));
     categorized_file_count = load_int("CategorizedFileCount", 0, 0);
     next_support_prompt_threshold = load_int("SupportPromptThreshold", 50, 50);
-    windows_explorer_extension_prompt_dismissed =
-        load_bool("WindowsExplorerExtensionPromptDismissed", false);
-    windows_explorer_extension_prompt_last_shown_utc =
-        config.getValue("Settings", "WindowsExplorerExtensionPromptLastShownUtc", "");
+    hide_johnny_decimal_plugin_suggestion =
+        load_bool("HideJohnnyDecimalPluginSuggestion", false);
 }
 
 void Settings::load_whitelist_settings(const std::function<bool(const char*, bool)>& load_bool)
@@ -623,6 +667,7 @@ void Settings::load_custom_api_settings()
         entry.base_url = config.getValue(section, "BaseUrl", "");
         entry.api_key = config.getValue(section, "ApiKey", "");
         entry.model = config.getValue(section, "Model", "");
+        entry.image_analysis_enabled = config.getValue(section, "ImageAnalysisEnabled", "false") == "true";
         entry.name = trim_copy(entry.name);
         entry.description = trim_copy(entry.description);
         entry.base_url = trim_copy(entry.base_url);
@@ -664,6 +709,8 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "LlmStorageDir", llm_storage_dir);
     config.setValue(settings_section, "VisualModelId", normalize_visual_model_id(visual_model_id));
     set_bool_setting(config, settings_section, "UseSubcategories", use_subcategories);
+    config.setValue(settings_section, "SortingMode", sorting_mode_to_string(sorting_mode));
+    set_bool_setting(config, settings_section, "SuggestNewFolders", suggest_new_folders);
     set_bool_setting(config, settings_section, "UseConsistencyHints", use_consistency_hints);
     set_bool_setting(config, settings_section, "CategorizeFiles", categorize_files);
     set_bool_setting(config, settings_section, "CategorizeDirectories", categorize_directories);
@@ -676,6 +723,7 @@ void Settings::save_core_settings()
     }
     set_bool_setting(config, settings_section, "AnalyzeImagesByContent", analyze_images_by_content);
     set_bool_setting(config, settings_section, "OfferRenameImages", offer_rename_images);
+    config.setValue(settings_section, "ImageFilenameWords", std::to_string(image_filename_words));
     set_bool_setting(config, settings_section, "AddImageDatePlaceToFilename", add_image_date_place_to_filename);
     set_bool_setting(config, settings_section, "AddAudioVideoMetadataToFilename", add_audio_video_metadata_to_filename);
     set_bool_setting(config, settings_section, "AddImageDateToCategory", add_image_date_to_category);
@@ -684,11 +732,13 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "ProcessImagesOnly", process_images_only);
     set_bool_setting(config, settings_section, "AnalyzeDocumentsByContent", analyze_documents_by_content);
     set_bool_setting(config, settings_section, "OfferRenameDocuments", offer_rename_documents);
+    config.setValue(settings_section, "DocumentFilenameWords", std::to_string(document_filename_words));
     set_bool_setting(config, settings_section, "DocumentOptionsExpanded", document_options_expanded);
     set_bool_setting(config, settings_section, "RenameDocumentsOnly", rename_documents_only);
     set_bool_setting(config, settings_section, "ProcessDocumentsOnly", process_documents_only);
     set_bool_setting(config, settings_section, "AddDocumentDateToCategory", add_document_date_to_category);
     config.setValue(settings_section, "SortFolder", this->sort_folder);
+    config.setValue(settings_section, "DestinationFolder", destination_folder);
 
     set_optional_setting(config, settings_section, "SkippedVersion", skipped_version);
     set_optional_setting(config, settings_section, "WhatsNewVersionShown", whats_new_version_shown);
@@ -702,6 +752,7 @@ void Settings::save_core_settings()
     set_bool_setting(config, settings_section, "SuitabilityBenchmarkSuppressed", suitability_benchmark_suppressed);
     set_optional_setting(config, settings_section, "BenchmarkLastReport", encode_multiline(benchmark_last_report));
     set_optional_setting(config, settings_section, "BenchmarkLastRun", benchmark_last_run);
+    set_optional_setting(config, settings_section, "BenchmarkResults", encode_multiline(benchmark_results_json));
     set_bool_setting(config, settings_section, "ConsistencyPass", consistency_pass_enabled);
     set_bool_setting(config, settings_section, "DevelopmentPromptLogging", development_prompt_logging);
     set_bool_setting(config, settings_section, "HeadlessReviewBeforeApply", headless_review_before_apply);
@@ -719,12 +770,8 @@ void Settings::save_core_settings()
     config.setValue(settings_section, "SupportPromptThreshold", std::to_string(next_support_prompt_threshold));
     set_bool_setting(config,
                      settings_section,
-                     "WindowsExplorerExtensionPromptDismissed",
-                     windows_explorer_extension_prompt_dismissed);
-    set_optional_setting(config,
-                         settings_section,
-                         "WindowsExplorerExtensionPromptLastShownUtc",
-                         windows_explorer_extension_prompt_last_shown_utc);
+                     "HideJohnnyDecimalPluginSuggestion",
+                     hide_johnny_decimal_plugin_suggestion);
 }
 
 void Settings::save_whitelist_settings()
@@ -781,6 +828,7 @@ void Settings::save_custom_api_endpoints()
         config.setValue(section, "BaseUrl", entry.base_url);
         config.setValue(section, "ApiKey", entry.api_key);
         config.setValue(section, "Model", entry.model);
+        config.setValue(section, "ImageAnalysisEnabled", to_bool_string(entry.image_analysis_enabled));
     }
     config.setValue(api_section, "CustomApiIds", join_list(ids));
 }
@@ -788,19 +836,24 @@ void Settings::save_custom_api_endpoints()
 std::string Settings::define_config_path()
 {
     std::string AppName = "AIFileSorter";
-    if (const char* override_root = std::getenv("AI_FILE_SORTER_CONFIG_DIR")) {
-        std::filesystem::path base = override_root;
-        return (base / AppName / "config.ini").string();
+    if (const auto root = Utils::getenv_utf8("AI_FILE_SORTER_CONFIG_DIR")) {
+        return Utils::path_to_utf8(Utils::utf8_to_path(*root) / AppName / "config.ini");
     }
 #ifdef _WIN32
-    char appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath))) {
-        return std::string(appDataPath) + "\\" + AppName + "\\config.ini";
+    wchar_t* app_data = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &app_data))) {
+        const std::filesystem::path base(app_data);
+        CoTaskMemFree(app_data);
+        return Utils::path_to_utf8(base / AppName / "config.ini");
     }
-#elif defined(__APPLE__)
-    return std::string(getenv("HOME")) + "/Library/Application Support/" + AppName + "/config.ini";
 #else
-    return std::string(getenv("HOME")) + "/.config/" + AppName + "/config.ini";
+    if (const auto home = Utils::getenv_utf8("HOME")) {
+#ifdef __APPLE__
+        return Utils::path_to_utf8(Utils::utf8_to_path(*home) / "Library/Application Support" / AppName / "config.ini");
+#else
+        return Utils::path_to_utf8(Utils::utf8_to_path(*home) / ".config" / AppName / "config.ini");
+#endif
+    }
 #endif
     return "config.ini";
 }
@@ -808,7 +861,7 @@ std::string Settings::define_config_path()
 
 std::string Settings::get_config_dir()
 {
-    return config_dir.string();
+    return Utils::path_to_utf8(config_dir);
 }
 
 
@@ -850,6 +903,26 @@ bool Settings::save()
 }
 
 
+int Settings::get_image_filename_words() const
+{
+    return image_filename_words;
+}
+
+void Settings::set_image_filename_words(int words)
+{
+    image_filename_words = clamp_filename_words(words);
+}
+
+int Settings::get_document_filename_words() const
+{
+    return document_filename_words;
+}
+
+void Settings::set_document_filename_words(int words)
+{
+    document_filename_words = clamp_filename_words(words);
+}
+
 LLMChoice Settings::get_llm_choice() const
 {
     return llm_choice;
@@ -869,7 +942,7 @@ std::string Settings::get_openai_api_key() const
 void Settings::set_openai_api_key(const std::string& key)
 {
     auto trimmed = key;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     openai_api_key = trimmed;
@@ -883,7 +956,7 @@ std::string Settings::get_openai_model() const
 void Settings::set_openai_model(const std::string& model)
 {
     auto trimmed = model;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     if (trimmed.empty()) {
@@ -900,7 +973,7 @@ std::string Settings::get_gemini_api_key() const
 void Settings::set_gemini_api_key(const std::string& key)
 {
     auto trimmed = key;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     gemini_api_key = trimmed;
@@ -914,7 +987,7 @@ std::string Settings::get_gemini_model() const
 void Settings::set_gemini_model(const std::string& model)
 {
     auto trimmed = model;
-    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    auto not_space = [](unsigned char ch) { return !TextEncoding::ascii_space(ch); };
     trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), not_space));
     trimmed.erase(std::find_if(trimmed.rbegin(), trimmed.rend(), not_space).base(), trimmed.end());
     if (trimmed.empty()) {
@@ -1104,6 +1177,26 @@ void Settings::set_use_subcategories(bool value)
     use_subcategories = value;
 }
 
+SortingMode Settings::get_sorting_mode() const
+{
+    return sorting_mode;
+}
+
+void Settings::set_sorting_mode(SortingMode mode)
+{
+    sorting_mode = mode;
+}
+
+bool Settings::get_suggest_new_folders() const
+{
+    return suggest_new_folders;
+}
+
+void Settings::set_suggest_new_folders(bool value)
+{
+    suggest_new_folders = value;
+}
+
 bool Settings::get_use_consistency_hints() const
 {
     return use_consistency_hints;
@@ -1136,6 +1229,9 @@ bool Settings::get_categorize_directories() const
 void Settings::set_categorize_directories(bool value)
 {
     categorize_directories = value;
+    if (value) {
+        include_subdirectories = false;
+    }
 }
 
 bool Settings::get_include_subdirectories() const
@@ -1145,7 +1241,7 @@ bool Settings::get_include_subdirectories() const
 
 void Settings::set_include_subdirectories(bool value)
 {
-    include_subdirectories = value;
+    include_subdirectories = value && !categorize_directories;
 }
 
 bool Settings::get_analyze_images_by_content() const
@@ -1300,6 +1396,22 @@ void Settings::set_sort_folder(const std::string &path)
     this->sort_folder = path;
 }
 
+std::string Settings::get_destination_folder() const
+{
+    return destination_folder;
+}
+
+void Settings::set_destination_folder(const std::string& path)
+{
+    destination_folder = trim_copy(path);
+}
+
+std::string Settings::get_effective_destination_folder(const std::string& analysis_folder) const
+{
+    const std::string destination = trim_copy(destination_folder);
+    return destination.empty() ? analysis_folder : destination;
+}
+
 bool Settings::get_consistency_pass_enabled() const
 {
     return consistency_pass_enabled;
@@ -1353,6 +1465,11 @@ void Settings::set_review_auto_approve_categorization(bool value)
 bool Settings::get_use_whitelist() const
 {
     return use_whitelist;
+}
+
+bool Settings::get_effective_use_whitelist() const
+{
+    return use_whitelist && sorting_mode == SortingMode::GeneratedCategories;
 }
 
 void Settings::set_use_whitelist(bool value)
@@ -1469,6 +1586,9 @@ void Settings::set_benchmark_last_run(const std::string& value)
     benchmark_last_run = value;
 }
 
+std::string Settings::get_benchmark_results_json() const { return benchmark_results_json; }
+void Settings::set_benchmark_results_json(const std::string& value) { benchmark_results_json = value; }
+
 
 Language Settings::get_language() const
 {
@@ -1507,24 +1627,14 @@ void Settings::set_next_support_prompt_threshold(int threshold)
     next_support_prompt_threshold = threshold;
 }
 
-bool Settings::get_windows_explorer_extension_prompt_dismissed() const
+bool Settings::get_hide_johnny_decimal_plugin_suggestion() const
 {
-    return windows_explorer_extension_prompt_dismissed;
+    return hide_johnny_decimal_plugin_suggestion;
 }
 
-void Settings::set_windows_explorer_extension_prompt_dismissed(bool value)
+void Settings::set_hide_johnny_decimal_plugin_suggestion(bool value)
 {
-    windows_explorer_extension_prompt_dismissed = value;
-}
-
-std::string Settings::get_windows_explorer_extension_prompt_last_shown_utc() const
-{
-    return windows_explorer_extension_prompt_last_shown_utc;
-}
-
-void Settings::set_windows_explorer_extension_prompt_last_shown_utc(const std::string& value)
-{
-    windows_explorer_extension_prompt_last_shown_utc = value;
+    hide_johnny_decimal_plugin_suggestion = value;
 }
 
 std::vector<std::string> Settings::get_allowed_categories() const

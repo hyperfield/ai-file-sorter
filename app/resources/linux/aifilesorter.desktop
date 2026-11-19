@@ -1,0 +1,25 @@
+[Desktop Entry]
+Type=Application
+Name=AI File Sorter
+Comment=Organize files and folders with AI
+Comment[da]=Organiser filer og mapper med AI
+Comment[de]=Dateien und Ordner mit KI organisieren
+Comment[es]=Organiza archivos y carpetas con IA
+Comment[fi]=Järjestä tiedostoja ja kansioita tekoälyn avulla
+Comment[fr]=Organiser les fichiers et dossiers avec l’IA
+Comment[hi]=AI की मदद से फ़ाइलें और फ़ोल्डर व्यवस्थित करें
+Comment[is]=Skipuleggðu skrár og möppur með gervigreind
+Comment[it]=Organizza file e cartelle con l'IA
+Comment[ko]=AI로 파일과 폴더 정리
+Comment[nb]=Organiser filer og mapper med KI
+Comment[nl]=Bestanden en mappen ordenen met AI
+Comment[sv]=Organisera filer och mappar med AI
+Comment[tr]=Dosya ve klasörleri yapay zekâ ile düzenleyin
+Comment[zh_CN]=使用 AI 整理文件和文件夹
+Exec=aifilesorter
+TryExec=aifilesorter
+Icon=aifilesorter
+Terminal=false
+Categories=Utility;FileTools;
+Keywords=files;folders;organize;sort;AI;
+StartupNotify=true

@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include "CategorizationProgressDialog.hpp"
 #include "MainApp.hpp"
@@ -6,19 +7,474 @@
 #include "Settings.hpp"
 #include "TestHelpers.hpp"
 #include "Utils.hpp"
+#include "VisualModelCatalog.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QDialogButtonBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QToolButton>
+#include <QTimer>
+#include <QElapsedTimer>
+#include <QThread>
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <unordered_set>
 #include <vector>
+
+TEST_CASE("MainApp validates destination depth asynchronously and discards stale checks", "[destination-depth]")
+{
+    QtAppContext qt;
+    TempDir config, source, destination;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_llm_choice(LLMChoice::Local_4b_Qwen35);
+    settings.set_language(Language::English);
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(destination.path().string());
+    settings.set_categorize_files(true);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    REQUIRE(settings.save());
+    MainApp window(settings, false, true);
+    const auto wait_for = [](const auto& ready) {
+        QElapsedTimer elapsed;
+        elapsed.start();
+        constexpr int kWaitMilliseconds = 5000;
+        while (!ready() && elapsed.elapsed() < kWaitMilliseconds) {
+            QApplication::processEvents();
+            QThread::msleep(5);
+        }
+        return ready();
+    };
+    auto* button = MainAppTestAccess::analyze_button(window);
+    auto* status = window.findChild<QLabel*>(QStringLiteral("destinationDepthStatus"));
+    auto* entry = window.findChild<QLineEdit*>(QStringLiteral("destinationPathEntry"));
+    REQUIRE(button);
+    REQUIRE(status);
+    REQUIRE(entry);
+    CHECK_FALSE(button->isEnabled());
+    CHECK_FALSE(status->text().isEmpty());
+    REQUIRE(wait_for([&] { return button->isEnabled(); }));
+    CHECK(status->text().isEmpty());
+
+    std::filesystem::path deep;
+    for (int i = 0; i <= FolderTreeCatalog::kDefaultMaxDepth; ++i) deep /= "Nested";
+    std::filesystem::create_directories(destination.path() / deep);
+    // Rapid edits must publish only the latest destination's check.
+    entry->setText(QString::fromStdString(source.path().string()));
+    entry->setText(QString::fromStdString(destination.path().string()));
+    REQUIRE(wait_for([&] { return status->text().contains(QString::fromStdString(deep.generic_string())); }));
+    CHECK_FALSE(button->isEnabled());
+    auto* mode = MainAppTestAccess::sorting_mode_selector(window);
+    mode->setCurrentIndex(mode->findData(static_cast<int>(SortingMode::GeneratedCategories)));
+    CHECK(button->isEnabled());
+    CHECK(status->text().isEmpty());
+    mode->setCurrentIndex(mode->findData(static_cast<int>(SortingMode::ExistingFolderTree)));
+    entry->setText(QString::fromStdString(source.path().string()));
+    REQUIRE(wait_for([&] { return button->isEnabled(); }));
+    CHECK(status->text().isEmpty());
+}
+
+TEST_CASE("A configured vision API enables image analysis without a model download prompt", "[http-vision]")
+{
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    CustomApiEndpoint vision{"vision", "Image server", "", "http://127.0.0.1:1234/v1", "", "vision-model", true};
+    const auto id = settings.upsert_custom_api_endpoint(vision);
+    settings.set_visual_model_id(http_visual_model_id(id));
+    settings.set_analyze_images_by_content(false);
+    REQUIRE(settings.save());
+    MainApp window(settings, false);
+    auto* checkbox = MainAppTestAccess::analyze_images_checkbox(window);
+    REQUIRE(checkbox);
+    checkbox->setChecked(true);
+    CHECK(checkbox->isChecked());
+    CHECK(settings.get_analyze_images_by_content());
+}
+
+TEST_CASE("Saved picture and document filters remain editable", "[file-type-controls]")
+{
+    const bool pictures_first = GENERATE(false, true);
+    const bool analysis_first = GENERATE(false, true);
+    CAPTURE(pictures_first, analysis_first);
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings stored;
+    CustomApiEndpoint vision{"filters", "Filter test vision", "", "http://127.0.0.1:1/v1", "", "filter-model", true};
+    const auto id = stored.upsert_custom_api_endpoint(vision);
+    stored.set_visual_model_id(http_visual_model_id(id));
+    stored.set_categorize_files(true);
+    stored.set_categorize_directories(false);
+    stored.set_analyze_images_by_content(true);
+    stored.set_analyze_documents_by_content(true);
+    stored.set_process_images_only(true);
+    stored.set_process_documents_only(true);
+    REQUIRE(stored.save());
+    Settings settings;
+    REQUIRE(settings.load());
+    MainApp window(settings, false);
+    auto* pictures = MainAppTestAccess::process_images_only_checkbox(window);
+    auto* documents = MainAppTestAccess::process_documents_only_checkbox(window);
+    auto* analyze_pictures = MainAppTestAccess::analyze_images_checkbox(window);
+    auto* analyze_documents = MainAppTestAccess::analyze_documents_checkbox(window);
+    for (auto* control : {pictures, documents, analyze_pictures, analyze_documents}) {
+        REQUIRE(control);
+        REQUIRE(control->isChecked());
+        REQUIRE(control->isEnabled());
+    }
+    CHECK(settings.get_process_images_only());
+    CHECK(settings.get_process_documents_only());
+    CHECK(MainAppTestAccess::image_options_toggle_button(window)->isEnabled());
+    CHECK(MainAppTestAccess::document_options_toggle_button(window)->isEnabled());
+    const auto scan = MainAppTestAccess::effective_scan_options(window);
+    CHECK(has_flag(scan, FileScanOptions::Files));
+    CHECK_FALSE(has_flag(scan, FileScanOptions::Directories));
+
+    auto* first_filter = pictures_first ? pictures : documents;
+    auto* remaining_filter = pictures_first ? documents : pictures;
+    auto* first_analysis = pictures_first ? analyze_pictures : analyze_documents;
+    auto* remaining_analysis = pictures_first ? analyze_documents : analyze_pictures;
+    auto* first_control = analysis_first ? first_analysis : first_filter;
+    first_control->click();
+    CHECK_FALSE(first_control->isChecked());
+    CHECK_FALSE(first_filter->isEnabled());
+    CHECK_FALSE(first_analysis->isEnabled());
+    REQUIRE(remaining_filter->isChecked());
+    REQUIRE(remaining_filter->isEnabled());
+    REQUIRE(remaining_analysis->isEnabled());
+    remaining_filter->click();
+    CHECK_FALSE(remaining_filter->isChecked());
+    REQUIRE(first_analysis->isEnabled());
+    REQUIRE(remaining_analysis->isEnabled());
+    if (analysis_first) {
+        first_analysis->click();
+        REQUIRE(first_filter->isChecked());
+        REQUIRE(first_filter->isEnabled());
+        first_filter->click();
+    }
+    for (auto* control : {pictures, documents, analyze_pictures, analyze_documents}) {
+        CHECK(control->isEnabled());
+    }
+    CHECK_FALSE(pictures->isChecked());
+    CHECK_FALSE(documents->isChecked());
+    CHECK(analyze_pictures->isChecked());
+    CHECK(analyze_documents->isChecked());
+    REQUIRE(settings.save());
+    Settings reloaded;
+    REQUIRE(reloaded.load());
+    CHECK_FALSE(reloaded.get_process_images_only());
+    CHECK_FALSE(reloaded.get_process_documents_only());
+    CHECK(reloaded.get_analyze_images_by_content());
+    CHECK(reloaded.get_analyze_documents_by_content());
+}
+
+TEST_CASE("Processing documents only disables image analysis controls") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_analyze_images_by_content(true);
+    settings.set_process_images_only(false);
+    settings.set_offer_rename_images(true);
+    settings.set_rename_images_only(false);
+    settings.set_add_image_date_to_category(true);
+    settings.set_add_image_date_place_to_filename(true);
+    settings.set_analyze_documents_by_content(true);
+    settings.set_process_documents_only(false);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    QCheckBox* analyze_images = MainAppTestAccess::analyze_images_checkbox(window);
+    QCheckBox* process_images_only = MainAppTestAccess::process_images_only_checkbox(window);
+    QCheckBox* offer_rename_images = MainAppTestAccess::offer_rename_images_checkbox(window);
+    QCheckBox* rename_images_only = MainAppTestAccess::rename_images_only_checkbox(window);
+    QCheckBox* add_image_date =
+        MainAppTestAccess::add_image_date_to_category_checkbox(window);
+    QCheckBox* add_image_date_place =
+        MainAppTestAccess::add_image_date_place_to_filename_checkbox(window);
+    QCheckBox* analyze_documents = MainAppTestAccess::analyze_documents_checkbox(window);
+    QCheckBox* process_documents_only = MainAppTestAccess::process_documents_only_checkbox(window);
+    QToolButton* image_toggle = MainAppTestAccess::image_options_toggle_button(window);
+
+    REQUIRE(analyze_images != nullptr);
+    REQUIRE(process_images_only != nullptr);
+    REQUIRE(offer_rename_images != nullptr);
+    REQUIRE(rename_images_only != nullptr);
+    REQUIRE(add_image_date != nullptr);
+    REQUIRE(add_image_date_place != nullptr);
+    REQUIRE(analyze_documents != nullptr);
+    REQUIRE(process_documents_only != nullptr);
+    REQUIRE(image_toggle != nullptr);
+
+    REQUIRE(analyze_images->isChecked());
+    REQUIRE(analyze_documents->isChecked());
+    REQUIRE(analyze_images->isEnabled());
+    REQUIRE(process_images_only->isEnabled());
+    REQUIRE(offer_rename_images->isEnabled());
+    REQUIRE(rename_images_only->isEnabled());
+    REQUIRE(add_image_date->isEnabled());
+    REQUIRE(add_image_date_place->isEnabled());
+    REQUIRE(image_toggle->isEnabled());
+
+    process_documents_only->setChecked(true);
+
+    REQUIRE_FALSE(analyze_images->isEnabled());
+    REQUIRE_FALSE(process_images_only->isEnabled());
+    REQUIRE_FALSE(offer_rename_images->isEnabled());
+    REQUIRE_FALSE(rename_images_only->isEnabled());
+    REQUIRE_FALSE(add_image_date->isEnabled());
+    REQUIRE_FALSE(add_image_date_place->isEnabled());
+    REQUIRE_FALSE(image_toggle->isEnabled());
+    REQUIRE(settings.get_analyze_images_by_content());
+    REQUIRE(settings.get_offer_rename_images());
+    REQUIRE(settings.get_add_image_date_to_category());
+    REQUIRE(settings.get_add_image_date_place_to_filename());
+
+    process_documents_only->setChecked(false);
+
+    REQUIRE(analyze_images->isEnabled());
+    REQUIRE(process_images_only->isEnabled());
+    REQUIRE(offer_rename_images->isEnabled());
+    REQUIRE(rename_images_only->isEnabled());
+    REQUIRE(add_image_date->isEnabled());
+    REQUIRE(add_image_date_place->isEnabled());
+    REQUIRE(image_toggle->isEnabled());
+}
+
+TEST_CASE("Existing folder mode places folder structure creator in destination row") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    QComboBox* sorting_mode = MainAppTestAccess::sorting_mode_selector(window);
+    QPushButton* create_button = MainAppTestAccess::create_folder_structure_button(window);
+    QPushButton* destination_browse = MainAppTestAccess::destination_browse_button(window);
+    REQUIRE(sorting_mode != nullptr);
+    REQUIRE(create_button != nullptr);
+    REQUIRE(destination_browse != nullptr);
+    CHECK(MainAppTestAccess::use_analyzed_folder_as_destination_checkbox(window) == nullptr);
+
+    CHECK(create_button->isHidden());
+    window.show();
+    QApplication::processEvents();
+    CHECK_FALSE(create_button->isVisible());
+
+    const int existing_mode_index =
+        sorting_mode->findData(static_cast<int>(SortingMode::ExistingFolderTree));
+    REQUIRE(existing_mode_index >= 0);
+    sorting_mode->setCurrentIndex(existing_mode_index);
+    QApplication::processEvents();
+
+    CHECK(create_button->isVisible());
+    CHECK(create_button->isEnabled());
+    CHECK(create_button->geometry().left() >= destination_browse->geometry().right());
+    CHECK(std::abs(create_button->geometry().center().y() -
+                   destination_browse->geometry().center().y()) <= 3);
+
+    MainAppTestAccess::set_analysis_in_progress(window, true);
+    CHECK(create_button->isVisible());
+    CHECK_FALSE(create_button->isEnabled());
+
+    MainAppTestAccess::set_analysis_in_progress(window, false);
+    CHECK(create_button->isVisible());
+    CHECK(create_button->isEnabled());
+
+    const int generated_mode_index =
+        sorting_mode->findData(static_cast<int>(SortingMode::GeneratedCategories));
+    REQUIRE(generated_mode_index >= 0);
+    sorting_mode->setCurrentIndex(generated_mode_index);
+    QApplication::processEvents();
+
+    CHECK_FALSE(create_button->isVisible());
+}
+
+TEST_CASE("Existing folder mode recommends Qwen for less suitable local models") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    const std::vector<std::pair<LLMChoice, bool>> cases = {
+        {LLMChoice::Local_4b_Gemma, true},
+        {LLMChoice::Local_7b, true},
+        {LLMChoice::Local_3b_legacy, true},
+        {LLMChoice::Custom, true},
+        {LLMChoice::Local_4b_Qwen35, false},
+        {LLMChoice::Local_7b_Gemma, false},
+        {LLMChoice::Remote_OpenAI, false},
+        {LLMChoice::Remote_Gemini, false},
+        {LLMChoice::Remote_Custom, false},
+        {LLMChoice::Unset, false},
+    };
+    for (const auto& [choice, expected_recommendation] : cases) {
+        DYNAMIC_SECTION("Selected LLM " << static_cast<int>(choice)) {
+            Settings settings;
+            settings.set_language(Language::English);
+            settings.set_llm_choice(choice);
+            settings.set_sorting_mode(SortingMode::GeneratedCategories);
+            REQUIRE(settings.save());
+            MainApp window(settings, /*development_mode=*/false);
+            auto* sorting_mode = MainAppTestAccess::sorting_mode_selector(window);
+            REQUIRE(sorting_mode != nullptr);
+            bool recommendation_shown = false;
+            QTimer dismiss_dialog;
+            QObject::connect(&dismiss_dialog, &QTimer::timeout, &window, [&]() {
+                auto* message = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+                if (!message) {
+                    return;
+                }
+                recommendation_shown = true;
+                CHECK(message->objectName() == QStringLiteral("existingFolderLlmRecommendation"));
+                CHECK(message->icon() == QMessageBox::Information);
+                CHECK(message->text().contains(QStringLiteral("Not all LLMs")));
+                CHECK(message->text().contains(QStringLiteral("recommend Qwen3.5 4B")));
+                CHECK(message->text().contains(QStringLiteral("Gemma 1.1 7B")));
+                CHECK(message->text().contains(QStringLiteral("API")));
+                message->accept();
+            });
+            dismiss_dialog.start(0);
+            sorting_mode->setCurrentIndex(
+                sorting_mode->findData(static_cast<int>(SortingMode::ExistingFolderTree)));
+            CHECK(recommendation_shown == expected_recommendation);
+            CHECK(settings.get_sorting_mode() == SortingMode::ExistingFolderTree);
+            CHECK(settings.get_llm_choice() == choice);
+
+            recommendation_shown = false;
+            sorting_mode->setCurrentIndex(
+                sorting_mode->findData(static_cast<int>(SortingMode::GeneratedCategories)));
+            dismiss_dialog.stop();
+            CHECK_FALSE(recommendation_shown);
+        }
+    }
+}
+
+TEST_CASE("Changing the LLM checks the recommendation when existing folder mode is active") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    for (const auto mode : {SortingMode::GeneratedCategories, SortingMode::ExistingFolderTree}) {
+        DYNAMIC_SECTION("Sorting mode " << static_cast<int>(mode)) {
+            Settings settings;
+            settings.set_llm_choice(LLMChoice::Local_4b_Qwen35);
+            settings.set_sorting_mode(mode);
+            CustomLLM custom;
+            custom.name = "Custom local model";
+            custom.path = (temp.path() / "custom.gguf").string();
+            const auto custom_id = settings.upsert_custom_llm(custom);
+            REQUIRE_FALSE(custom_id.empty());
+            REQUIRE(settings.save());
+            MainApp window(settings, /*development_mode=*/false);
+            bool selection_accepted = false;
+            bool recommendation_shown = false;
+            QTimer handle_dialogs;
+            QObject::connect(&handle_dialogs, &QTimer::timeout, &window, [&]() {
+                auto* modal = QApplication::activeModalWidget();
+                if (auto* message = qobject_cast<QMessageBox*>(modal)) {
+                    recommendation_shown = true;
+                    CHECK(message->objectName() == QStringLiteral("existingFolderLlmRecommendation"));
+                    message->accept();
+                } else if (modal) {
+                    auto* local = modal->findChild<QComboBox*>(QStringLiteral("localModelCombo"));
+                    auto* buttons = modal->findChild<QDialogButtonBox*>();
+                    CHECK(local != nullptr);
+                    CHECK(buttons != nullptr);
+                    if (!local || !buttons) {
+                        modal->close();
+                        return;
+                    }
+                    local->setCurrentIndex(local->findData(static_cast<int>(LLMChoice::Custom)));
+                    auto* ok = buttons->button(QDialogButtonBox::Ok);
+                    CHECK(ok->isEnabled());
+                    selection_accepted = ok->isEnabled();
+                    if (selection_accepted) {
+                        ok->click();
+                    } else {
+                        modal->close();
+                    }
+                }
+            });
+            handle_dialogs.start(0);
+            window.show_llm_selection_dialog();
+            handle_dialogs.stop();
+            CHECK(selection_accepted);
+            CHECK(recommendation_shown == (mode == SortingMode::ExistingFolderTree));
+            CHECK(settings.get_llm_choice() == LLMChoice::Custom);
+            CHECK(settings.get_active_custom_llm_id() == custom_id);
+            CHECK(settings.get_sorting_mode() == mode);
+        }
+    }
+}
+
+TEST_CASE("Johnny.Decimal plugin offer only triggers for existing-tree archives") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+
+    TempDir temp;
+    EnvVarGuard home_guard("HOME", temp.path().string());
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+
+    const std::filesystem::path archive = temp.path() / "ExistingArchive";
+    std::filesystem::create_directories(archive / "00-09 System" / "01 Inbox");
+    std::filesystem::create_directories(archive / "00-09 System" / "02 Settings");
+    std::filesystem::create_directories(archive / "10-19 Admin" / "11 Finance");
+    std::filesystem::create_directories(archive / "10-19 Admin" / "12 Legal");
+
+    const std::filesystem::path plain = temp.path() / "PlainArchive";
+    std::filesystem::create_directories(plain / "Documents" / "Receipts");
+
+    Settings settings;
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    REQUIRE(settings.save());
+
+    MainApp window(settings, /*development_mode=*/false);
+
+    CHECK(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(archive.string())));
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(plain.string())));
+
+    settings.set_sorting_mode(SortingMode::GeneratedCategories);
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(archive.string())));
+
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    settings.set_hide_johnny_decimal_plugin_suggestion(true);
+    CHECK_FALSE(MainAppTestAccess::should_offer_johnny_decimal_plugin_for_root(
+        window,
+        QString::fromStdString(archive.string())));
+}
 
 #ifndef _WIN32
 namespace {
@@ -579,3 +1035,39 @@ TEST_CASE("Already-renamed images skip vision analysis") {
     }
 }
 #endif
+
+TEST_CASE("Whole-folder sorting clears and disables recursive scanning") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    QtAppContext qt_context;
+    TempDir temp;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", temp.path().string());
+    Settings settings;
+    settings.set_categorize_files(true);
+    settings.set_categorize_directories(false);
+    settings.set_include_subdirectories(true);
+    settings.set_analyze_images_by_content(false);
+    settings.set_analyze_documents_by_content(false);
+    REQUIRE(settings.save());
+    MainApp window(settings, false);
+    auto* folders = MainAppTestAccess::categorize_directories_checkbox(window);
+    auto* recursive = MainAppTestAccess::include_subdirectories_checkbox(window);
+    REQUIRE(folders);
+    REQUIRE(recursive);
+    REQUIRE(recursive->isChecked());
+    REQUIRE(folders->isEnabled());
+    folders->click();
+    CHECK(folders->isChecked());
+    CHECK_FALSE(recursive->isChecked());
+    CHECK_FALSE(recursive->isEnabled());
+    CHECK(settings.get_categorize_directories());
+    CHECK_FALSE(settings.get_include_subdirectories());
+    recursive->setChecked(true);
+    CHECK_FALSE(recursive->isChecked());
+    CHECK(folders->isChecked());
+    folders->click();
+    CHECK(recursive->isEnabled());
+    CHECK_FALSE(recursive->isChecked());
+    recursive->click();
+    CHECK(settings.get_include_subdirectories());
+    CHECK_FALSE(settings.get_categorize_directories());
+}

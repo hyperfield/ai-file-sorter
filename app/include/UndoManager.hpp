@@ -22,6 +22,7 @@ public:
         std::time_t mtime{0};
         std::string stable_identity;
         std::string revision_token;
+        std::vector<std::string> created_directories;
     };
 
     explicit UndoManager(std::string undo_dir,

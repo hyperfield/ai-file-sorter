@@ -1,8 +1,8 @@
 # Guia de inicio rapido
 
-AI File Sorter le ayuda a organizar archivos con un flujo de trabajo de revision primero y aprobacion automatica opcional para los cambios en los que decida confiar.
+AI File Sorter le ayuda a organizar archivos con una revisión previa. La aprobación automática opcional puede preseleccionar cambios en la lista de revisión.
 
-La IA dirige el analisis y sugiere categorias, subcategorias y nombres. No modifica directamente sus archivos. La aplicacion mueve o cambia nombres despues de que usted confirme los cambios revisados, o automaticamente solo cuando haya activado la opcion de aprobacion automatica correspondiente.
+La IA sugiere categorías, carpetas de destino y nombres. La aplicación mueve o renombra los archivos solo después de que confirme los cambios seleccionados en el cuadro de revisión.
 
 ## Primera ejecucion segura
 
@@ -16,6 +16,32 @@ Buenas carpetas para la primera ejecucion incluyen:
 
 Esto facilita revisar la primera ejecucion. Sus archivos permanecen en su equipo cuando usa modelos locales, y la IA solo sugiere categorias y nombres. Deje desactivadas las opciones de aprobacion automatica en la primera ejecucion para que nada se mueva ni cambie de nombre hasta que apruebe la lista de revision.
 
+La búsqueda opcional de lugares en línea envía las coordenadas GPS de las fotos, redondeadas a tres decimales, al servicio Nominatim de OpenStreetMap, incluso con modelos locales. El proveedor también puede ver su dirección IP y la hora de la solicitud. No se envían las fotos, los nombres de archivo ni las fechas de captura; añadir solo fechas a las categorías se realiza localmente.
+
+## Configurar un LLM
+
+Abra **Settings -> Select LLM**. Elija un modelo en la lista desplegable **Local LLMs** o un proveedor en **API connections**.
+
+**Qwen3.5 4B (Recommended)** es la primera opción local y la predeterminada para configuraciones nuevas. Ofrece alta precisión de categorización y se recomienda para estructuras de carpetas existentes. Se conserva la selección de modelo guardada anteriormente. Para usar su propio archivo GGUF, elija **Custom local LLM (gguf)** y pulse **Add**.
+
+Para un modelo local ofrecido por la aplicación, despliegue **Downloads**, pulse **Download** y espere a **Model ready** antes de confirmar con **OK**. **Model storage** permite elegir la carpeta de descarga. **See details** muestra la URL de descarga, la ruta local y la información técnica.
+
+Para analizar imágenes localmente, elija un **Modelo visual** en **Modelos de análisis de imágenes** y descargue sus archivos necesarios. El modelo visual se selecciona por separado del modelo de texto.
+
+En **API connections**, elija Gemini, ChatGPT (OpenAI) o un punto de conexión personalizado compatible con OpenAI e introduzca los datos de conexión necesarios y el nombre del modelo. Las API en la nube requieren Internet y envían los datos de análisis al servicio configurado. Los puntos de conexión personalizados también pueden ejecutarse localmente.
+
+Para analizar imágenes mediante una conexión API compatible con OpenAI, active **Modelo con capacidad de visión** para esa conexión y selecciónela en **Modelos de análisis de imágenes** → **Modelo visual**. No necesita descargar un modelo ni un proyector local. Al activar la visión, se le pide confirmar el envío del contenido de las imágenes al servidor configurado.
+
+## Comprobar el rendimiento local (opcional)
+
+Tras descargar los modelos, abra **File -> System compatibility check** y pulse **Run benchmark**. Cierre antes otras aplicaciones que consuman mucha CPU o GPU. La comprobación prueba los modelos locales descargados, incluidos los modelos GGUF personalizados.
+
+Deje **Backend** en **Automatic (try CPU if GPU fails)** o elija **All available backends** para comparar la CPU y las opciones GPU compatibles. Los resultados se guardan por separado para cada modelo y motor; un fallo en uno no excluye una combinación que funcione en otro.
+
+Seleccione un resultado y use **Retry selected** para repetir esa combinación, **Retry failed** para repetir las combinaciones fallidas o **Try chosen backend** para probar el modelo seleccionado con un motor concreto de la lista desplegable.
+
+Las recomendaciones estiman el rendimiento local. La comprobación no prueba los servicios API ni la precisión al elegir carpetas existentes, y no cambia automáticamente el modelo seleccionado.
+
 ## 1. Elegir una carpeta
 
 Use **Browse** o el panel **File Explorer** para elegir la carpeta que desea ordenar.
@@ -28,6 +54,8 @@ Ejemplos tipicos:
 - una carpeta de red o sincronizada con la nube
 - un archivo de proyecto
 
+**Destination** determina dónde se colocan los archivos ordenados. Deje **Use analyzed folder** activado para ordenar dentro de la carpeta seleccionada, o desactívelo y elija otro destino.
+
 ## 2. Elegir que debe hacer la aplicacion
 
 Use las opciones principales para decidir si la aplicacion debe:
@@ -37,20 +65,33 @@ Use las opciones principales para decidir si la aplicacion debe:
 - analizar documentos
 - ofrecer sugerencias de cambio de nombre para archivos compatibles
 
-Si solo quiere sugerencias de cambio de nombre, active el modo correspondiente de solo cambio de nombre.
+Si solo quiere sugerencias de nombres, active **Ofrecer renombrar archivos de imagen** u **Ofrecer renombrar archivos de documentos** y después **Renombrar imágenes sin moverlas** o **Renombrar documentos sin moverlos** para el tipo de archivo correspondiente.
 
-## 3. Seleccionar el estilo de categorizacion
+**Ordenar carpetas** mueve carpetas completas con su contenido y desactiva **Escanear subcarpetas**. Para analizar los archivos dentro de subcarpetas, desactive **Ordenar carpetas** y active **Escanear subcarpetas**.
 
-Elija el estilo que mejor coincida con su objetivo:
+## 3. Elegir cómo ordenar
+
+Los perfiles nuevos usan **Usar estructura de carpetas existente** de forma predeterminada. Se conservan las opciones de ordenación guardadas. Elija un **Destino** que contenga las carpetas que desea usar, o seleccione **Crear carpetas de categoría** para crearlas.
+
+Elija un modo de ordenación:
+
+- **Create category folders** crea carpetas a partir de los nombres de categoría sugeridos.
+- **Use existing folder structure** elige carpetas dentro del árbol de **Destination**. Active **Suggest new folders when needed** para permitir nuevos destinos cuando ninguno encaje bien; déjelo desactivado para usar solo carpetas existentes.
+
+Use **Crear estructura de carpetas...** para añadir una estructura inicial al destino. **Folder language** empieza con el idioma de las categorías y puede cambiarse solo para esa estructura. El LLM seleccionado traduce los nombres de carpetas que no estén en inglés. Revise la vista previa traducida antes de pulsar **Crear**; se conservan la numeración y los niveles.
+
+Para carpetas existentes, recomendamos **Qwen3.5 4B**. **Gemma 1.1 7B** y los modelos utilizados mediante API también son opciones adecuadas. Los demás modelos locales muestran un aviso; puede conservar su modelo o cambiarlo en **Settings -> Select LLM**.
+
+En el modo **Create category folders**, elija un estilo de categorización:
 
 - **More refined** para uso general y agrupacion mas detallada
 - **More consistent** si desea mayor coherencia de etiquetas entre archivos similares
 
-Tambien puede activar listas blancas de categorias si quiere que la aplicacion se mantenga dentro de un conjunto mas limitado de nombres de categorias.
+Las listas permitidas limitan los nombres de categorías y subcategorías sugeridos en el modo **Crear carpetas de categoría**. Se desactivan y se ignoran en el modo **Usar estructura de carpetas existente**, que usa la estructura de destino. La preferencia de lista se conserva al cambiar de modo.
 
 ## 4. Iniciar el analisis
 
-Haga clic en **Analyze and categorize files**.
+Haga clic en **Analyze folder**.
 
 La aplicacion escanea la carpeta seleccionada, recopila la informacion necesaria y prepara una lista de revision.
 
@@ -66,13 +107,19 @@ El cuadro de revision le permite inspeccionar:
 
 Puede ajustar o rechazar sugerencias antes de confirmar cualquier cosa.
 
+Active **Dry run (preview only, do not move files)** para previsualizar los movimientos y cambios de nombre previstos sin aplicarlos.
+
 ## 6. Aplicar los cambios
 
-Una vez que confirme, la aplicacion crea las carpetas necesarias y realiza los movimientos o cambios de nombre. Si la aprobacion automatica esta activada, los cambios de categoria o nombre de archivo elegibles pueden aplicarse sin detenerse en el cuadro de revision.
+Seleccione las filas que desea procesar y pulse **Aplicar cambios**. La aplicación crea las carpetas necesarias y realiza los movimientos o cambios de nombre seleccionados.
+
+**Vista previa de la prueba**: Active **Dry run (preview only, do not move files)** para previsualizar los movimientos y cambios de nombre previstos sin aplicarlos.
+
+**Seleccionar automáticamente sugerencias de renombrado** y **Seleccionar automáticamente sugerencias de clasificación** preseleccionan las filas aptas. Aún debe confirmar antes de que se apliquen esos cambios.
 
 ## 7. Deshacer la ultima ejecucion
 
-Si aplica cambios y luego quiere revertirlos, use **Undo last run** desde el menu.
+Si aplica cambios y luego quiere revertirlos, use **Edit -> Undo last run** desde el menu.
 
 Deshacer esta pensado para la ejecucion de ordenacion confirmada mas reciente. Usa el historial registrado por la aplicacion para devolver archivos y revertir cambios de nombre compatibles cuando sea posible.
 

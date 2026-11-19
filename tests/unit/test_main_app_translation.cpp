@@ -1,16 +1,194 @@
 #include <catch2/catch_test_macros.hpp>
 #include "MainAppHelpActions.hpp"
 #include "MainApp.hpp"
+#include "ContentSizedPushButton.hpp"
 #include "MainAppTestAccess.hpp"
 #include "TestHelpers.hpp"
 #include "TranslationManager.hpp"
 #include "WhatsNewContent.hpp"
 #include "Language.hpp"
+#include "Logger.hpp"
 #include <app_version.hpp>
 
+#include <QAction>
+#include <QActionGroup>
 #include <QCoreApplication>
+#include <QEvent>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QStyleFactory>
+#include <QStyleOptionButton>
 
+#include <set>
+#include <memory>
 #include <vector>
+
+namespace {
+void settle_button_layout()
+{
+    QApplication::processEvents();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+    QApplication::processEvents();
+}
+
+void check_button_caption_space(const QPushButton& button)
+{
+    QStyleOptionButton option;
+    option.initFrom(&button);
+    option.text = button.text();
+    option.icon = button.icon();
+    option.iconSize = button.iconSize();
+    const auto contents = button.style()->subElementRect(QStyle::SE_PushButtonContents, &option, &button);
+    constexpr int kQtIconTextGap = 4;
+    const int icon_width = option.icon.isNull() ? 0 : option.iconSize.width() + kQtIconTextGap;
+    const int text_width = option.fontMetrics.size(Qt::TextShowMnemonic, option.text).width();
+    const int padding = contents.width() - icon_width - text_width;
+    CAPTURE(button.text().toStdString(), button.width(), button.sizeHint().width(), padding,
+            option.fontMetrics.height(), button.style()->objectName().toStdString());
+    CHECK(padding >= 2 * option.fontMetrics.height());
+    CHECK(button.width() >= button.minimumSizeHint().width());
+    CHECK(button.minimumWidth() == 0);
+    CHECK(button.maximumWidth() == QWIDGETSIZE_MAX);
+}
+} // namespace
+
+TEST_CASE("Main window actions retain space around translated captions", "[translated-sizing]")
+{
+    QtAppContext qt;
+    TempDir config, source;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_language(Language::English);
+    settings.set_sort_folder(source.path().string());
+    settings.set_destination_folder(source.path().string());
+    settings.set_sorting_mode(SortingMode::ExistingFolderTree);
+    REQUIRE(settings.save());
+    MainApp window(settings, false, true);
+    window.setAttribute(Qt::WA_DontShowOnScreen);
+    window.resize(1600, 900);
+    window.show();
+    auto* rules = window.findChild<QPushButton*>(QStringLiteral("sortingRulesButton"));
+    REQUIRE(rules);
+    const std::vector<QPushButton*> buttons{rules, MainAppTestAccess::browse_button(window),
+        MainAppTestAccess::destination_browse_button(window),
+        MainAppTestAccess::create_folder_structure_button(window), MainAppTestAccess::analyze_button(window)};
+    const auto base_font = window.font();
+    const auto languages = TranslationManager::instance().available_languages();
+    for (const double scale : {1.0, 1.5}) {
+        auto font = base_font;
+        font.setPointSizeF((base_font.pointSizeF() > 0 ? base_font.pointSizeF() : 9.0) * scale);
+        window.setFont(font);
+        std::set<int> rules_widths;
+        int english_width = 0;
+        for (const auto& language : languages) {
+            TranslationManager::instance().set_language(language.id);
+            MainAppTestAccess::trigger_retranslate(window);
+            settle_button_layout();
+            rules_widths.insert(rules->width());
+            if (language.id == Language::English) english_width = rules->width();
+            for (auto* button : buttons) {
+                REQUIRE(button);
+                CAPTURE(language.code.toStdString(), scale);
+                check_button_caption_space(*button);
+            }
+        }
+        CHECK(rules_widths.size() > 1);
+        TranslationManager::instance().set_language(Language::English);
+        MainAppTestAccess::trigger_retranslate(window);
+        settle_button_layout();
+        CHECK(rules->width() == english_width);
+    }
+}
+
+TEST_CASE("Content-sized buttons update their minimum for text fonts icons and styles", "[translated-sizing]")
+{
+    QtAppContext qt;
+    for (const auto& style_name : QStyleFactory::keys()) {
+        DYNAMIC_SECTION(style_name.toStdString()) {
+            std::unique_ptr<QStyle> style(QStyleFactory::create(style_name));
+            REQUIRE(style);
+            std::unique_ptr<QStyle> alternate(QStyleFactory::create(
+                style_name.compare("Fusion", Qt::CaseInsensitive) == 0 ? "Windows" : "Fusion"));
+            REQUIRE(alternate);
+            QWidget host;
+            host.setAttribute(Qt::WA_DontShowOnScreen);
+            auto* layout = new QHBoxLayout(&host);
+            auto* button = new ContentSizedPushButton(QString::fromUtf8("Règles de tri..."), &host);
+            QPushButton* abstract_button = button;
+            button->setStyle(style.get());
+            button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+            layout->addStretch();
+            layout->addWidget(button);
+            host.show();
+            settle_button_layout();
+            const auto initial = button->minimumSizeHint();
+            check_button_caption_space(*button);
+            abstract_button->setText(QString::fromUtf8("Règles de tri pour les images et les documents..."));
+            settle_button_layout();
+            CHECK(button->minimumSizeHint().width() > initial.width());
+            check_button_caption_space(*button);
+            abstract_button->setText(QString::fromUtf8("Règles de tri..."));
+            settle_button_layout();
+            CHECK(button->minimumSizeHint() == initial);
+            const auto original_font = button->font();
+            auto large_font = original_font;
+            large_font.setPointSizeF((large_font.pointSizeF() > 0 ? large_font.pointSizeF() : 9.0) * 2);
+            button->setFont(large_font);
+            settle_button_layout();
+            CHECK(button->minimumSizeHint().width() > initial.width());
+            check_button_caption_space(*button);
+            button->setFont(original_font);
+            abstract_button->setIcon(style->standardIcon(QStyle::SP_FileDialogDetailedView));
+            abstract_button->setIconSize(QSize(initial.height(), initial.height()));
+            settle_button_layout();
+            const auto with_icon = button->minimumSizeHint();
+            CHECK(with_icon.width() > initial.width());
+            check_button_caption_space(*button);
+            abstract_button->setIconSize(QSize(initial.height() * 2, initial.height() * 2));
+            settle_button_layout();
+            CHECK(button->minimumSizeHint().width() > with_icon.width());
+            check_button_caption_space(*button);
+            abstract_button->setIcon(QIcon());
+            settle_button_layout();
+            CHECK(button->minimumSizeHint() == initial);
+            button->setStyle(alternate.get());
+            settle_button_layout();
+            check_button_caption_space(*button);
+            button->setStyle(style.get());
+            settle_button_layout();
+            CHECK(button->minimumSizeHint() == initial);
+            host.resize(1, 1);
+            settle_button_layout();
+            check_button_caption_space(*button);
+        }
+    }
+}
+
+TEST_CASE("MainApp loads default settings without registered application loggers") {
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt_context;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    struct RestoreLoggers {
+        std::shared_ptr<spdlog::logger> core = spdlog::get("core_logger");
+        std::shared_ptr<spdlog::logger> ui = spdlog::get("ui_logger");
+        ~RestoreLoggers() {
+            spdlog::drop("core_logger");
+            spdlog::drop("ui_logger");
+            if (core) spdlog::register_logger(core);
+            if (ui) spdlog::register_logger(ui);
+        }
+    } restore_loggers;
+    spdlog::drop("core_logger");
+    spdlog::drop("ui_logger");
+    Settings settings;
+    REQUIRE_FALSE(settings.load());
+    settings.set_language(Language::English);
+    MainApp window(settings, /*development_mode=*/false, /*test_mode=*/true);
+    CHECK(MainAppTestAccess::analyze_button_text(window) == QStringLiteral("Analyze folder"));
+    CHECK_FALSE(spdlog::get("core_logger"));
+    CHECK_FALSE(spdlog::get("ui_logger"));
+}
 
 TEST_CASE("MainApp retranslate reflects language changes") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
@@ -686,7 +864,7 @@ TEST_CASE("Updater strings are translated for all supported UI languages") {
     }
 }
 
-TEST_CASE("Quick Start guide content follows the selected app language")
+TEST_CASE("Quick Start guide content follows the selected app language", "[help]")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
@@ -771,7 +949,7 @@ TEST_CASE("Quick Start guide content follows the selected app language")
 #endif
 }
 
-TEST_CASE("What's New content is packaged for the current app version")
+TEST_CASE("What's New content is packaged for the current app version", "[release-notes]")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
     QtAppContext qt_context;
@@ -780,12 +958,34 @@ TEST_CASE("What's New content is packaged for the current app version")
     const QString markdown = WhatsNewContent::markdown_for_version(version);
 
     REQUIRE(markdown.contains(QStringLiteral("Highlights")));
-    REQUIRE(markdown.contains(QStringLiteral("SSE4.2-capable x64 CPUs")));
-    REQUIRE(markdown.contains(QStringLiteral("CA bundle staging")));
+    REQUIRE(markdown.contains(QStringLiteral("existing folder structure")));
+    REQUIRE(markdown.contains(QStringLiteral("filename word limits")));
+    REQUIRE(markdown.contains(QStringLiteral("Qwen3.5 4B")));
+    REQUIRE(markdown.contains(QStringLiteral("Metal backend detection")));
+    REQUIRE(markdown.contains(QStringLiteral("image-analysis benchmark")));
+    REQUIRE(markdown.startsWith(QStringLiteral("## Highlights\n\n- Sort into an existing folder structure")));
+    REQUIRE(markdown.section(QStringLiteral("\n- "), 2, 2).startsWith(QStringLiteral("Refined folder routing")));
 
     REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
+    for (const auto& locale : kInterfaceLanguages) {
+        CAPTURE(locale.code);
+        const QString notes = WhatsNewContent::markdown_for_version(version, locale.id);
+        REQUIRE(notes.section(QStringLiteral("\n- "), 3, 3).contains(QStringLiteral("Qwen3.5 4B")));
+        if (locale.id != Language::English) {
+            REQUIRE(notes != markdown);
+        }
+    }
 
-    const QString french = WhatsNewContent::markdown_for_version(version, Language::French);
+    const QString previous_release = WhatsNewContent::markdown_for_version(QStringLiteral("1.9.2"));
+    REQUIRE(previous_release.contains(QStringLiteral("Fixed a Windows issue")));
+    REQUIRE(previous_release.contains(QStringLiteral("close before sorting started")));
+
+    const QString localized_version = QStringLiteral("1.9.1");
+    const QString localized_english = WhatsNewContent::markdown_for_version(localized_version);
+    REQUIRE(localized_english.contains(QStringLiteral("SSE4.2-capable x64 CPUs")));
+    REQUIRE(localized_english.contains(QStringLiteral("CA bundle staging")));
+
+    const QString french = WhatsNewContent::markdown_for_version(localized_version, Language::French);
     REQUIRE(french.contains(QStringLiteral("Points forts")));
     REQUIRE_FALSE(french.contains(QStringLiteral("Highlights")));
 
@@ -804,13 +1004,20 @@ TEST_CASE("What's New content is packaged for the current app version")
         Language::Norwegian,
         Language::Finnish,
         Language::Danish,
+        Language::Portuguese,
+        Language::Polish,
+        Language::Russian,
+        Language::Ukrainian,
     };
 
     for (const Language language : localized_languages) {
         INFO("Language enum value: " << static_cast<int>(language));
-        const QString localized = WhatsNewContent::markdown_for_version(version, language);
-        REQUIRE_FALSE(localized.isEmpty());
-        REQUIRE(localized != markdown);
+        for (const QString& release : {version, QStringLiteral("1.9.2"), localized_version}) {
+            CAPTURE(release);
+            const QString localized = WhatsNewContent::markdown_for_version(release, language);
+            REQUIRE_FALSE(localized.isEmpty());
+            REQUIRE(localized != WhatsNewContent::markdown_for_version(release, Language::English));
+        }
     }
 
     REQUIRE(WhatsNewContent::markdown_for_version(QStringLiteral("bad/version")).isEmpty());
@@ -1125,4 +1332,168 @@ TEST_CASE("Quick Start and FAQ help labels are translated for all supported UI l
         REQUIRE(faq_menu == entry.faq_menu);
         REQUIRE(quick_start_title == entry.quick_start_title);
     }
+}
+
+TEST_CASE("Bundled network and Explorer translations preserve Unicode", "[ui-translations]")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    auto& manager = TranslationManager::instance();
+    manager.initialize(qApp);
+    REQUIRE(manager.available_languages().size() > 1);
+    struct Message { const char* context; const char* source; };
+    const Message messages[] = {
+        {"MainApp", "Network Locations"},
+        {"MainApp", "No network locations found"},
+        {"MainApp", "Network location unavailable: %1"},
+        {"MainApp", "Windows Explorer Extension"},
+        {"MainApp", "Install or Repair Windows Explorer Extension..."},
+        {"MainApp", "Install Windows Explorer Extension..."},
+        {"MainApp", "Could not open the Windows Explorer Extension download page."},
+        {"MainApp", "Could not open the Windows Explorer Extension settings."},
+        {"MainApp", "Could not open the Windows Explorer Extension activity window."},
+        {"UiTranslator", "E&xtensions"},
+        {"UiTranslator", "Windows Explorer Extension"},
+        {"UiTranslator", "Install Windows Explorer Extension..."},
+        {"UiTranslator", "Settings..."},
+        {"UiTranslator", "Activity Window"},
+        {"UiTranslator", "&About AI File Sorter"},
+    };
+    for (const auto& language : manager.available_languages()) {
+        if (language.id == Language::English) {
+            continue;
+        }
+        CAPTURE(language.code.toStdString());
+        QTranslator translator;
+        REQUIRE(translator.load(language.resource_path));
+        for (const auto& message : messages) {
+            const auto translated = translator.translate(message.context, message.source);
+            const auto source = QString::fromUtf8(message.source);
+            CAPTURE(message.context, source.toStdString(), translated.toStdString());
+            REQUIRE_FALSE(translated.isEmpty());
+            CHECK_FALSE(translated.contains(QChar('?')));
+            CHECK_FALSE(translated.contains(QChar(QChar::ReplacementCharacter)));
+            CHECK(translated.count(QStringLiteral("%1")) == source.count(QStringLiteral("%1")));
+            CHECK(translated.count(QChar('&')) == source.count(QChar('&')));
+            if (source.contains(QStringLiteral("AI File Sorter"))) {
+                CHECK(translated.contains(QStringLiteral("AI File Sorter")));
+            }
+        }
+    }
+}
+
+
+TEST_CASE("Bundled catalogs translate previously hidden dialogs and metadata", "[ui-translations][localization-gaps]")
+{
+    QtAppContext qt;
+    struct Message { const char* context; const char* source; };
+    const Message messages[] = {
+        {"FolderStructureTemplates", "Media type folders"},
+        {"FolderStructureUiText", "Johnny.Decimal Support"},
+        {"FolderStructurePluginDialog", "Check for Updates"},
+        {"FolderStructurePluginInstallFlow", "Activate Plugin License"},
+        {"CacheMaintenanceDialog", "Clear cache"},
+        {"StoragePluginDialog", "Manage Storage Plugins"},
+        {"VisualModelCatalog", "Qwen3.5 4B (text model)"},
+        {"ReviewHistoryDialog", "Rename and Categorization History"},
+    };
+    for (const auto& language : TranslationManager::instance().available_languages()) {
+        if (language.id == Language::English) continue;
+        QTranslator translator;
+        REQUIRE(translator.load(language.resource_path));
+        for (const auto& message : messages) {
+            const auto translated = translator.translate(message.context, message.source);
+            CAPTURE(language.code.toStdString(), message.context, message.source, translated.toStdString());
+            CHECK_FALSE(translated.isEmpty());
+            CHECK(translated != QString::fromUtf8(message.source));
+            CHECK_FALSE(translated.contains(QChar(QChar::ReplacementCharacter)));
+        }
+    }
+}
+
+TEST_CASE("New European UI locales persist and load their bundled resources", "[ui-locales]")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    struct LocaleCase { Language id; const char* name; const char* tag; const char* analyze; };
+    const LocaleCase locales[] = {
+        {Language::Portuguese, "Portuguese", "pt-PT", "Analisar pasta"},
+        {Language::Polish, "Polish", "pl-PL", "Analizuj folder"},
+        {Language::Russian, "Russian", "ru-RU", "Анализировать папку"},
+        {Language::Ukrainian, "Ukrainian", "uk-UA", "Аналізувати теку"},
+    };
+    auto& manager = TranslationManager::instance();
+    manager.initialize(qApp);
+    REQUIRE(manager.available_languages().size() == kInterfaceLanguages.size());
+    for (const auto& locale : locales) {
+        CAPTURE(locale.name);
+        CHECK(languageToString(locale.id) == QString::fromLatin1(locale.name));
+        CHECK(languageFromString(QString::fromLatin1(locale.name)) == locale.id);
+        CHECK(languageFromString(QString::fromLatin1(locale.tag)) == locale.id);
+        CHECK(languageFromString(QString::fromLatin1(locale.tag).toUpper()) == locale.id);
+        Settings saved;
+        saved.set_language(locale.id);
+        REQUIRE(saved.save());
+        Settings restored;
+        REQUIRE(restored.load());
+        REQUIRE(restored.get_language() == locale.id);
+        manager.set_language(restored.get_language());
+        REQUIRE(manager.current_language() == locale.id);
+        REQUIRE(QCoreApplication::translate("UiTranslator", "Analyze folder")
+                == QString::fromUtf8(locale.analyze));
+        const auto help = MainAppHelpActions::quick_start_markdown_for_language(locale.id);
+        REQUIRE_FALSE(help.isEmpty());
+        REQUIRE_FALSE(help.contains(QStringLiteral("# Quick Start Guide")));
+        for (const QString& version : {QString::fromStdString(APP_VERSION.to_numeric_string()),
+                                      QStringLiteral("1.9.2"), QStringLiteral("1.9.1"), QStringLiteral("1.9.0")}) {
+            const auto notes = WhatsNewContent::markdown_for_version(version, locale.id);
+            REQUIRE_FALSE(notes.isEmpty());
+            REQUIRE(notes != WhatsNewContent::markdown_for_version(version, Language::English));
+        }
+        for (const auto* source : {"Cancel", "Save", "&Yes", "&No"}) {
+            const auto standard = QCoreApplication::translate("QPlatformTheme", source);
+            REQUIRE(standard != QString::fromLatin1(source));
+        }
+    }
+    CHECK(languageFromString(QStringLiteral("pt")) == Language::Portuguese);
+    CHECK(languageFromString(QStringLiteral("not-a-language")) == Language::English);
+    CHECK(languageFromString(QStringLiteral("zh-Hans")) == Language::SimplifiedChinese);
+    CHECK(languageFromString(QStringLiteral("no")) == Language::Norwegian);
+    manager.set_language(Language::English);
+}
+
+TEST_CASE("New European UI language actions update the real main window", "[ui-locales]")
+{
+    EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
+    QtAppContext qt;
+    TempDir config;
+    EnvVarGuard config_guard("AI_FILE_SORTER_CONFIG_DIR", config.path().string());
+    Settings settings;
+    settings.set_language(Language::English);
+    TranslationManager::instance().initialize_for_app(qApp, Language::English);
+    MainApp window(settings, /*development_mode=*/false, /*test_mode=*/true);
+    const auto category_language = settings.get_category_language();
+    QActionGroup* languages = nullptr;
+    for (auto* group : window.findChildren<QActionGroup*>()) {
+        if (group->actions().size() == static_cast<int>(kInterfaceLanguages.size())) languages = group;
+    }
+    REQUIRE(languages != nullptr);
+    for (const Language language : {Language::Portuguese, Language::Polish, Language::Russian, Language::Ukrainian}) {
+        auto* action = static_cast<QAction*>(nullptr);
+        for (auto* candidate : languages->actions()) {
+            if (candidate->data().toInt() == static_cast<int>(language)) action = candidate;
+        }
+        REQUIRE(action != nullptr);
+        REQUIRE_FALSE(action->text().isEmpty());
+        action->trigger();
+        CHECK(settings.get_language() == language);
+        CHECK(settings.get_category_language() == category_language);
+        CHECK(languages->checkedAction() == action);
+        CHECK(TranslationManager::instance().current_language() == language);
+        CHECK(MainAppTestAccess::analyze_button_text(window)
+              == QCoreApplication::translate("UiTranslator", "Analyze folder"));
+    }
+    TranslationManager::instance().set_language(Language::English);
 }

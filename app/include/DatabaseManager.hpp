@@ -2,6 +2,7 @@
 #define DATABASEMANAGER_HPP
 
 #include "CategoryLanguage.hpp"
+#include "ContentAnalysisCache.hpp"
 #include "Types.hpp"
 #include <string>
 #include <map>
@@ -10,20 +11,40 @@
 #include <optional>
 #include <sqlite3.h>
 
+class IStorageProvider;
+
 class DatabaseManager {
 public:
     explicit DatabaseManager(std::string config_dir);
     ~DatabaseManager();
+
+    /**
+     * @brief Uses the active provider's path comparison rules for cache operations.
+     * @param provider Provider that outlives cache operations, as with ResultsCoordinator.
+     * Defaults to native filesystem comparison until a provider is selected.
+     */
+    void set_storage_provider(const IStorageProvider& provider);
+
+    /** @brief Borrow the disposable content-evidence cache. @return A connection-scoped cache handle. */
+    ContentAnalysisCache content_analysis_cache() const;
 
     bool is_file_already_categorized(const std::string &file_name);
     struct ResolvedCategory {
         int taxonomy_id;
         std::string category;
         std::string subcategory;
+        std::string target_folder_relative_path;
+        std::string folder_tree_routing_explanation;
+        bool folder_tree_mode{false};
+        bool target_folder_suggested_new{false};
+        bool target_folder_exists{false};
+        bool folder_tree_allow_new_folders{false};
     };
 
     ResolvedCategory resolve_category(const std::string& category,
                                       const std::string& subcategory);
+    /** @brief Store user-constrained labels without family aliases, fuzzy matching or style normalization. */
+    ResolvedCategory resolve_literal_category(const std::string& category, const std::string& subcategory);
     ResolvedCategory resolve_category_for_language(const std::string& category,
                                                    const std::string& subcategory,
                                                    CategoryLanguage language);
@@ -46,6 +67,63 @@ public:
                                                    const std::string& suggested_name = "",
                                                    bool rename_only = false,
                                                    bool rename_applied = false);
+    /** @brief Provenance for validated whitelist results; legacy/unvalidated rows have an empty policy. */
+    std::string get_categorization_policy(const std::string& dir_path, const std::string& file_name,
+                                         FileType file_type);
+    bool set_categorization_policy(const std::string& dir_path, const std::string& file_name,
+                                   FileType file_type, const std::string& policy);
+    /**
+     * @brief Cached routing decision for an existing destination folder tree.
+     */
+    struct FolderTreeRoutingRecord {
+        std::string destination_root;
+        std::string tree_fingerprint;
+        bool allow_new_folders{false};
+        std::string semantic_category;
+        std::string semantic_subcategory;
+        std::string semantic_target_folder;
+        std::string best_existing_folder;
+        int best_existing_score{0};
+        std::string target_folder_relative_path;
+        bool target_folder_suggested_new{false};
+        bool target_folder_exists{false};
+    };
+
+    /**
+     * @brief Inserts or updates a cached folder-tree routing decision.
+     * @param file_name File name used for cache identity.
+     * @param file_type File type label, "F" or "D".
+     * @param dir_path Directory path used for cache identity.
+     * @param record Routing metadata to persist.
+     * @return True when the routing row was written.
+     */
+    bool insert_or_update_folder_tree_routing(const std::string& file_name,
+                                              const std::string& file_type,
+                                              const std::string& dir_path,
+                                              const FolderTreeRoutingRecord& record);
+
+    /**
+     * @brief Looks up a cached folder-tree routing decision for the current tree and semantic result.
+     * @param file_name File name used for cache identity.
+     * @param file_type File type.
+     * @param dir_path Directory path used for cache identity.
+     * @param destination_root Destination root used to build the folder tree.
+     * @param tree_fingerprint Fingerprint of the current folder tree.
+     * @param allow_new_folders Whether new folder suggestions are enabled.
+     * @param semantic_category Semantic category used for routing.
+     * @param semantic_subcategory Semantic subcategory used for routing.
+     * @return Cached routing record when an exact context match exists.
+     */
+    std::optional<FolderTreeRoutingRecord> get_folder_tree_routing(
+        const std::string& file_name,
+        FileType file_type,
+        const std::string& dir_path,
+        const std::string& destination_root,
+        const std::string& tree_fingerprint,
+        bool allow_new_folders,
+        const std::string& semantic_category,
+        const std::string& semantic_subcategory);
+
     std::vector<std::string> get_dir_contents_from_db(const std::string &dir_path);
     bool remove_file_categorization(const std::string& dir_path,
                                     const std::string& file_name,
@@ -91,6 +169,11 @@ public:
     std::optional<bool> get_directory_categorization_style(const std::string& dir_path) const;
 
 private:
+    bool initialize_path_comparison();
+    bool ensure_path_aliases() const;
+    std::string path_comparison_key(const std::string& path) const;
+    std::vector<CategorizedFile> read_cached_entries(sqlite3_stmt* statement) const;
+
     struct TaxonomyEntry {
         int id;
         std::string category;
@@ -108,6 +191,11 @@ private:
      * @return True when any taxonomy, alias, translation, or cached file rows were updated.
      */
     bool migrate_legacy_taxonomy_labels();
+    /**
+     * @brief Repairs stored Unicode keys and merges equivalent rows transactionally.
+     * @return True when the keys are current or the migration committed successfully.
+     */
+    bool migrate_taxonomy_normalization();
     /**
      * @brief Recomputes taxonomy frequencies from cached file categorizations.
      */
@@ -148,6 +236,11 @@ private:
     bool file_exists_in_db(const std::string &file_name, const std::string &file_path);
 
     sqlite3* db;
+    mutable sqlite3_stmt* data_version_statement_{nullptr};
+    sqlite3_stmt* categorized_file_statement_{nullptr};
+    const IStorageProvider* storage_provider_{nullptr};
+    mutable bool path_aliases_ready_{false};
+    mutable int path_aliases_data_version_{0};
     const std::string config_dir;
     const std::string db_file;
     std::vector<TaxonomyEntry> taxonomy_entries;

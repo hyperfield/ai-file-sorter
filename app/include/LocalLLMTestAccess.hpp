@@ -5,6 +5,7 @@
 #include "LocalLLMClient.hpp"
 #include "Types.hpp"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -37,6 +38,17 @@ struct PreparedModelParamsResult {
     std::optional<LocalLLMClient::Status> status;
 };
 /**
+ * @brief Result from the Metal GPU layer estimator exposed for unit tests.
+ */
+struct MetalLayerEstimationResult {
+    /** @brief Recommended layer count, `0` for CPU, or `-1` when unknown. */
+    int layers{-1};
+    /** @brief True when the estimator concluded GPU memory is insufficient. */
+    bool insufficient_memory{false};
+    /** @brief Human-readable explanation of the estimate. */
+    std::string reason;
+};
+/**
  * @brief Builds model parameters and captures preflight backend status for tests.
  * @param model_path Path to the GGUF model used for backend preparation.
  * @return Prepared parameters together with any emitted status.
@@ -51,6 +63,16 @@ llama_model_params prepare_model_params_for_testing(const std::string& model_pat
  */
 std::vector<int> gpu_layer_retry_candidates_for_testing(int optimistic_layers,
                                                         int conservative_layers);
+/**
+ * @brief Runs the Metal layer estimator with explicit memory metrics.
+ * @param model_path Path to the GGUF model used for metadata and size.
+ * @param total_bytes Reported Metal device memory.
+ * @param free_bytes Reported free Metal device memory.
+ * @return Estimator output for assertions.
+ */
+MetalLayerEstimationResult estimate_metal_layers_for_testing(const std::string& model_path,
+                                                             std::size_t total_bytes,
+                                                             std::size_t free_bytes);
 std::string categorization_system_prompt_for_testing(const std::string& file_path,
                                                      FileType file_type,
                                                      std::string_view consistency_context = {});

@@ -127,3 +127,24 @@ TEST_CASE("SingleInstanceCoordinator allows different instance ids to coexist")
     REQUIRE(first.is_primary_instance());
     REQUIRE(second.is_primary_instance());
 }
+
+TEST_CASE("SingleInstanceCoordinator delivers activation with long runtime directories")
+{
+    TempDir root;
+    QtAppContext app_context;
+    if (!local_server_listen_available(root.path())) {
+        SKIP("Local socket binding is unavailable.");
+    }
+    const auto runtime = root.path() / std::string(100, 'r');
+    REQUIRE(std::filesystem::create_directories(runtime));
+    EnvVarGuard runtime_guard("AI_FILE_SORTER_SINGLE_INSTANCE_RUNTIME_DIR", runtime.string());
+    const auto instance_id = QString::fromStdString(make_unique_token("long-runtime-"));
+    SingleInstanceCoordinator primary(instance_id);
+    QString message;
+    primary.set_activation_callback([&message](const QString& value) { message = value; });
+    REQUIRE(primary.acquire_primary_instance());
+    SingleInstanceCoordinator secondary(instance_id);
+    secondary.set_activation_message(QStringLiteral("show-review-history"));
+    REQUIRE_FALSE(secondary.acquire_primary_instance());
+    CHECK(wait_for_condition([&message]() { return message == QStringLiteral("show-review-history"); }));
+}
