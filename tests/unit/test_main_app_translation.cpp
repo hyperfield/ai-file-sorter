@@ -963,9 +963,18 @@ TEST_CASE("What's New content is packaged for the current app version", "[releas
     REQUIRE(markdown.contains(QStringLiteral("Qwen3.5 4B")));
     REQUIRE(markdown.contains(QStringLiteral("Metal backend detection")));
     REQUIRE(markdown.contains(QStringLiteral("image-analysis benchmark")));
+    REQUIRE(markdown.startsWith(QStringLiteral("## Highlights\n\n- Sort into an existing folder structure")));
+    REQUIRE(markdown.section(QStringLiteral("\n- "), 2, 2).startsWith(QStringLiteral("Refined folder routing")));
 
     REQUIRE(WhatsNewContent::markdown_for_version(version, Language::English) == markdown);
-    REQUIRE_FALSE(WhatsNewContent::markdown_for_version(version, Language::French).isEmpty());
+    for (const auto& locale : kInterfaceLanguages) {
+        CAPTURE(locale.code);
+        const QString notes = WhatsNewContent::markdown_for_version(version, locale.id);
+        REQUIRE(notes.section(QStringLiteral("\n- "), 3, 3).contains(QStringLiteral("Qwen3.5 4B")));
+        if (locale.id != Language::English) {
+            REQUIRE(notes != markdown);
+        }
+    }
 
     const QString previous_release = WhatsNewContent::markdown_for_version(QStringLiteral("1.9.2"));
     REQUIRE(previous_release.contains(QStringLiteral("Fixed a Windows issue")));
