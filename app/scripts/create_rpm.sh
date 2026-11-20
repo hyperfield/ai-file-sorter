@@ -303,6 +303,7 @@ License:        AGPL-3.0-only
 URL:            https://github.com/hyperfield/ai-file-sorter
 BuildArch:      ${RPM_ARCH}
 Requires:       ca-certificates
+Requires:       libwebp
 Source0:        ${PAYLOAD_NAME}.tar.gz
 Source1:        ${PAYLOAD_NAME}.files
 

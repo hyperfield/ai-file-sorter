@@ -208,6 +208,7 @@ jobs:
       - name: Verify CPU libraries, launcher, and headless startup
         shell: bash
         run: |
+          test -r /usr/lib64/libwebp.so.7
           for library in /opt/aifilesorter/lib/precompiled/cpu/bin/*.so*; do
             /lib64/ld-linux-x86-64.so.2 --list "$library"
           done
