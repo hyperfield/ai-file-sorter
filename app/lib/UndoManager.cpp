@@ -194,9 +194,10 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
         }
 
         if (!expected_revision_token.isEmpty() &&
-            !destination_status.revision_token.empty() &&
             destination_status.revision_token != expected_revision_token.toStdString()) {
-            result.details << QString("Revision mismatch for %1").arg(destination);
+            result.details << (destination_status.revision_token.empty()
+                ? QString("Could not verify revision for %1").arg(destination)
+                : QString("Revision mismatch for %1").arg(destination));
             result.skipped++;
             continue;
         }

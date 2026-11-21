@@ -34,6 +34,7 @@ constexpr int kOptionFiles = 1;
 constexpr int kOptionDirectories = 2;
 constexpr int kOptionHiddenFiles = 4;
 constexpr int kOptionRecursive = 8;
+constexpr int kLockRetryAfterMs = 2000;
 
 bool is_supported_provider(const QString& provider_id)
 {
@@ -194,12 +195,12 @@ QJsonObject path_status(const std::filesystem::path& path, const QString& provid
     status["sync_locked"] = path_text(path.filename()).startsWith(QStringLiteral("~$"));
     status["conflict_copy"] = false;
     status["should_retry"] = status["sync_locked"].toBool(false);
-    status["retry_after_ms"] = status["sync_locked"].toBool(false) ? 2000 : 0;
+    status["retry_after_ms"] = status["sync_locked"].toBool(false) ? kLockRetryAfterMs : 0;
     status["stable_identity"] =
         QStringLiteral("%1:%2")
             .arg(provider_id.isEmpty() ? QStringLiteral("mockcloud") : provider_id)
             .arg(path_text(path.lexically_normal()));
-    if (exists) {
+    if (exists && !qEnvironmentVariableIsSet("AIFS_STORAGE_STUB_OMIT_REVISION")) {
         const qint64 size = static_cast<qint64>(std::filesystem::file_size(path, ec));
         const qint64 mtime = static_cast<qint64>(read_mtime(path));
         status["revision_token"] = QStringLiteral("%1:%2").arg(size).arg(mtime);
@@ -263,7 +264,14 @@ int main(int argc, char* argv[])
     } else if (action == QStringLiteral("list_directory")) {
         const std::filesystem::path root = native_path(request.value("directory").toString());
         const int options = request.value("options").toInt();
-        response["entries"] = list_entries(root, options);
+        std::error_code error;
+        if (std::filesystem::is_directory(root, error)) {
+            response["entries"] = list_entries(root, options);
+        } else {
+            response["success"] = false;
+            response["error_code"] = "scan_failed";
+            response["error"] = "Fixture directory cannot be enumerated.";
+        }
     } else if (action == QStringLiteral("inspect_path")) {
         response["status"] = path_status(native_path(request.value("path").toString()), provider_id);
     } else if (action == QStringLiteral("preflight_move")) {
@@ -279,7 +287,7 @@ int main(int argc, char* argv[])
         preflight["sync_locked"] = sync_locked;
         preflight["destination_conflict"] = destination_exists;
         preflight["should_retry"] = sync_locked;
-        preflight["retry_after_ms"] = sync_locked ? 2000 : 0;
+        preflight["retry_after_ms"] = sync_locked ? kLockRetryAfterMs : 0;
         preflight["source_status"] = source;
         preflight["destination_status"] = destination;
         if (!source_exists) {
@@ -316,6 +324,11 @@ int main(int argc, char* argv[])
             response = mutation_result(false, true, "Source path is missing.");
         } else if (std::filesystem::exists(destination, ec) && !ec) {
             response = mutation_result(false, true, "Destination path already exists.");
+        } else if (path_status(source, provider_id).value("sync_locked").toBool()) {
+            response = mutation_result(false, true, "Fixture file is still locked.");
+            response["sync_locked"] = true;
+            response["should_retry"] = true;
+            response["retry_after_ms"] = kLockRetryAfterMs;
         } else {
             std::filesystem::create_directories(destination.parent_path(), ec);
             if (ec) {

@@ -114,6 +114,7 @@ public:
      * @param directory Directory path to enumerate.
      * @param options Active scan options controlling recursion and filters.
      * @return Discovered file entries for analysis and review.
+     * @throws std::exception If the directory cannot be enumerated.
      */
     virtual std::vector<FileEntry> list_directory(const std::string& directory,
                                                   FileScanOptions options) const = 0;

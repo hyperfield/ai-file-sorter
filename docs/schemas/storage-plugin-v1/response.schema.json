@@ -450,6 +450,16 @@
             "skipped": {
               "type": "boolean"
             },
+            "sync_locked": {
+              "type": "boolean"
+            },
+            "should_retry": {
+              "type": "boolean"
+            },
+            "retry_after_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
             "message": {
               "type": "string"
             },

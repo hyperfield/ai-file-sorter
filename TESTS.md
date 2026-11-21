@@ -4497,16 +4497,23 @@ Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs catalog 
 
 #### Test case: UndoManager rejects external-process restores when revision metadata changed
 Purpose: Verify host undo safety still works when metadata comes from an external-process storage connector.
-Setup: Install a signed mock storage package, move a file through the external connector, then modify the moved file.
-Procedure: Save an undo plan with the connector metadata and attempt to restore it.
-Expected outcome: Undo skips the changed file and leaves the moved file in place.
+Setup: Install a signed mock storage package and move a file through the external connector.
+Procedure: Try undo after a same-length edit, with an unavailable revision, and with the recorded revision intact.
+Expected outcome: Undo skips changed and unverifiable revisions and restores the file with the recorded revision.
 Run: `./build-tests/ai_file_sorter_tests "UndoManager rejects external-process restores when revision metadata changed"`
+
+#### Test case: External storage listings preserve project protection and scan errors
+Purpose: Verify external listings respect built-in project protections and propagate enumeration failures.
+Setup: Create a fixture with a nested Git repository, a Python project, and an empty directory.
+Procedure: List the fixture recursively, scan the protected repository and empty root directly, and submit invalid roots.
+Expected outcome: Project trees are excluded, the empty directory returns an empty list, and invalid roots report the connector error.
+Run: `./build-tests/ai_file_sorter_tests "External storage listings preserve project protection and scan errors"`
 
 #### Test case: StorageProviderRegistry resolves installed OneDrive external connector
 Purpose: Prove the public host can install and invoke a signed package that provides the `onedrive` provider id without bundling OneDrive implementation code.
 Setup: Install a signed test package for `onedrive_storage_support` that points at the generic external-process stub.
-Procedure: Detect a OneDrive-root path, resolve the runtime provider, and run preflight against a locked file.
-Expected outcome: The installed external connector wins over the local fallback and reports the locked-file preflight result through the protocol.
+Procedure: Detect a OneDrive-root path, resolve the runtime provider, and request a preflight and move for a locked file.
+Expected outcome: The installed external connector wins over the local fallback and reports the retryable lock for both requests.
 Run: `./build-tests/ai_file_sorter_tests "StorageProviderRegistry resolves installed OneDrive external connector"`
 
 ### `tests/unit/test_storage_plugin_conformance.cpp`

@@ -106,6 +106,12 @@ connector has provider-specific detection available.
 | 2 | `4` | Include hidden files. |
 | 3 | `8` | Recurse into subdirectories. |
 
+When the hidden bit is clear, omit hidden entries and prune hidden directories
+before recursion. If enumeration fails, return `success: false` with a diagnostic.
+Reserve a successful empty `entries` array for a scan with no eligible entries.
+For locally accessible paths, the host applies its built-in project protections
+to connector listings, including descendants of protected project directories.
+
 ## Data Objects
 
 ### Detection
@@ -204,4 +210,10 @@ provider id returned inside `detection`.
 
 When `mutation_success` is `false`, the host treats `skipped` and `message` as
 the user-facing mutation result and reads missing metadata fields as default
-zero or empty values.
+zero or empty values. Temporary lock failures can include `sync_locked: true`,
+`should_retry: true`, and a suggested `retry_after_ms` delay.
+
+Undo compares the recorded revision token against the token returned by
+`inspect_path`. A connector that returns a revision token after a move must
+return a comparable token during later inspection. An unavailable or different
+token prevents undo of that entry.

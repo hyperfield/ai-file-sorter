@@ -7,6 +7,8 @@
 #include <array>
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -1651,6 +1653,7 @@ TEST_CASE("StorageProviderRegistry resolves installed cloud provider ahead of lo
 
 TEST_CASE("UndoManager rejects external-process restores when revision metadata changed") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
+    EnvVarGuard revision_guard("AIFS_STORAGE_STUB_OMIT_REVISION", std::nullopt);
     QtAppContext qt;
     TempDir config_dir;
     TempDir archive_dir;
@@ -1675,6 +1678,7 @@ TEST_CASE("UndoManager rejects external-process restores when revision metadata 
     const auto source = cloud_dir / "report.docx";
     const auto destination = cloud_dir / "Sorted" / "report.docx";
     write_file(source);
+    std::ofstream(source, std::ios::binary) << "original";
 
     auto provider = registry.resolve_for(cloud_dir.string());
     REQUIRE(provider);
@@ -1682,17 +1686,15 @@ TEST_CASE("UndoManager rejects external-process restores when revision metadata 
 
     const auto move_result = provider->move_entry(source.string(), destination.string());
     REQUIRE(move_result.success);
-
-    {
-        std::ofstream out(destination, std::ios::app);
-        out << "changed";
-    }
+    const auto moved_status = provider->inspect_path(destination.string());
+    REQUIRE_FALSE(moved_status.revision_token.empty());
+    REQUIRE(moved_status.revision_token == move_result.metadata.revision_token);
 
     const auto undo_dir = (cloud_dir / ".undo").string();
     UndoManager writer(undo_dir, &registry);
     REQUIRE(writer.save_plan(cloud_dir.string(), provider->id(),
                              {UndoManager::Entry{source.string(), destination.string(), move_result.metadata.size_bytes,
-                                                 move_result.metadata.mtime, move_result.metadata.stable_identity,
+                                                 move_result.metadata.mtime, moved_status.stable_identity,
                                                  move_result.metadata.revision_token}},
                              nullptr));
 
@@ -1700,10 +1702,63 @@ TEST_CASE("UndoManager rejects external-process restores when revision metadata 
     const auto plan_path = reader.latest_plan_path();
     REQUIRE(plan_path.has_value());
 
-    const auto undo_result = reader.undo_plan(*plan_path);
-    CHECK(undo_result.restored == 0);
-    CHECK(undo_result.skipped == 1);
-    CHECK(std::filesystem::exists(destination));
+    SECTION("Same-size edit changes the revision") {
+        const auto old_time = std::filesystem::last_write_time(destination);
+        std::ofstream(destination, std::ios::binary) << "modified";
+        std::filesystem::last_write_time(destination, old_time + std::chrono::seconds(10));
+
+        const auto undo_result = reader.undo_plan(*plan_path);
+        CHECK(undo_result.restored == 0);
+        CHECK(undo_result.skipped == 1);
+        CHECK(undo_result.details.join('\n').contains("Revision mismatch"));
+        CHECK(std::filesystem::exists(destination));
+    }
+
+    SECTION("Previously recorded revision becomes unavailable") {
+        EnvVarGuard unavailable_revision("AIFS_STORAGE_STUB_OMIT_REVISION", std::string("1"));
+        const auto undo_result = reader.undo_plan(*plan_path);
+        CHECK(undo_result.restored == 0);
+        CHECK(undo_result.skipped == 1);
+        CHECK(undo_result.details.join('\n').contains("Could not verify revision"));
+        CHECK(std::filesystem::exists(destination));
+    }
+
+    SECTION("Unchanged revision allows undo") {
+        const auto undo_result = reader.undo_plan(*plan_path);
+        CHECK(undo_result.restored == 1);
+        CHECK(std::filesystem::exists(source));
+    }
+}
+
+TEST_CASE("External storage listings preserve project protection and scan errors", "[storage-plugin]") {
+    QtAppContext qt;
+    TempDir temp;
+    ExternalProcessStorageProvider provider(
+        StoragePluginManifest{.entry_point = Utils::path_to_utf8(storage_plugin_stub_path())},
+        "mockcloud", "mockcloud", false);
+    const auto root = temp.path();
+    const auto repo = root / "nested" / "repository";
+    write_file(repo / ".git" / "config");
+    write_file(repo / "README.txt");
+    write_file(root / "python" / "pyproject.toml");
+    write_file(root / "python" / "module.py");
+    write_file(root / "nested" / "ordinary.txt");
+    std::filesystem::create_directory(root / "empty");
+
+    const auto files = FileScanOptions::Files | FileScanOptions::Recursive | FileScanOptions::HiddenFiles;
+    const auto entries = provider.list_directory(Utils::path_to_utf8(root), files);
+    REQUIRE(entries.size() == 1);
+    CHECK(entries.front().file_name == "ordinary.txt");
+    CHECK(provider.list_directory(Utils::path_to_utf8(repo), files).empty());
+    CHECK(provider.list_directory(Utils::path_to_utf8(root / "empty"), files).empty());
+
+    const auto directories = provider.list_directory(
+        Utils::path_to_utf8(repo.parent_path()), FileScanOptions::Directories);
+    CHECK(directories.empty());
+    for (const auto& path : {root / "missing", repo / "README.txt"}) {
+        CHECK_THROWS_WITH(provider.list_directory(Utils::path_to_utf8(path), files),
+                          Catch::Matchers::ContainsSubstring("scan_failed: Fixture directory cannot be enumerated."));
+    }
 }
 
 TEST_CASE("StorageProviderRegistry resolves installed external process provider") {
@@ -1806,12 +1861,16 @@ TEST_CASE("StorageProviderRegistry resolves installed OneDrive external connecto
     CHECK(resolved->id() == "onedrive");
 
     const auto locked_file = onedrive_root.path() / "~$draft.docx";
+    const auto destination = onedrive_root.path() / "Sorted" / "draft.docx";
     write_file(locked_file);
-    const auto preflight =
-        resolved->preflight_move(locked_file.string(), (onedrive_root.path() / "Sorted" / "draft.docx").string());
+    const auto preflight = resolved->preflight_move(locked_file.string(), destination.string());
     CHECK_FALSE(preflight.allowed);
     CHECK(preflight.sync_locked);
     CHECK(preflight.should_retry);
+    const auto failed = resolved->move_entry(locked_file.string(), destination.string());
+    CHECK_FALSE(failed.success);
+    CHECK(failed.skipped);
+    CHECK(failed.message == "Fixture file is still locked.");
 }
 
 TEST_CASE("StoragePluginManager uninstalls packaged external-process plugins") {

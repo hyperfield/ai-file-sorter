@@ -1,5 +1,7 @@
 #include "Utils.hpp"
 #include "ExternalProcessStorageProvider.hpp"
+#include "Logger.hpp"
+#include "ProtectedProjectDetector.hpp"
 
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -10,6 +12,8 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <map>
+#include <stdexcept>
 
 namespace {
 
@@ -147,8 +151,8 @@ bool invoke_process(const StoragePluginManifest& manifest,
         if (error) {
             const QString response_error = response->value("error").toString();
             const QString response_code = response->value("error_code").toString();
-            const QString detailed_error = response_code.isEmpty() || response_error.isEmpty()
-                ? response_error
+            const QString detailed_error = response_code.isEmpty() ? response_error
+                : response_error.isEmpty() ? response_code
                 : response_code + QStringLiteral(": ") + response_error;
             *error = detailed_error.isEmpty()
                 ? "Storage plugin process returned an error."
@@ -234,6 +238,78 @@ std::vector<FileEntry> entries_from_json(const QJsonArray& entries)
         });
     }
     return output;
+}
+
+bool same_path_component(const std::filesystem::path& left,
+                         const std::filesystem::path& right)
+{
+#ifdef _WIN32
+    return QString::fromStdWString(left.native()).compare(
+        QString::fromStdWString(right.native()), Qt::CaseInsensitive) == 0;
+#else
+    return left == right;
+#endif
+}
+
+void remove_protected_project_entries(const std::string& directory,
+                                      std::vector<FileEntry>& entries)
+{
+    namespace fs = std::filesystem;
+    std::error_code error;
+    auto root = fs::absolute(Utils::utf8_to_path(directory), error).lexically_normal();
+    root.make_preferred();
+    if (error || !fs::is_directory(root, error)) {
+        return;
+    }
+    if (!root.has_filename() && root.has_relative_path()) {
+        root = root.parent_path();
+    }
+
+    const ProtectedProjectDetector detector;
+    const auto logger = Logger::get_logger("core_logger");
+    std::map<fs::path, bool> protected_directories;
+    const auto is_protected = [&](const fs::path& path) {
+        const auto [cached, inserted] = protected_directories.try_emplace(path, false);
+        if (inserted) {
+            const auto match = detector.detect(path);
+            cached->second = match && ProtectedProjectDetector::should_skip(*match);
+            if (cached->second && logger) {
+                logger->info("Skipping protected {} at '{}': {}", match->name,
+                             Utils::path_to_utf8(match->root), match->reason);
+            }
+        }
+        return cached->second;
+    };
+    if (is_protected(root)) {
+        entries.clear();
+        return;
+    }
+
+    std::erase_if(entries, [&](const FileEntry& entry) {
+        std::error_code path_error;
+        auto path = fs::absolute(Utils::utf8_to_path(entry.full_path), path_error).lexically_normal();
+        path.make_preferred();
+        if (path_error) {
+            return false;
+        }
+        if (entry.type != FileType::Directory) {
+            path = path.parent_path();
+        }
+        const auto [root_component, first_child] = std::mismatch(
+            root.begin(), root.end(), path.begin(), path.end(), same_path_component);
+        if (root_component != root.end()) {
+            return false;
+        }
+
+        auto candidate = root;
+        for (auto child = first_child; child != path.end(); ++child) {
+            candidate /= *child;
+            if (is_protected(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    });
 }
 
 StorageMutationResult mutation_from_json(const QJsonObject& response)
@@ -351,10 +427,16 @@ std::vector<FileEntry> ExternalProcessStorageProvider::list_directory(const std:
     QJsonObject response;
     std::string error;
     if (!invoke_process(manifest_, request, &response, &error)) {
-        return {};
+        throw std::runtime_error("Could not scan '" + directory + "': " + error);
+    }
+    if (!response.value("entries").isArray()) {
+        throw std::runtime_error("Could not scan '" + directory +
+                                 "': Storage plugin response is missing an entries array.");
     }
 
-    return entries_from_json(response.value("entries").toArray());
+    auto entries = entries_from_json(response.value("entries").toArray());
+    remove_protected_project_entries(directory, entries);
+    return entries;
 }
 
 StoragePathStatus ExternalProcessStorageProvider::inspect_path(const std::string& path) const
