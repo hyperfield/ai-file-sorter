@@ -533,6 +533,11 @@ endif
 SRCS = main.cpp $(wildcard $(SRC_DIR)/*.cpp)
 SRCS := $(filter-out $(SRC_DIR)/MainAppTestAccess.cpp,$(SRCS))
 OBJS = $(patsubst %.cpp, $(OBJ_DIR)/%.o, $(notdir $(SRCS)))
+ifeq ($(UNAME),Darwin)
+OBJS += $(OBJ_DIR)/OneDriveMacMutations.o
+else
+SRCS := $(filter-out $(SRC_DIR)/OneDriveMac%.cpp,$(SRCS))
+endif
 DEPS = $(OBJS:.o=.d) $(QRC_OBJ:.o=.d) $(TRANSLATIONS_QRC_OBJ:.o=.d)
 BUILD_CONFIG_STAMP := $(OBJ_DIR)/.build-config
 
@@ -635,6 +640,12 @@ $(BUILD_CONFIG_STAMP): Makefile FORCE_BUILD_CONFIG
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
 	mkdir -p $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
+
+ifeq ($(UNAME),Darwin)
+$(OBJ_DIR)/OneDriveMacMutations.o: $(SRC_DIR)/OneDriveMacMutations.mm $(DOC_DEPS_HEADERS) $(BUILD_CONFIG_STAMP)
+	mkdir -p $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -fobjc-arc -MMD -MP -MF $(@:.o=.d) -c $< -o $@
+endif
 
 $(LIBZIP_CONF): $(LIBZIP_LIB)
 

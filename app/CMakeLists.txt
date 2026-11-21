@@ -22,6 +22,13 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(APPLE)
+    enable_language(OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 20)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+    set(CMAKE_OBJCXX_EXTENSIONS OFF)
+    find_library(AIFS_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+endif()
 
 option(AI_FILE_SORTER_BUILD_TESTS "Build unit tests (requires Catch2 submodule)" OFF)
 option(AI_FILE_SORTER_ENABLE_LIVE_LLM_TESTS
@@ -919,6 +926,13 @@ set(APP_MAIN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 file(GLOB APP_LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp"
 )
+if(APPLE)
+    set(_aifs_one_drive_mutations "${CMAKE_CURRENT_SOURCE_DIR}/lib/OneDriveMacMutations.mm")
+    list(APPEND APP_LIB_SOURCES "${_aifs_one_drive_mutations}")
+    set_source_files_properties("${_aifs_one_drive_mutations}" PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+else()
+    list(FILTER APP_LIB_SOURCES EXCLUDE REGEX "/OneDriveMac[^/]+\\.cpp$")
+endif()
 set(AIFS_TEST_ONLY_APP_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/MainAppTestAccess.cpp"
 )
@@ -1522,6 +1536,9 @@ target_compile_definitions(aifilesorter PRIVATE
     AIFS_PLUGIN_ENTITLEMENT_PUBLIC_KEYS="${_aifs_plugin_entitlement_public_keys_define}"
 )
 aifs_apply_plugin_build_config(aifilesorter)
+if(APPLE)
+    target_link_libraries(aifilesorter PRIVATE "${AIFS_FOUNDATION_FRAMEWORK}")
+endif()
 if(AI_FILE_SORTER_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
     target_compile_definitions(aifilesorter PRIVATE AIFS_ENABLE_PLUGIN_ENTITLEMENT_DEV_BYPASS)
 endif()
@@ -2078,6 +2095,7 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_user_learning_store.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_database_manager_rename_only.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_cache_interactions.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_onedrive_storage_provider.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_content_analysis_cache.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_document_analysis_budget.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_content_context_routing.cpp"
@@ -2147,6 +2165,9 @@ if(AI_FILE_SORTER_BUILD_TESTS)
         NOMINMAX
     )
     aifs_apply_plugin_build_config(ai_file_sorter_tests)
+    if(APPLE)
+        target_link_libraries(ai_file_sorter_tests PRIVATE "${AIFS_FOUNDATION_FRAMEWORK}")
+    endif()
     aifs_apply_llama_feature_config(ai_file_sorter_tests)
     add_dependencies(ai_file_sorter_tests aifs_storage_plugin_stub)
     aifs_apply_update_mode(ai_file_sorter_tests)

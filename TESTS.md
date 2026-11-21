@@ -4530,11 +4530,23 @@ Expected outcome: Undo restores the unchanged contents after metadata changes an
 Run: `./build-tests/ai_file_sorter_tests "External storage undo verifies contents after hydration changes metadata"`
 
 #### Test case: StorageProviderRegistry resolves installed OneDrive external connector
-Purpose: Prove the public host can install and invoke a signed package that provides the `onedrive` provider id without bundling OneDrive implementation code.
+Purpose: Preserve compatibility with earlier signed OneDrive packages that used an external connector.
 Setup: Install a signed test package for `onedrive_storage_support` that points at the generic external-process stub.
 Procedure: Detect a OneDrive-root path, resolve the runtime provider, and request a preflight and move for a locked file.
 Expected outcome: The installed external connector wins over the local fallback and reports the retryable lock for both requests.
 Run: `./build-tests/ai_file_sorter_tests "StorageProviderRegistry resolves installed OneDrive external connector"`
+
+#### Test case: StoragePluginManager activates a signed declarative OneDrive package
+Purpose: Verify signature and entitlement checks for the in-app OneDrive provider.
+Procedure: Install a manifest-only package with a valid test receipt, reload it, and try extra payload files and a replacement archive without a signature.
+Expected outcome: Only the valid package activates the in-app provider, and the installed files consist of the signed archive.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager activates a signed declarative OneDrive package"`
+
+### `tests/unit/test_onedrive_storage_provider.cpp`
+
+Purpose: Exercise the built-in OneDrive provider and its native platform helpers.
+Coverage: Authoritative root detection, hydration and lock handling, scan filters, project protection, move and undo, and native file IDs and revision checks. macOS cases use File Provider metadata fixtures and native coordinated moves. Windows cases use sharing locks and a temporary Cloud Files sync root.
+Run: `./build-tests/ai_file_sorter_tests "[onedrive]"`
 
 ### `tests/unit/test_storage_plugin_conformance.cpp`
 

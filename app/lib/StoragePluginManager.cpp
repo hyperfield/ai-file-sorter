@@ -6,9 +6,11 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSaveFile>
 #include <QTemporaryDir>
 #include <algorithm>
 #include <cctype>
@@ -20,6 +22,8 @@
 #include "StoragePluginArchiveExtractor.hpp"
 
 namespace {
+
+constexpr auto kBuiltinArchiveName = "bundle.aifsplugin";
 
 #ifndef AIFS_STORAGE_PLUGIN_CATALOG_URL
 #define AIFS_STORAGE_PLUGIN_CATALOG_URL ""
@@ -204,6 +208,65 @@ bool is_safe_relative_path_spec(const std::string& path_spec) {
     return safe_relative_package_path(path_spec).has_value();
 }
 
+bool is_package_identifier(const std::string& value) {
+    if (value.empty() || !TextEncoding::ascii_alnum(static_cast<unsigned char>(value.front()))) {
+        return false;
+    }
+    return std::all_of(value.begin(), value.end(), [](unsigned char ch) {
+        return TextEncoding::ascii_alnum(ch) || ch == '.' || ch == '-' || ch == '_';
+    });
+}
+
+bool is_bundled_compatibility_mode(const StoragePluginManifest& manifest) {
+    return manifest.entry_point_kind == "builtin_bundle" && manifest.id == "cloud_storage_compat" &&
+           manifest.entry_point == "cloud_storage_compat_bundle" && !manifest.license_required;
+}
+
+bool validate_builtin_payload(const StoragePluginArchiveExtractor::ExtractionResult& extraction,
+                              const StoragePluginPackageVerification& verification, std::string* error) {
+    const auto root = extraction.manifest_path.parent_path();
+    std::error_code filesystem_error;
+    bool outside_payload = false;
+    for (std::filesystem::recursive_directory_iterator it(extraction.extracted_root, filesystem_error), end;
+         !filesystem_error && it != end; it.increment(filesystem_error)) {
+        if (it->path().parent_path() != root && !it->is_directory(filesystem_error)) {
+            outside_payload = true;
+            break;
+        }
+    }
+    if (!filesystem_error && !outside_payload &&
+        verification.signed_payload_paths.size() == 1 && verification.signed_payload_paths.contains("manifest.json")) {
+        return true;
+    }
+    if (error) {
+        *error = "A declarative storage package can contain only its manifest and signature.";
+    }
+    return false;
+}
+
+bool save_builtin_archive(const std::filesystem::path& source, const std::filesystem::path& destination,
+                          std::string* error) {
+    const QString destination_path = QString::fromStdString(Utils::path_to_utf8(destination));
+    if (!QDir().mkpath(QFileInfo(destination_path).absolutePath())) {
+        if (error) {
+            *error = "Failed to create the declarative plugin package directory.";
+        }
+        return false;
+    }
+    QFile input(QString::fromStdString(Utils::path_to_utf8(source)));
+    QSaveFile output(destination_path);
+    if (input.open(QIODevice::ReadOnly) && output.open(QIODevice::WriteOnly)) {
+        const QByteArray archive = input.readAll();
+        if (input.error() == QFileDevice::NoError && output.write(archive) == archive.size() && output.commit()) {
+            return true;
+        }
+    }
+    if (error) {
+        *error = "Could not save the signed declarative plugin package.";
+    }
+    return false;
+}
+
 std::vector<int> parse_version_digits(const std::string& version) {
     std::vector<int> digits;
     std::string current;
@@ -276,11 +339,14 @@ std::vector<StoragePluginManifest> merge_manifests(const std::vector<StoragePlug
 
 StoragePluginManager::StoragePluginManager(std::string config_dir,
                                            StoragePluginPackageFetcher::DownloadFunction download_fn,
-                                           std::vector<StoragePluginPackagePublicKey> trusted_package_keys)
+                                           std::vector<StoragePluginPackagePublicKey> trusted_package_keys,
+                                           std::shared_ptr<const PluginEntitlementService> entitlement_service)
     : config_dir_(std::move(config_dir)),
       loader_(manifest_directory_for_config_dir(config_dir_)),
       package_fetcher_(download_directory_for_config_dir(config_dir_), std::move(download_fn)),
       trusted_package_keys_(std::move(trusted_package_keys)),
+      entitlement_service_(entitlement_service ? std::move(entitlement_service)
+          : std::make_shared<PluginEntitlementService>(Utils::utf8_to_path(config_dir_))),
       remote_catalog_url_(remote_catalog_url()) {
     load_cached_remote_catalog();
     reload();
@@ -309,7 +375,10 @@ std::vector<StoragePluginManifest> StoragePluginManager::available_plugins() con
 
 std::optional<StoragePluginManifest> StoragePluginManager::find_plugin(const std::string& plugin_id) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
-    if (is_installed(plugin_id)) {
+    if (const auto record = installed_plugins_.find(plugin_id); record != installed_plugins_.end()) {
+        if (record->second.declarative_manifest) {
+            return record->second.declarative_manifest;
+        }
         const auto installed_manifest = loader_.find_plugin(plugin_id);
         if (installed_manifest.has_value()) {
             return installed_manifest;
@@ -328,6 +397,13 @@ std::optional<StoragePluginManifest> StoragePluginManager::find_plugin(const std
 std::optional<StoragePluginManifest> StoragePluginManager::find_plugin_for_provider(
     const std::string& provider_id) const {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    for (const auto& [id, record] : installed_plugins_) {
+        const auto& manifest = record.declarative_manifest;
+        if (manifest && std::find(manifest->provider_ids.begin(), manifest->provider_ids.end(), provider_id) !=
+                            manifest->provider_ids.end()) {
+            return manifest;
+        }
+    }
     const auto installed_manifest = loader_.find_plugin_for_provider(provider_id);
     if (installed_manifest.has_value() && is_installed(installed_manifest->id)) {
         return installed_manifest;
@@ -479,6 +555,23 @@ std::vector<std::string> StoragePluginManager::installed_plugin_ids() const {
     return plugin_ids;
 }
 
+std::vector<StoragePluginManifest> StoragePluginManager::installed_plugin_manifests() const {
+    const std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::vector<StoragePluginManifest> manifests;
+    for (const auto& [id, record] : installed_plugins_) {
+        if (record.declarative_manifest) {
+            if (builtin_entitled(*record.declarative_manifest)) {
+                manifests.push_back(*record.declarative_manifest);
+            }
+        } else if (auto manifest = loader_.find_plugin(id);
+                   manifest && (manifest->entry_point_kind != "builtin_bundle" ||
+                                is_bundled_compatibility_mode(*manifest))) {
+            manifests.push_back(std::move(*manifest));
+        }
+    }
+    return manifests;
+}
+
 bool StoragePluginManager::install(const std::string& plugin_id, std::string* error) {
     const std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto manifests = merged_available_plugins();
@@ -574,8 +667,12 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
         return false;
     }
 
-    auto extraction = StoragePluginArchiveExtractor::extract_archive(
-        archive_path, Utils::utf8_to_path(temp_dir.path().toStdString()));
+    const auto temp_path = Utils::utf8_to_path(temp_dir.path().toStdString());
+    const auto staged_archive = temp_path / "source.aifsplugin";
+    if (!copy_plugin_asset(archive_path, staged_archive, error)) {
+        return false;
+    }
+    auto extraction = StoragePluginArchiveExtractor::extract_archive(staged_archive, temp_path / "contents");
     if (!extraction.ok()) {
         if (error) {
             *error = extraction.message;
@@ -636,9 +733,20 @@ bool StoragePluginManager::install_from_archive_internal(const std::filesystem::
 
     manifest->verified_signer_key_id = verification.signer_key_id;
 
+    if (manifest->entry_point_kind == "builtin_bundle") {
+        if (!validate_builtin_payload(extraction, verification, error) ||
+            !install_manifest(*manifest, error, staged_archive)) {
+            return false;
+        }
+        if (installed_plugin_id) {
+            *installed_plugin_id = manifest->id;
+        }
+        return true;
+    }
+
     if (manifest->entry_point_kind != "external_process") {
         if (error) {
-            *error = "Plugin archives currently support only external_process entry points.";
+            *error = "Unsupported storage plugin entry point kind.";
         }
         return false;
     }
@@ -730,6 +838,7 @@ bool StoragePluginManager::reload(std::string* error) {
     for (const auto& value : plugins) {
         std::string plugin_id;
         std::string plugin_version;
+        bool signed_builtin = false;
 
         if (value.isString()) {
             plugin_id = value.toString().toStdString();
@@ -737,14 +846,22 @@ bool StoragePluginManager::reload(std::string* error) {
             const QJsonObject plugin_object = value.toObject();
             plugin_id = plugin_object.value("id").toString().toStdString();
             plugin_version = plugin_object.value("version").toString().toStdString();
+            signed_builtin = plugin_object.value("signed_builtin").toBool();
         }
 
         if (plugin_id.empty()) {
             continue;
         }
+        if (signed_builtin) {
+            if (auto manifest = load_installed_builtin(plugin_id, plugin_version)) {
+                installed_plugins_[plugin_id] = {.id = plugin_id, .version = plugin_version,
+                                                 .declarative_manifest = std::move(manifest)};
+            }
+            continue;
+        }
 
         const auto manifest = find_plugin(plugin_id);
-        if (!manifest.has_value()) {
+        if (!manifest || (manifest->entry_point_kind == "builtin_bundle" && !is_bundled_compatibility_mode(*manifest))) {
             continue;
         }
 
@@ -776,7 +893,14 @@ std::filesystem::path StoragePluginManager::package_directory_for_plugin(const S
 }
 
 std::vector<StoragePluginManifest> StoragePluginManager::merged_available_plugins() const {
-    return merge_manifests(loader_.available_plugins(), remote_catalog_manifests_);
+    std::vector<StoragePluginManifest> declarative;
+    for (const auto& [id, record] : installed_plugins_) {
+        if (record.declarative_manifest) {
+            declarative.push_back(*record.declarative_manifest);
+        }
+    }
+    return merge_manifests(merge_manifests(loader_.available_plugins(), std::move(declarative)),
+                           remote_catalog_manifests_);
 }
 
 void StoragePluginManager::load_cached_remote_catalog() {
@@ -884,7 +1008,8 @@ bool StoragePluginManager::install_from_remote_package(const StoragePluginManife
     return install_from_archive_internal(archive_path, &manifest, &installed_plugin_id, error);
 }
 
-bool StoragePluginManager::install_manifest(const StoragePluginManifest& manifest, std::string* error) {
+bool StoragePluginManager::install_manifest(const StoragePluginManifest& manifest, std::string* error,
+                                            const std::filesystem::path& verified_builtin_archive) {
     std::string compatibility_error;
     if (!storage_plugin_manifest_matches_current_runtime(manifest, &compatibility_error)) {
         if (error) {
@@ -903,6 +1028,48 @@ bool StoragePluginManager::install_manifest(const StoragePluginManifest& manifes
         return false;
     }
 
+    if (!verified_builtin_archive.empty()) {
+        if (!is_package_identifier(manifest.id) || !is_package_identifier(manifest.version)) {
+            if (error) {
+                *error = "Invalid declarative plugin identifier or version.";
+            }
+            return false;
+        }
+        if (!builtin_entitled(manifest)) {
+            if (error) {
+                *error = "A valid license entitlement is required to install this storage plugin.";
+            }
+            return false;
+        }
+        const auto installed_archive = package_directory_for_plugin(manifest) / kBuiltinArchiveName;
+        if (!save_builtin_archive(verified_builtin_archive, installed_archive, error)) {
+            return false;
+        }
+        const auto original = installed_plugins_.find(manifest.id);
+        auto previous = original == installed_plugins_.end() ? std::optional<InstalledPluginRecord>{}
+                                                             : std::optional{original->second};
+        auto installed_manifest = manifest;
+        installed_manifest.source_path = installed_archive;
+        installed_plugins_[manifest.id] = {.id = manifest.id, .version = manifest.version,
+                                           .declarative_manifest = std::move(installed_manifest)};
+        if (!save(error)) {
+            if (previous) {
+                installed_plugins_[manifest.id] = std::move(*previous);
+            } else {
+                installed_plugins_.erase(manifest.id);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    if (manifest.entry_point_kind == "builtin_bundle" && !is_bundled_compatibility_mode(manifest)) {
+        if (error) {
+            *error = "Install this storage plugin from its signed package.";
+        }
+        return false;
+    }
+
     StoragePluginManifest installed_manifest = manifest;
     if (!materialize_manifest_for_install(manifest, &installed_manifest, error)) {
         return false;
@@ -914,6 +1081,40 @@ bool StoragePluginManager::install_manifest(const StoragePluginManifest& manifes
 
     installed_plugins_[manifest.id] = InstalledPluginRecord{.id = manifest.id, .version = manifest.version};
     return save(error);
+}
+
+std::optional<StoragePluginManifest> StoragePluginManager::load_installed_builtin(
+    const std::string& plugin_id, const std::string& version) const {
+    if (!is_package_identifier(plugin_id) || !is_package_identifier(version)) {
+        return std::nullopt;
+    }
+    QTemporaryDir temporary_dir;
+    if (!temporary_dir.isValid()) {
+        return std::nullopt;
+    }
+    const auto archive = package_directory_for_config_dir(config_dir_) / Utils::utf8_to_path(plugin_id) /
+        Utils::utf8_to_path(version) / kBuiltinArchiveName;
+    const auto extraction = StoragePluginArchiveExtractor::extract_archive(
+        archive, Utils::utf8_to_path(temporary_dir.path().toStdString()));
+    StoragePluginPackageVerification verification;
+    if (!extraction.ok() ||
+        !verify_storage_plugin_package(extraction.manifest_path.parent_path(), trusted_package_keys(), &verification) ||
+        !validate_builtin_payload(extraction, verification, nullptr)) {
+        return std::nullopt;
+    }
+    auto manifest = load_storage_plugin_manifest_from_file(extraction.manifest_path);
+    if (!manifest || manifest->entry_point_kind != "builtin_bundle" || manifest->id != plugin_id ||
+        manifest->version != version || !storage_plugin_manifest_matches_current_runtime(*manifest) ||
+        !loader_.supports_plugin(*manifest)) {
+        return std::nullopt;
+    }
+    manifest->verified_signer_key_id = verification.signer_key_id;
+    manifest->source_path = archive;
+    return manifest;
+}
+
+bool StoragePluginManager::builtin_entitled(const StoragePluginManifest& manifest) const {
+    return !manifest.license_required || entitlement_service_->has_entitlement(manifest.product_id, manifest.id);
 }
 
 bool StoragePluginManager::persist_manifest(const StoragePluginManifest& manifest, std::string* error) const {
@@ -1020,6 +1221,9 @@ bool StoragePluginManager::save(std::string* error) const {
         plugin["id"] = QString::fromStdString(plugin_id);
         plugin["version"] = QString::fromStdString(record.version);
         plugin["installed_at_utc"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+        if (record.declarative_manifest) {
+            plugin["signed_builtin"] = true;
+        }
         plugins.push_back(plugin);
     }
 
@@ -1027,15 +1231,15 @@ bool StoragePluginManager::save(std::string* error) const {
     root["version"] = 2;
     root["installed_plugins"] = plugins;
 
-    QFile file(QString::fromStdString(install_state_path()));
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    QSaveFile file(QString::fromStdString(install_state_path()));
+    const auto state = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if (!file.open(QIODevice::WriteOnly) || file.write(state) != state.size() || !file.commit()) {
         if (error) {
             *error = file.errorString().toStdString();
         }
         return false;
     }
 
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
     return true;
 }
 

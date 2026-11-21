@@ -3,6 +3,9 @@
 #include <zip.h>
 
 #include <QCryptographicHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -26,6 +29,7 @@
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
+#include "OneDriveStorageProvider.hpp"
 #include "PluginBuildConfig.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
@@ -739,10 +743,10 @@ TEST_CASE("StorageProviderRegistry detects cloud folders while resolving local f
     auto local_provider = std::make_shared<LocalFsProvider>();
     registry.register_builtin(local_provider);
 
-    const std::string folder_path = "/Users/example/OneDrive - Work/Documents";
+    const std::string folder_path = "/Users/example/Dropbox - Work/Documents";
     const auto detection = registry.detect(folder_path);
     REQUIRE(detection.matched);
-    CHECK(detection.provider_id == "onedrive");
+    CHECK(detection.provider_id == "dropbox");
     CHECK(detection.needs_additional_support);
 
     const auto resolved = registry.resolve_for(folder_path);
@@ -922,7 +926,7 @@ TEST_CASE("StoragePluginManager installs .aifsplugin archives with manifest and 
     for (auto& provider : loader.create_detection_providers()) {
         registry.register_builtin(std::move(provider));
     }
-    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
+    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_manifests())) {
         registry.register_builtin(std::move(provider));
     }
 
@@ -980,6 +984,82 @@ TEST_CASE("StoragePluginManager selects signed runtime-specific storage package 
     CHECK(plugin->purchase_url == "https://plugins.example.invalid/mockcloud/buy");
     CHECK(plugin->verified_signer_key_id == kStoragePackageTestKeyId);
 }
+
+#if defined(__APPLE__) || defined(_WIN32)
+TEST_CASE("StoragePluginManager activates a signed declarative OneDrive package", "[onedrive]") {
+    TempDir config_dir;
+    TempDir archive_dir;
+    const auto archive = archive_dir.path() / "onedrive.aifsplugin";
+    const std::string manifest = R"json({
+  "id": "onedrive_storage_support",
+  "name": "OneDrive Storage Support",
+  "version": "1.3.0",
+  "provider_ids": ["onedrive"],
+  "entry_point_kind": "builtin_bundle",
+  "entry_point": "onedrive_storage_bundle",
+  "license_required": true,
+  "product_id": "onedrive_storage_support",
+  "platforms": ["macos", "windows"]
+})json";
+    constexpr auto plugin_id = "onedrive_storage_support";
+    auto entitlement_service = std::make_shared<PluginEntitlementService>(
+        config_dir.path(), std::vector<PluginEntitlementPublicKey>{
+            {kStoragePackageTestKeyId, kStoragePackageTestPublicKey}});
+    StoragePluginManager manager(config_dir.path().string(), {}, storage_package_test_keys(), entitlement_service);
+    create_signed_storage_plugin_archive(archive, manifest, {});
+    std::string error;
+    CHECK_FALSE(manager.install_from_archive(archive, nullptr, &error));
+    CHECK_THAT(error, Catch::Matchers::ContainsSubstring("entitlement"));
+    CHECK(manager.installed_plugin_manifests().empty());
+
+    const QByteArray entitlement = QJsonDocument(QJsonObject{
+        {"version", "aifs.entitlement.v1"},
+        {"license_id", "lic_test"},
+        {"device_id", QString::fromStdString(entitlement_service->device_id())},
+        {"issued_at", "2026-09-13T00:00:00Z"},
+        {"offline_until", "2999-01-01T00:00:00Z"},
+        {"entitlements", QJsonArray{QJsonObject{
+            {"plugin_id", plugin_id}, {"product_id", plugin_id}, {"status", "active"}
+        }}}
+    }).toJson(QJsonDocument::Compact);
+    REQUIRE(entitlement_service->store_receipt(entitlement, sign_storage_package_payload(entitlement),
+                                               kStoragePackageTestKeyId));
+
+    SECTION("additional signed files are rejected") {
+        create_signed_storage_plugin_archive(archive, manifest, {{"connector", "unexpected payload"}});
+        CHECK_FALSE(manager.install_from_archive(archive, nullptr, &error));
+        CHECK_THAT(error, Catch::Matchers::ContainsSubstring("only its manifest"));
+        CHECK(manager.installed_plugin_manifests().empty());
+    }
+
+    SECTION("only the authenticated package activates the in-app provider") {
+        REQUIRE_FALSE(manager.is_installed(plugin_id));
+        REQUIRE(manager.install_from_archive(archive, nullptr, &error));
+        CHECK(manager.is_installed(plugin_id));
+        const auto package_dir =
+            StoragePluginManager::package_directory_for_config_dir(config_dir.path().string()) / plugin_id / "1.3.0";
+        CHECK(std::filesystem::is_regular_file(package_dir / "bundle.aifsplugin"));
+        CHECK(std::distance(std::filesystem::directory_iterator(package_dir), std::filesystem::directory_iterator()) == 1);
+
+        StoragePluginManager reloaded(config_dir.path().string(), {}, storage_package_test_keys(), entitlement_service);
+        const auto installed = reloaded.find_plugin(plugin_id);
+        REQUIRE(installed.has_value());
+        CHECK(installed->verified_signer_key_id == kStoragePackageTestKeyId);
+        CHECK(installed->entry_point == "onedrive_storage_bundle");
+        const auto providers = StoragePluginLoader().create_providers_for_installed_plugins(
+            reloaded.installed_plugin_manifests());
+        REQUIRE(providers.size() == 1);
+        CHECK(providers.front()->id() == "onedrive");
+        CHECK(dynamic_cast<OneDriveStorageProvider*>(providers.front().get()) != nullptr);
+
+        // Replacing the installed archive with a zip of the same manifest cannot unlock the provider.
+        create_zip_archive(package_dir / "bundle.aifsplugin", {{"manifest.json", manifest}});
+        REQUIRE(reloaded.reload());
+        CHECK_FALSE(reloaded.is_installed(plugin_id));
+        CHECK(reloaded.installed_plugin_manifests().empty());
+    }
+}
+#endif
 
 TEST_CASE("StoragePluginManager rejects unsigned and tampered storage plugin archives") {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", std::string("offscreen"));
@@ -1635,7 +1715,7 @@ TEST_CASE("StorageProviderRegistry resolves installed cloud provider ahead of lo
     for (auto& provider : loader.create_detection_providers()) {
         registry.register_builtin(std::move(provider));
     }
-    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
+    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_manifests())) {
         registry.register_builtin(std::move(provider));
     }
 
@@ -1670,7 +1750,7 @@ TEST_CASE("UndoManager rejects external-process restores when revision metadata 
     for (auto& provider : loader.create_detection_providers()) {
         registry.register_builtin(std::move(provider));
     }
-    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
+    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_manifests())) {
         registry.register_builtin(std::move(provider));
     }
 
@@ -1847,7 +1927,7 @@ TEST_CASE("StorageProviderRegistry resolves installed external process provider"
     for (auto& provider : loader.create_detection_providers()) {
         registry.register_builtin(std::move(provider));
     }
-    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
+    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_manifests())) {
         registry.register_builtin(std::move(provider));
     }
 
@@ -1900,7 +1980,7 @@ TEST_CASE("StorageProviderRegistry resolves installed OneDrive external connecto
     for (auto& provider : loader.create_detection_providers()) {
         registry.register_builtin(std::move(provider));
     }
-    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_ids())) {
+    for (auto& provider : loader.create_providers_for_installed_plugins(plugin_manager.installed_plugin_manifests())) {
         registry.register_builtin(std::move(provider));
     }
 
