@@ -432,6 +432,8 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_compile_options(
         "$<$<COMPILE_LANGUAGE:C>:/MP>"
         "$<$<COMPILE_LANGUAGE:CXX>:/MP>"
+        "$<$<COMPILE_LANGUAGE:C>:/utf-8>"
+        "$<$<COMPILE_LANGUAGE:CXX>:/utf-8>"
     )
 endif()
 

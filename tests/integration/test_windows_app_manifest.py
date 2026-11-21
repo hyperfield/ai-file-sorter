@@ -1,4 +1,4 @@
-"""Check DPI and privilege declarations in compiled Windows executable resources."""
+"""Check DPI, code page, and privilege declarations in compiled Windows executables."""
 
 import argparse
 import ctypes
@@ -17,6 +17,7 @@ NAMESPACES = {
     "asm": "urn:schemas-microsoft-com:asm.v3",
     "dpi2005": "http://schemas.microsoft.com/SMI/2005/WindowsSettings",
     "dpi2016": "http://schemas.microsoft.com/SMI/2016/WindowsSettings",
+    "codepage2019": "http://schemas.microsoft.com/SMI/2019/WindowsSettings",
 }
 
 
@@ -65,6 +66,7 @@ class WindowsAppManifestTests(unittest.TestCase):
         self.assertIsNotNone(settings, "Missing embedded Windows settings")
         self.assertEqual(settings.findtext("dpi2016:dpiAwareness", namespaces=NAMESPACES), "PerMonitorV2")
         self.assertEqual(settings.findtext("dpi2005:dpiAware", namespaces=NAMESPACES), "true/PM")
+        self.assertEqual(settings.findtext("codepage2019:activeCodePage", namespaces=NAMESPACES), "UTF-8")
         privilege = manifest.find("asm:trustInfo/asm:security/asm:requestedPrivileges/asm:requestedExecutionLevel",
                                   NAMESPACES)
         self.assertIsNotNone(privilege, "Missing explicit standard-user privilege declaration")
