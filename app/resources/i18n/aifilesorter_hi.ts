@@ -1268,13 +1268,13 @@ Status: %4%5
         <name>FolderStructureUiText</name>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="64"></location>
-            <source>Johnny.Decimal Support</source>
-            <translation>Johnny.Decimal समर्थन</translation>
+            <source>Numbered Folder Tools</source>
+            <translation>क्रमांकित फ़ोल्डर टूल</translation>
         </message>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="77"></location>
-            <source>Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.</source>
-            <translation>Johnny.Decimal स्टार्ट फ़ोल्डर, आर्काइव पहचान, सत्यापन, इंडेक्स दृश्य, अगले फ़ोल्डर का निर्माण और रूटिंग मार्गदर्शन जोड़ता है।</translation>
+            <source>Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.</source>
+            <translation>क्रमांकित फ़ोल्डर बनाएँ, संग्रह की अनुक्रमणिका देखें और अपने फ़ोल्डरों की संरचना जाँचें। Johnny.Decimal के साथ संगत।</translation>
         </message>
     </context>
     <context>
@@ -1992,8 +1992,8 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <name>MainApp</name>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2800"></location>
-            <source>Johnny.Decimal support available</source>
-            <translation>Johnny.Decimal समर्थन उपलब्ध है</translation>
+            <source>%1: available</source>
+            <translation>%1: उपलब्ध</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2803"></location>
@@ -2002,8 +2002,8 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2818"></location>
-            <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
-            <translation>Johnny.Decimal Support प्लगइन समर्पित प्रारंभिक फ़ोल्डर और रूटिंग मार्गदर्शन जोड़ सकता है।</translation>
+            <source>%1 can add dedicated starter folders and routing guidance.</source>
+            <translation>%1 विशेष शुरुआती फ़ोल्डर और फ़ाइलों को सही जगह रखने के सुझाव जोड़ सकता है।</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2821"></location>
@@ -2595,8 +2595,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2630"></location>
-            <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
-            <translation>Johnny.Decimal प्लगइन पैकेज अभी प्लगइन कैटलॉग में उपलब्ध नहीं है।</translation>
+            <source>The %1 plugin package is not available from the plugin catalog yet.</source>
+            <translation>%1 का प्लगइन पैकेज अभी प्लगइन कैटलॉग में उपलब्ध नहीं है।</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2631"></location>
@@ -2615,8 +2615,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2651"></location>
-            <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
-            <translation>Johnny.Decimal सहायता स्थापित है। नया फ़ोल्डर मार्गदर्शन उपयोग करने के लिए विश्लेषण को फिर से चलाएँ।</translation>
+            <source>%1 is installed. Run the analysis again to use the new folder guidance.</source>
+            <translation>%1 इंस्टॉल हो गया है। फ़ोल्डरों के लिए नए सुझाव इस्तेमाल करने के लिए विश्लेषण दोबारा चलाएँ।</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2819"></location>
@@ -2625,13 +2625,13 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2799"></location>
-            <source>Johnny.Decimal support disabled</source>
-            <translation>Johnny.Decimal सहायता अक्षम है</translation>
+            <source>%1: disabled</source>
+            <translation>%1: बंद</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2812"></location>
-            <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
-            <translation>Johnny.Decimal सहायता स्थापित है लेकिन अक्षम है। इसका फ़ोल्डर मार्गदर्शन लोड करने के लिए इसे सक्षम करें।</translation>
+            <source>%1 is installed but disabled. Enable it to load its folder guidance.</source>
+            <translation>%1 इंस्टॉल है, लेकिन बंद है। फ़ोल्डरों के लिए सुझाव लोड करने के लिए इसे चालू करें।</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2813"></location>
@@ -2655,8 +2655,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2666"></location>
-            <source>Failed to enable Johnny.Decimal Support.</source>
-            <translation>Johnny.Decimal सहायता को सक्षम करने में विफल।</translation>
+            <source>Failed to enable %1.</source>
+            <translation>%1 चालू नहीं किया जा सका।</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2673"></location>
@@ -2665,8 +2665,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2674"></location>
-            <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
-            <translation>Johnny.Decimal सहायता सक्षम है। फ़ोल्डर मार्गदर्शन का उपयोग करने के लिए विश्लेषण को फिर से चलाएँ।</translation>
+            <source>%1 is enabled. Run the analysis again to use the folder guidance.</source>
+            <translation>%1 चालू है। फ़ोल्डरों के लिए सुझाव इस्तेमाल करने के लिए विश्लेषण दोबारा चलाएँ।</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2259"></location>

@@ -170,7 +170,7 @@ std::string licensed_plugin_manifest() {
     return std::string(R"json({
   "id": "johnny_decimal_support",
   "name": "Johnny.Decimal Support",
-  "description": "Adds Johnny.Decimal structure guidance.",
+  "description": "Adds Johnny.Decimal starter folders, recognition, and routing guidance.",
   "version": "1.0.0",
   "entry_point_kind": "folder_structure_profile",
   "platforms": [")json") +
@@ -767,7 +767,8 @@ TEST_CASE("FolderStructurePluginDialog lists remote catalog plugins") {
     auto* item = plugin_list->topLevelItem(0);
     REQUIRE(item != nullptr);
     CHECK(item->text(0) == QStringLiteral("Available"));
-    CHECK(item->text(1) == QStringLiteral("Johnny.Decimal Support"));
+    CHECK(item->text(1) == QStringLiteral("Numbered Folder Tools"));
+    CHECK(item->toolTip(1).contains(QStringLiteral("Compatible with Johnny.Decimal.")));
     CHECK(item->text(2) == QStringLiteral("1.0.0"));
 
     QPushButton* activate_button = nullptr;
@@ -808,11 +809,18 @@ TEST_CASE("FolderStructurePluginDialog shows read-more action for installed acti
     std::string error;
     REQUIRE(entitlement_service->store_receipt(payload, sign_ed25519(payload), kTestKeyId, &error));
 
+    FolderStructurePluginManager legacy_manager(config_dir.path().string(), {test_public_key()}, entitlement_service);
+    REQUIRE(legacy_manager.install_from_archive(archive_path, nullptr, &error));
+
+    auto reopened_entitlement_service = std::make_shared<PluginEntitlementService>(
+        config_dir.path(), std::vector<PluginEntitlementPublicKey>{test_entitlement_public_key()});
     auto manager = std::make_shared<FolderStructurePluginManager>(
         config_dir.path().string(), std::vector<FolderStructurePluginPublicKey>{test_public_key()},
-        entitlement_service);
-    REQUIRE(manager->install_from_archive(archive_path, nullptr, &error));
-
+        reopened_entitlement_service);
+    const auto installed = manager->installed_plugins();
+    REQUIRE(installed.size() == 1);
+    CHECK(installed.front().name == "Johnny.Decimal Support");
+    CHECK(manager->has_plugin_entitlement(installed.front().product_id, installed.front().id));
     FolderStructurePluginDialog dialog(manager);
 
     auto* plugin_list = dialog.findChild<QTreeWidget*>();
@@ -821,6 +829,8 @@ TEST_CASE("FolderStructurePluginDialog shows read-more action for installed acti
     auto* item = plugin_list->topLevelItem(0);
     REQUIRE(item != nullptr);
     CHECK(item->checkState(0) == Qt::Checked);
+    CHECK(item->text(1) == QStringLiteral("Numbered Folder Tools"));
+    CHECK(item->toolTip(1).contains(QStringLiteral("Compatible with Johnny.Decimal.")));
 
     QPushButton* read_more_button = nullptr;
     QPushButton* obtain_button = nullptr;

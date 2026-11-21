@@ -1268,13 +1268,13 @@ Estado: %4%5
         <name>FolderStructureUiText</name>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="64"></location>
-            <source>Johnny.Decimal Support</source>
-            <translation>Suporte Johnny.Decimal</translation>
+            <source>Numbered Folder Tools</source>
+            <translation>Ferramentas para pastas numeradas</translation>
         </message>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="77"></location>
-            <source>Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.</source>
-            <translation>Adiciona pastas iniciais Johnny.Decimal, reconhecimento de arquivo, validação, vistas de índice, criação da próxima pasta e orientação de encaminhamento.</translation>
+            <source>Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.</source>
+            <translation>Crie pastas numeradas, consulte o índice do arquivo e verifique a estrutura das pastas. Compatível com Johnny.Decimal.</translation>
         </message>
     </context>
     <context>
@@ -1992,8 +1992,8 @@ Suporta: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <name>MainApp</name>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2800"></location>
-            <source>Johnny.Decimal support available</source>
-            <translation>Suporte Johnny.Decimal disponível</translation>
+            <source>%1: available</source>
+            <translation>%1: disponível</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2803"></location>
@@ -2002,8 +2002,8 @@ Suporta: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2818"></location>
-            <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
-            <translation>O plugin Johnny.Decimal Support pode adicionar pastas iniciais dedicadas e orientação de encaminhamento.</translation>
+            <source>%1 can add dedicated starter folders and routing guidance.</source>
+            <translation>O plugin %1 pode adicionar pastas iniciais e sugestões de organização.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2821"></location>
@@ -2595,8 +2595,8 @@ Um código válido ocultará permanentemente este lembrete de apoio.</translatio
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2630"></location>
-            <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
-            <translation>O pacote de plugin Johnny.Decimal ainda não está disponível no catálogo de plugins.</translation>
+            <source>The %1 plugin package is not available from the plugin catalog yet.</source>
+            <translation>O pacote do plugin %1 ainda não está disponível no catálogo de plugins.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2631"></location>
@@ -2615,8 +2615,8 @@ Um código válido ocultará permanentemente este lembrete de apoio.</translatio
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2651"></location>
-            <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
-            <translation>Johnny.Decimal Support está instalado. Execute a análise novamente para usar a nova orientação de pastas.</translation>
+            <source>%1 is installed. Run the analysis again to use the new folder guidance.</source>
+            <translation>O plugin %1 está instalado. Execute novamente a análise para usar as novas sugestões de organização.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2819"></location>
@@ -2625,13 +2625,13 @@ Um código válido ocultará permanentemente este lembrete de apoio.</translatio
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2799"></location>
-            <source>Johnny.Decimal support disabled</source>
-            <translation>Suporte Johnny.Decimal desativado</translation>
+            <source>%1: disabled</source>
+            <translation>%1: desativado</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2812"></location>
-            <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
-            <translation>Johnny.Decimal Support está instalado mas desativado. Ative-o para carregar a sua orientação de pastas.</translation>
+            <source>%1 is installed but disabled. Enable it to load its folder guidance.</source>
+            <translation>O plugin %1 está instalado, mas desativado. Ative-o para carregar as sugestões de organização.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2813"></location>
@@ -2655,8 +2655,8 @@ Um código válido ocultará permanentemente este lembrete de apoio.</translatio
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2666"></location>
-            <source>Failed to enable Johnny.Decimal Support.</source>
-            <translation>Falha ao ativar o Johnny.Decimal Support.</translation>
+            <source>Failed to enable %1.</source>
+            <translation>Não foi possível ativar %1.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2673"></location>
@@ -2665,8 +2665,8 @@ Um código válido ocultará permanentemente este lembrete de apoio.</translatio
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2674"></location>
-            <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
-            <translation>Johnny.Decimal Support está ativado. Execute a análise novamente para usar a orientação de pastas.</translation>
+            <source>%1 is enabled. Run the analysis again to use the folder guidance.</source>
+            <translation>O plugin %1 está ativado. Execute novamente a análise para usar as sugestões de organização.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2259"></location>

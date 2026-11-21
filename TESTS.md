@@ -3230,16 +3230,16 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls p
 
 #### Test case: FolderStructurePluginDialog lists remote catalog plugins
 Purpose: Ensure the folder-structure plugin dialog can show server-catalog plugins that are not installed yet.
-Setup: Refresh a manager from a mock catalog containing the Johnny.Decimal support entry, with and without an active entitlement receipt, and construct the dialog.
+Setup: Refresh a manager from a mock catalog containing the legacy Johnny.Decimal Support entry, with and without an active entitlement receipt, and construct the dialog.
 Procedure: Inspect the plugin list row and the selected plugin actions.
-Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version, shows purchase plus license activation actions when entitlement is missing, and shows an enabled `Read more` link when the license is active before installation.
+Expected outcome: The dialog lists Numbered Folder Tools with its Johnny.Decimal compatibility description and advertised version. It shows purchase and activation actions without a license, and an enabled `Read more` link with an active license.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog lists remote catalog plugins"`
 
 #### Test case: FolderStructurePluginDialog shows read-more action for installed activated plugins
-Purpose: Ensure installed licensed folder-structure plugins keep a visible link to their product/info page after activation.
-Setup: Store a signed Johnny.Decimal entitlement receipt, install a signed licensed Johnny.Decimal archive, and construct the dialog.
-Procedure: Inspect the selected plugin actions.
-Expected outcome: The dialog shows an enabled `Read more` action instead of the `Get It` action.
+Purpose: Ensure an existing licensed installation displays the new name without reinstalling or reactivating.
+Setup: Store a signed entitlement receipt, install a signed plugin package with the legacy name, then reopen the manager and entitlement service using the same data.
+Procedure: Inspect the signed metadata, entitlement, and selected plugin row and actions.
+Expected outcome: The signed name stays unchanged, the license and enabled state carry over, and the dialog shows Numbered Folder Tools with an enabled `Read more` action instead of `Get It`.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog shows read-more action for installed activated plugins"`
 
 #### Test case: PluginArchiveExtractor rejects unsafe paths with either separator
@@ -3274,8 +3274,9 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects e
 
 Run `[folder-language]` for starter-language defaults, independent language
 selection, translated-preview creation, numeric-prefix and parent preservation,
-invalid/incomplete/colliding translation rejection, retry, and cancellation that
-holds the analysis runtime until the worker has finished. These tests use
+invalid/incomplete/colliding translation rejection, retry, cancellation that
+holds the analysis runtime until the worker has finished, and localized display
+of current and legacy Numbered Folder Tools metadata. These tests use
 injected clients; they do not download models or contact API services.
 
 ### `tests/unit/test_folder_structure_templates.cpp`

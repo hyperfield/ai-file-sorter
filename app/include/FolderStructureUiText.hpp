@@ -53,31 +53,45 @@ inline QString language_name(CategoryLanguage language)
 }
 
 /**
- * @brief Localizes the known first-party plugin name without rewriting catalog data.
- * @param plugin_id Catalog plugin identifier.
- * @param name Name received from the catalog.
+ * @brief Returns the current localized display name for Numbered Folder Tools.
+ * @return The current plugin label in the interface language.
+ */
+inline QString numbered_folder_tools_name()
+{
+    return QCoreApplication::translate("FolderStructureUiText", "Numbered Folder Tools");
+}
+
+/**
+ * @brief Maps current and legacy first-party names to the current display name.
+ * @param plugin_id Plugin identifier from a catalog or signed manifest.
+ * @param name Original plugin name.
  * @return Localized known label; unknown or customized names remain unchanged.
  */
 inline QString plugin_name(std::string_view plugin_id, const std::string& name)
 {
-    if (plugin_id == "johnny_decimal_support" && name == "Johnny.Decimal Support") {
-        return QCoreApplication::translate("FolderStructureUiText", "Johnny.Decimal Support");
+    if (plugin_id == "johnny_decimal_support" &&
+        (name == "Johnny.Decimal Support" || name == "Numbered Folder Tools")) {
+        return numbered_folder_tools_name();
     }
     return QString::fromStdString(name);
 }
 
 /**
  * @brief Localizes a recognized first-party description with a verbatim fallback.
- * @param plugin_id Catalog plugin identifier.
- * @param description Original, unmodified catalog description.
+ * @param plugin_id Plugin identifier from a catalog or signed manifest.
+ * @param description Original, unmodified plugin description.
  * @return Localized shipped wording, or the exact external/customized description.
  */
 inline QString plugin_description(std::string_view plugin_id, const std::string& description)
 {
-    constexpr auto kJohnnyDecimalDescription = QT_TRANSLATE_NOOP("FolderStructureUiText",
-        "Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.");
-    if (plugin_id == "johnny_decimal_support" && description == kJohnnyDecimalDescription) {
-        return QCoreApplication::translate("FolderStructureUiText", kJohnnyDecimalDescription);
+    constexpr auto kNumberedFolderToolsDescription = QT_TRANSLATE_NOOP("FolderStructureUiText",
+        "Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.");
+    if (plugin_id == "johnny_decimal_support" &&
+        (description == kNumberedFolderToolsDescription ||
+         description == "Adds Johnny.Decimal starter folders, recognition, and routing guidance." ||
+         description == "Adds Johnny.Decimal starter folders and routing guidance." ||
+         description == "Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.")) {
+        return QCoreApplication::translate("FolderStructureUiText", kNumberedFolderToolsDescription);
     }
     return QString::fromStdString(description);
 }

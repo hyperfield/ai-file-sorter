@@ -1268,13 +1268,13 @@ Durum: %4%5
         <name>FolderStructureUiText</name>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="64"></location>
-            <source>Johnny.Decimal Support</source>
-            <translation>Johnny.Decimal Desteği</translation>
+            <source>Numbered Folder Tools</source>
+            <translation>Numaralı Klasör Araçları</translation>
         </message>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="77"></location>
-            <source>Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.</source>
-            <translation>Johnny.Decimal başlangıç klasörleri, arşiv tanıma, doğrulama, dizin görünümleri, sonraki klasör oluşturma ve yönlendirme rehberliği ekler.</translation>
+            <source>Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.</source>
+            <translation>Numaralı klasörler oluşturun, arşiv dizinine göz atın ve klasör yapınızı kontrol edin. Johnny.Decimal ile uyumludur.</translation>
         </message>
     </context>
     <context>
@@ -1992,8 +1992,8 @@ Desteklenenler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <name>MainApp</name>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2800"></location>
-            <source>Johnny.Decimal support available</source>
-            <translation>Johnny.Decimal desteği mevcut</translation>
+            <source>%1: available</source>
+            <translation>%1: kullanılabilir</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2803"></location>
@@ -2002,8 +2002,8 @@ Desteklenenler: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2818"></location>
-            <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
-            <translation>Johnny.Decimal Support eklentisi özel başlangıç klasörleri ve yönlendirme rehberliği ekleyebilir.</translation>
+            <source>%1 can add dedicated starter folders and routing guidance.</source>
+            <translation>%1, özel başlangıç klasörleri ve dosyaları yerleştirme önerileri ekleyebilir.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2821"></location>
@@ -2595,8 +2595,8 @@ Geçerli bir kod bu destek hatırlatıcısını kalıcı olarak gizleyecektir.</
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2630"></location>
-            <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
-            <translation>Johnny.Decimal eklenti paketi henüz eklenti kataloğunda mevcut değil.</translation>
+            <source>The %1 plugin package is not available from the plugin catalog yet.</source>
+            <translation>%1 eklenti paketi henüz eklenti kataloğunda yok.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2631"></location>
@@ -2615,8 +2615,8 @@ Geçerli bir kod bu destek hatırlatıcısını kalıcı olarak gizleyecektir.</
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2651"></location>
-            <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
-            <translation>Johnny.Decimal Desteği yüklendi. Yeni klasör rehberliğini kullanmak için analizi yeniden çalıştırın.</translation>
+            <source>%1 is installed. Run the analysis again to use the new folder guidance.</source>
+            <translation>%1 yüklendi. Yeni klasör önerilerini kullanmak için analizi yeniden çalıştırın.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2819"></location>
@@ -2625,13 +2625,13 @@ Geçerli bir kod bu destek hatırlatıcısını kalıcı olarak gizleyecektir.</
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2799"></location>
-            <source>Johnny.Decimal support disabled</source>
-            <translation>Johnny.Decimal desteği devre dışı</translation>
+            <source>%1: disabled</source>
+            <translation>%1: devre dışı</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2812"></location>
-            <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
-            <translation>Johnny.Decimal Desteği yüklü ancak devre dışı. Klasör rehberliğini yüklemek için etkinleştirin.</translation>
+            <source>%1 is installed but disabled. Enable it to load its folder guidance.</source>
+            <translation>%1 yüklü ancak devre dışı. Klasör önerilerini yüklemek için eklentiyi etkinleştirin.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2813"></location>
@@ -2655,8 +2655,8 @@ Geçerli bir kod bu destek hatırlatıcısını kalıcı olarak gizleyecektir.</
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2666"></location>
-            <source>Failed to enable Johnny.Decimal Support.</source>
-            <translation>Johnny.Decimal Desteği etkinleştirilemedi.</translation>
+            <source>Failed to enable %1.</source>
+            <translation>%1 etkinleştirilemedi.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2673"></location>
@@ -2665,8 +2665,8 @@ Geçerli bir kod bu destek hatırlatıcısını kalıcı olarak gizleyecektir.</
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2674"></location>
-            <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
-            <translation>Johnny.Decimal Desteği etkinleştirildi. Klasör rehberliğini kullanmak için analizi yeniden çalıştırın.</translation>
+            <source>%1 is enabled. Run the analysis again to use the folder guidance.</source>
+            <translation>%1 etkinleştirildi. Klasör önerilerini kullanmak için analizi yeniden çalıştırın.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2259"></location>

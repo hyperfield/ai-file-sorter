@@ -173,7 +173,7 @@ highlights, or the [full changelog](CHANGELOG.md) for earlier releases.
 
 - **AI-powered categorization**: Sort files using either local AI models on your computer or remote models with your own API key.
 - **Flexible destinations**: Generate category folders or sort into an existing folder structure, with a separate destination and optional new-folder suggestions.
-- **Folder structures and plugins**: Create starter layouts and add optional Johnny.Decimal guidance, numbered-folder tools, archive indexes, and validation reports.
+- **Folder structures and plugins**: Create starter layouts and use the optional Numbered Folder Tools plugin for Johnny.Decimal-compatible numbered folders, archive indexes, and validation reports.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
 - **Robust categorization**: Built-in rules and category matching help keep results more consistent across runs.
 - **Configurable categorization controls**: Use whitelists, taxonomy normalization, consistency modes, and review-time edits to steer categories and subcategories.
@@ -232,13 +232,13 @@ default to 3. You can edit each suggested name during review.
 ### Folder structures and plugins
 
 Use **Create folder structure...** to preview and create an available starter
-layout. Johnny.Decimal support includes tools for creating the next numbered
-folder, browsing an archive index, and checking the archive for structural issues.
+layout. The optional **Numbered Folder Tools** plugin is compatible with
+Johnny.Decimal. It lets you create the next numbered folder, browse the archive
+index, and check the folder structure for issues.
 
-Optional folder-structure plugins provide additional guidance for supported
-archives. Install and manage them from the **Plugins** menu. The app can suggest
-Johnny.Decimal support when it recognizes a matching archive; some plugins require
-a separate license and activation.
+Install and manage folder-structure plugins from the **Plugins** menu. The app
+can suggest Numbered Folder Tools when it recognizes a compatible archive.
+Some plugins require a separate license and activation.
 
 Existing-folder sorting supports destination folders up to eight levels below
 the selected destination root. The app checks the destination in the background

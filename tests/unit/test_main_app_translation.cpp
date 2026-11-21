@@ -1389,7 +1389,8 @@ TEST_CASE("Bundled catalogs translate previously hidden dialogs and metadata", "
     struct Message { const char* context; const char* source; };
     const Message messages[] = {
         {"FolderStructureTemplates", "Media type folders"},
-        {"FolderStructureUiText", "Johnny.Decimal Support"},
+        {"FolderStructureUiText", "Numbered Folder Tools"},
+        {"FolderStructureUiText", "Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal."},
         {"FolderStructurePluginDialog", "Check for Updates"},
         {"FolderStructurePluginInstallFlow", "Activate Plugin License"},
         {"CacheMaintenanceDialog", "Clear cache"},
