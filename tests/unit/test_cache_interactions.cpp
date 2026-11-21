@@ -1730,6 +1730,60 @@ TEST_CASE("UndoManager rejects external-process restores when revision metadata 
     }
 }
 
+TEST_CASE("External storage undo verifies contents after hydration changes metadata", "[storage-plugin]") {
+    QtAppContext qt;
+    TempDir temp;
+    EnvVarGuard content_mode("AIFS_STORAGE_STUB_CONTENT_REVISIONS", std::string("capture"));
+    auto provider = std::make_shared<ExternalProcessStorageProvider>(
+        StoragePluginManifest{.entry_point = Utils::path_to_utf8(storage_plugin_stub_path())},
+        "mockcloud", "mockcloud", false);
+    StorageProviderRegistry registry;
+    registry.register_builtin(provider);
+
+    const auto source = temp.path() / "source.txt";
+    const auto destination = temp.path() / "destination.txt";
+    const auto source_text = Utils::path_to_utf8(source);
+    const auto destination_text = Utils::path_to_utf8(destination);
+    std::ofstream(source, std::ios::binary) << "original";
+    const auto moved = provider->move_entry(source_text, destination_text);
+    REQUIRE(moved.success);
+    REQUIRE(moved.metadata.revision_token.starts_with("fixture:sha256:"));
+    CHECK_FALSE(provider->capabilities().should_relax_undo_mtime_validation);
+
+    UndoManager manager(Utils::path_to_utf8(temp.path() / "undo"), &registry);
+    REQUIRE(manager.save_plan(Utils::path_to_utf8(temp.path()), provider->id(),
+                              {UndoManager::Entry{source_text, destination_text, moved.metadata.size_bytes,
+                                                  moved.metadata.mtime, moved.metadata.stable_identity,
+                                                  moved.metadata.revision_token}}, nullptr));
+    const auto plan = manager.latest_plan_path();
+    REQUIRE(plan.has_value());
+    const auto moved_time = std::filesystem::last_write_time(destination);
+
+    SECTION("Rehydration with the same contents permits undo") {
+        EnvVarGuard rehydrated("AIFS_STORAGE_STUB_CONTENT_REVISIONS", std::string("rehydrated"));
+        std::filesystem::last_write_time(destination, moved_time + std::chrono::seconds(10));
+        CHECK(provider->inspect_path(destination_text).stable_identity != moved.metadata.stable_identity);
+        CHECK(manager.undo_plan(*plan).restored == 1);
+        CHECK(read_binary_file(source) == "original");
+    }
+    SECTION("An equal-length edit with a preserved write time blocks undo") {
+        std::ofstream(destination, std::ios::binary) << "modified";
+        std::filesystem::last_write_time(destination, moved_time);
+        CHECK(manager.undo_plan(*plan).skipped == 1);
+        CHECK(read_binary_file(destination) == "modified");
+    }
+    SECTION("Unavailable contents block undo") {
+        EnvVarGuard unavailable("AIFS_STORAGE_STUB_CONTENT_REVISIONS", std::string("unavailable"));
+        CHECK(manager.undo_plan(*plan).skipped == 1);
+        CHECK(read_binary_file(destination) == "original");
+    }
+    SECTION("A legacy connector cannot validate a saved content token") {
+        EnvVarGuard legacy("AIFS_STORAGE_STUB_CONTENT_REVISIONS", std::nullopt);
+        CHECK(manager.undo_plan(*plan).skipped == 1);
+        CHECK(read_binary_file(destination) == "original");
+    }
+}
+
 TEST_CASE("External storage listings preserve project protection and scan errors", "[storage-plugin]") {
     QtAppContext qt;
     TempDir temp;

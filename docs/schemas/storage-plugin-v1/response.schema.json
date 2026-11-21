@@ -288,6 +288,9 @@
         },
         "revision_token": {
           "type": "string"
+        },
+        "can_capture_content_revision": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -386,6 +389,13 @@
           "properties": {
             "status": {
               "$ref": "#/$defs/pathStatus"
+            },
+            "content_revision_token": {
+              "type": "string",
+              "minLength": 1
+            },
+            "content_revision_matches": {
+              "type": "boolean"
             }
           }
         }

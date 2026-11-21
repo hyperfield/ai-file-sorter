@@ -1,4 +1,6 @@
 #include <QCoreApplication>
+#include <QCryptographicHash>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -35,6 +37,7 @@ constexpr int kOptionDirectories = 2;
 constexpr int kOptionHiddenFiles = 4;
 constexpr int kOptionRecursive = 8;
 constexpr int kLockRetryAfterMs = 2000;
+constexpr auto kContentRevisionMode = "AIFS_STORAGE_STUB_CONTENT_REVISIONS";
 
 bool is_supported_provider(const QString& provider_id)
 {
@@ -156,6 +159,9 @@ QJsonObject mutation_result(bool success,
         metadata["revision_token"] = QStringLiteral("%1:%2")
             .arg(size)
             .arg(mtime);
+        if (qEnvironmentVariableIsSet(kContentRevisionMode)) {
+            metadata["can_capture_content_revision"] = true;
+        }
     }
     result["metadata"] = metadata;
     return result;
@@ -200,6 +206,12 @@ QJsonObject path_status(const std::filesystem::path& path, const QString& provid
         QStringLiteral("%1:%2")
             .arg(provider_id.isEmpty() ? QStringLiteral("mockcloud") : provider_id)
             .arg(path_text(path.lexically_normal()));
+    const QString content_mode = qEnvironmentVariable(kContentRevisionMode);
+    if (!content_mode.isEmpty()) {
+        const auto identity = path_text(path.lexically_normal());
+        status["stable_identity"] = content_mode == QStringLiteral("rehydrated")
+            ? QStringLiteral("rehydrated:") + identity : identity;
+    }
     if (exists && !qEnvironmentVariableIsSet("AIFS_STORAGE_STUB_OMIT_REVISION")) {
         const qint64 size = static_cast<qint64>(std::filesystem::file_size(path, ec));
         const qint64 mtime = static_cast<qint64>(read_mtime(path));
@@ -211,6 +223,36 @@ QJsonObject path_status(const std::filesystem::path& path, const QString& provid
         ? QStringLiteral("%1 file is still locked.").arg(provider_display_name(provider_id))
         : QString();
     return status;
+}
+
+QString fixture_content_revision(const std::filesystem::path& path)
+{
+    QFile file(path_text(path));
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!file.open(QIODevice::ReadOnly) || !hash.addData(&file)) {
+        return {};
+    }
+    return QStringLiteral("fixture:sha256:") + QString::fromLatin1(hash.result().toHex());
+}
+
+void inspect_fixture_content(const QJsonObject& request, const std::filesystem::path& path,
+                             QJsonObject& status, QJsonObject& response)
+{
+    const QString mode = qEnvironmentVariable(kContentRevisionMode);
+    const QString expected = request.value("expected_revision_token").toString();
+    if (mode.isEmpty() || expected.isEmpty()) {
+        return;
+    }
+    if (expected.startsWith(QStringLiteral("fixture:sha256:"))) {
+        const auto actual = mode == QStringLiteral("unavailable") ? QString() : fixture_content_revision(path);
+        response["content_revision_matches"] = actual == expected;
+        if (actual != expected) {
+            status["message"] = QStringLiteral("Could not verify fixture contents.");
+        }
+    } else if (request.value("expected_stable_identity") == status.value("stable_identity") &&
+               expected == status.value("revision_token").toString()) {
+        response["content_revision_token"] = fixture_content_revision(path);
+    }
 }
 
 } // namespace
@@ -259,7 +301,7 @@ int main(int argc, char* argv[])
         capabilities["supports_online_only_files"] = true;
         capabilities["supports_atomic_rename"] = false;
         capabilities["should_skip_reparse_points"] = true;
-        capabilities["should_relax_undo_mtime_validation"] = true;
+        capabilities["should_relax_undo_mtime_validation"] = !qEnvironmentVariableIsSet(kContentRevisionMode);
         response["capabilities"] = capabilities;
     } else if (action == QStringLiteral("list_directory")) {
         const std::filesystem::path root = native_path(request.value("directory").toString());
@@ -273,7 +315,10 @@ int main(int argc, char* argv[])
             response["error"] = "Fixture directory cannot be enumerated.";
         }
     } else if (action == QStringLiteral("inspect_path")) {
-        response["status"] = path_status(native_path(request.value("path").toString()), provider_id);
+        const auto path = native_path(request.value("path").toString());
+        auto status = path_status(path, provider_id);
+        inspect_fixture_content(request, path, status, response);
+        response["status"] = status;
     } else if (action == QStringLiteral("preflight_move")) {
         const auto source = path_status(native_path(request.value("source").toString()), provider_id);
         const auto destination = path_status(native_path(request.value("destination").toString()), provider_id);

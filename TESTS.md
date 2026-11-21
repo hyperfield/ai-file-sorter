@@ -4523,6 +4523,12 @@ Procedure: List the fixture recursively, scan the protected repository and empty
 Expected outcome: Project trees are excluded, the empty directory returns an empty list, and invalid roots report the connector error.
 Run: `./build-tests/ai_file_sorter_tests "External storage listings preserve project protection and scan errors"`
 
+#### Test case: External storage undo verifies contents after hydration changes metadata
+Purpose: Verify that undo uses the content revision captured from a supporting connector.
+Procedure: Save a move with a content revision and try undo after metadata changes, a same-length edit with the original timestamp, an unavailable file, or a switch to a legacy connector.
+Expected outcome: Undo restores the unchanged contents after metadata changes and skips the edit and both unverifiable cases.
+Run: `./build-tests/ai_file_sorter_tests "External storage undo verifies contents after hydration changes metadata"`
+
 #### Test case: StorageProviderRegistry resolves installed OneDrive external connector
 Purpose: Prove the public host can install and invoke a signed package that provides the `onedrive` provider id without bundling OneDrive implementation code.
 Setup: Install a signed test package for `onedrive_storage_support` that points at the generic external-process stub.

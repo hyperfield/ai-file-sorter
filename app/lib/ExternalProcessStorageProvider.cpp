@@ -441,8 +441,17 @@ std::vector<FileEntry> ExternalProcessStorageProvider::list_directory(const std:
 
 StoragePathStatus ExternalProcessStorageProvider::inspect_path(const std::string& path) const
 {
+    return inspect_for_undo(path, {}).status;
+}
+
+StorageUndoCheck ExternalProcessStorageProvider::inspect_for_undo(
+    const std::string& path, const std::string& expected_revision) const
+{
     QJsonObject request = make_request(manifest_, provider_id_, "inspect_path");
     request["path"] = QString::fromStdString(path);
+    if (!expected_revision.empty()) {
+        request["expected_revision_token"] = QString::fromStdString(expected_revision);
+    }
 
     QJsonObject response;
     std::string error;
@@ -450,7 +459,9 @@ StoragePathStatus ExternalProcessStorageProvider::inspect_path(const std::string
         return {};
     }
 
-    return status_from_json(response.value("status").toObject());
+    const auto matches = response.value("content_revision_matches");
+    return {status_from_json(response.value("status").toObject()),
+            matches.isBool() ? std::optional{matches.toBool()} : std::nullopt};
 }
 
 StorageMovePreflight ExternalProcessStorageProvider::preflight_move(const std::string& source,
@@ -513,7 +524,24 @@ StorageMutationResult ExternalProcessStorageProvider::move_entry(const std::stri
         };
     }
 
-    return mutation_from_json(response);
+    auto result = mutation_from_json(response);
+    if (result.success && response.value("metadata").toObject().value("can_capture_content_revision").toBool()) {
+        QJsonObject snapshot = make_request(manifest_, provider_id_, "inspect_path");
+        snapshot["path"] = QString::fromStdString(destination);
+        snapshot["expected_stable_identity"] = QString::fromStdString(result.metadata.stable_identity);
+        snapshot["expected_revision_token"] = QString::fromStdString(result.metadata.revision_token);
+
+        QJsonObject snapshot_response;
+        if (invoke_process(manifest_, snapshot, &snapshot_response, &error)) {
+            const auto revision = snapshot_response.value("content_revision_token").toString();
+            if (!revision.isEmpty()) {
+                result.metadata.revision_token = revision.toStdString();
+            }
+        } else if (const auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("Could not capture content revision for '{}': {}", destination, error);
+        }
+    }
+    return result;
 }
 
 StorageMutationResult ExternalProcessStorageProvider::undo_move(const std::string& source,

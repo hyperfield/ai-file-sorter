@@ -27,6 +27,9 @@ public:
     std::vector<FileEntry> list_directory(const std::string& directory,
                                           FileScanOptions options) const override;
     StoragePathStatus inspect_path(const std::string& path) const override;
+    /** @copydoc IStorageProvider::inspect_for_undo */
+    StorageUndoCheck inspect_for_undo(const std::string& path,
+                                     const std::string& expected_revision) const override;
     StorageMovePreflight preflight_move(const std::string& source,
                                         const std::string& destination) const override;
     bool path_exists(const std::string& path) const override;

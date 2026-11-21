@@ -88,7 +88,7 @@ connector has provider-specific detection available.
 | `detect` | `root_path` string. | `detection` object. |
 | `capabilities` | Base fields only. | `capabilities` object. |
 | `list_directory` | `directory` string and `options` bitmask. | `entries` array. |
-| `inspect_path` | `path` string. | `status` object. |
+| `inspect_path` | `path` string, optional `expected_revision_token` and `expected_stable_identity` strings. | `status` object and optional content revision fields. |
 | `preflight_move` | `source` and `destination` strings. | `preflight` object. |
 | `path_exists` | `path` string. | `exists` boolean. |
 | `ensure_directory` | `directory` string. | Base success response only. |
@@ -217,3 +217,18 @@ Undo compares the recorded revision token against the token returned by
 `inspect_path`. A connector that returns a revision token after a move must
 return a comparable token during later inspection. An unavailable or different
 token prevents undo of that entry.
+
+A move may set `metadata.can_capture_content_revision` to `true`. The host then
+inspects the destination with both move metadata values supplied as
+`expected_revision_token` and `expected_stable_identity`. A connector may return
+`content_revision_token` after confirming the native metadata and hashing the
+file contents. The host records this token for undo. The move remains successful
+if the separate capture request fails or times out, and the host retains the
+native metadata in that case.
+
+For undo the host supplies the recorded `expected_revision_token` without
+`expected_stable_identity`. Connectors recognizing a content token return
+`content_revision_matches: true` after checking the contents or `false` if they
+changed or cannot be read safely. A verified match supersedes native timestamp,
+identity and revision comparisons. The original-path and size checks still
+apply. Omit `content_revision_matches` for legacy metadata tokens.

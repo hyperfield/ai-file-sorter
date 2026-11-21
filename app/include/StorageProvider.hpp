@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <ctime>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,12 @@ struct StoragePathStatus {
     std::string stable_identity;
     std::string revision_token;
     std::string message;
+};
+
+/** @brief Path metadata and the outcome of an optional content check for undo. */
+struct StorageUndoCheck {
+    StoragePathStatus status;
+    std::optional<bool> content_matches;
 };
 
 /**
@@ -171,4 +178,15 @@ public:
     virtual StorageMutationResult undo_move(const std::string& source,
                                             const std::string& destination,
                                             const std::vector<std::string>& created_directories) const = 0;
+    /**
+     * @brief Inspects an undo destination and checks supported content-based revisions.
+     * @param path Current path of the moved entry.
+     * @param expected_revision Revision recorded when the move completed.
+     * @return Path status and a content-check outcome when the provider recognizes the revision format.
+     */
+    virtual StorageUndoCheck inspect_for_undo(const std::string& path,
+                                              const std::string& /*expected_revision*/) const
+    {
+        return {inspect_path(path), std::nullopt};
+    }
 };

@@ -15,6 +15,44 @@
 
 #include <fmt/format.h>
 
+namespace {
+
+QString undo_revision_error(const IStorageProvider& provider,
+                            const StorageProviderCapabilities& capabilities,
+                            const QFileInfo& destination,
+                            qint64 expected_mtime,
+                            const QString& expected_identity,
+                            const QString& expected_revision)
+{
+    const QString path = destination.filePath();
+    const auto check = provider.inspect_for_undo(path.toStdString(), expected_revision.toStdString());
+    const auto& status = check.status;
+    if (check.content_matches.has_value()) {
+        if (*check.content_matches && status.exists) {
+            return {};
+        }
+        return status.message.empty()
+            ? QString("Could not verify revision for %1").arg(path)
+            : QString("%1 (%2)").arg(QString::fromStdString(status.message), path);
+    }
+    if (expected_mtime > 0 && !capabilities.should_relax_undo_mtime_validation &&
+        destination.lastModified().toSecsSinceEpoch() != expected_mtime) {
+        return QString("Timestamp mismatch for %1").arg(path);
+    }
+    if (!expected_identity.isEmpty() && !status.stable_identity.empty() &&
+        status.stable_identity != expected_identity.toStdString()) {
+        return QString("Identity mismatch for %1").arg(path);
+    }
+    if (!expected_revision.isEmpty() && status.revision_token != expected_revision.toStdString()) {
+        return (status.revision_token.empty()
+            ? QString("Could not verify revision for %1")
+            : QString("Revision mismatch for %1")).arg(path);
+    }
+    return {};
+}
+
+} // namespace
+
 UndoManager::UndoManager(std::string undo_dir,
                          const StorageProviderRegistry* storage_provider_registry)
     : undo_dir_(std::move(undo_dir)),
@@ -175,29 +213,11 @@ UndoManager::UndoResult UndoManager::undo_plan(const QString& plan_path) const
             continue;
         }
 
-        if (expected_mtime > 0 && !capabilities.should_relax_undo_mtime_validation) {
-            const auto mtime = dest_info.lastModified().toSecsSinceEpoch();
-            if (mtime != expected_mtime) {
-                result.details << QString("Timestamp mismatch for %1").arg(destination);
-                result.skipped++;
-                continue;
-            }
-        }
-
-        const auto destination_status = provider->inspect_path(destination.toStdString());
-        if (!expected_stable_identity.isEmpty() &&
-            !destination_status.stable_identity.empty() &&
-            destination_status.stable_identity != expected_stable_identity.toStdString()) {
-            result.details << QString("Identity mismatch for %1").arg(destination);
-            result.skipped++;
-            continue;
-        }
-
-        if (!expected_revision_token.isEmpty() &&
-            destination_status.revision_token != expected_revision_token.toStdString()) {
-            result.details << (destination_status.revision_token.empty()
-                ? QString("Could not verify revision for %1").arg(destination)
-                : QString("Revision mismatch for %1").arg(destination));
+        const auto revision_error = undo_revision_error(*provider, capabilities, dest_info,
+                                                        expected_mtime, expected_stable_identity,
+                                                        expected_revision_token);
+        if (!revision_error.isEmpty()) {
+            result.details << revision_error;
             result.skipped++;
             continue;
         }

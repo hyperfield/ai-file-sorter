@@ -402,6 +402,19 @@ bool ReviewHistoryDialog::can_undo_entry(const ReviewHistoryStore::Entry& entry,
         return false;
     }
 
+    const auto check = storage_provider_.inspect_for_undo(entry.destination_path, entry.revision_token);
+    const auto& status = check.status;
+    if (check.content_matches.has_value()) {
+        if (*check.content_matches && status.exists) {
+            return true;
+        }
+        details << (status.message.empty()
+            ? tr("Revision mismatch: %1").arg(QString::fromStdString(entry.destination_path))
+            : QStringLiteral("%1 (%2)").arg(QString::fromStdString(status.message),
+                                           QString::fromStdString(entry.destination_path)));
+        return false;
+    }
+
     const auto capabilities = storage_provider_.capabilities();
     if (entry.mtime > 0 && !capabilities.should_relax_undo_mtime_validation) {
         const auto mtime = destination_info.lastModified().toSecsSinceEpoch();
@@ -411,7 +424,6 @@ bool ReviewHistoryDialog::can_undo_entry(const ReviewHistoryStore::Entry& entry,
         }
     }
 
-    const auto status = storage_provider_.inspect_path(entry.destination_path);
     if (!entry.stable_identity.empty() &&
         !status.stable_identity.empty() &&
         status.stable_identity != entry.stable_identity) {
@@ -419,7 +431,6 @@ bool ReviewHistoryDialog::can_undo_entry(const ReviewHistoryStore::Entry& entry,
         return false;
     }
     if (!entry.revision_token.empty() &&
-        !status.revision_token.empty() &&
         status.revision_token != entry.revision_token) {
         details << tr("Revision mismatch: %1").arg(QString::fromStdString(entry.destination_path));
         return false;
