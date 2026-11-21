@@ -2282,7 +2282,7 @@ void MainApp::rebuild_storage_provider_registry()
 
     if (storage_plugin_manager_) {
         for (auto& provider : storage_plugin_loader_.create_providers_for_installed_plugins(
-                 storage_plugin_manager_->installed_plugin_ids())) {
+                 storage_plugin_manager_->installed_plugin_manifests())) {
             storage_provider_registry_.register_builtin(std::move(provider));
         }
     }

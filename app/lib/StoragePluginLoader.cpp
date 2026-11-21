@@ -3,6 +3,7 @@
 #include "CloudCompatibilityProvider.hpp"
 #include "CloudPathDetectorProvider.hpp"
 #include "ExternalProcessStorageProvider.hpp"
+#include "OneDriveStorageProvider.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -20,12 +21,30 @@ std::shared_ptr<IStorageProvider> make_dropbox_detector()
 
 std::shared_ptr<IStorageProvider> make_onedrive_detector()
 {
+#if defined(__APPLE__) || defined(_WIN32)
+    return std::make_shared<OneDriveStorageProvider>(true);
+#else
     return std::make_shared<CloudPathDetectorProvider>(
         "onedrive_detector",
         "onedrive",
         "OneDrive",
         std::vector<std::string>{"onedrive"});
+#endif
 }
+
+#if defined(__APPLE__) || defined(_WIN32)
+bool validate_onedrive_bundle(const StoragePluginManifest& manifest, std::string* error)
+{
+    if (manifest.id == "onedrive_storage_support" && manifest.license_required &&
+        manifest.product_id == manifest.id && manifest.provider_ids == std::vector<std::string>{"onedrive"}) {
+        return true;
+    }
+    if (error) {
+        *error = "The OneDrive bundle requires the OneDrive provider and matching licensed plugin and product IDs.";
+    }
+    return false;
+}
+#endif
 
 std::shared_ptr<IStorageProvider> make_pcloud_detector()
 {
@@ -190,6 +209,17 @@ StoragePluginLoader::StoragePluginLoader(std::filesystem::path manifest_director
             .create_detection_providers = make_external_detection_bundle,
             .create_runtime_providers = make_external_runtime_bundle
         });
+#if defined(__APPLE__) || defined(_WIN32)
+    entry_point_registry_.register_factory(
+        "builtin_bundle",
+        "onedrive_storage_bundle",
+        StoragePluginEntryPointFactory{
+            .validate_manifest = validate_onedrive_bundle,
+            .create_runtime_providers = [](const StoragePluginManifest&) -> StoragePluginEntryPointFactory::ProviderList {
+                return {std::make_shared<OneDriveStorageProvider>()};
+            }
+        });
+#endif
 }
 
 std::vector<StoragePluginManifest> StoragePluginLoader::available_plugins() const
@@ -244,6 +274,12 @@ std::vector<std::shared_ptr<IStorageProvider>> StoragePluginLoader::create_detec
 {
     std::vector<std::shared_ptr<IStorageProvider>> providers;
     for (const auto& manifest : available_plugins()) {
+#if defined(__APPLE__) || defined(_WIN32)
+        if (manifest.id == "onedrive_storage_support" && manifest.entry_point_kind == "external_process") {
+            // The in-app detector also handles installations migrated from the executable package.
+            continue;
+        }
+#endif
         append_unique_providers(providers, entry_point_registry_.create_detection_providers(manifest));
     }
     append_unique_providers(providers, {make_onedrive_detector()});
@@ -251,15 +287,11 @@ std::vector<std::shared_ptr<IStorageProvider>> StoragePluginLoader::create_detec
 }
 
 std::vector<std::shared_ptr<IStorageProvider>> StoragePluginLoader::create_providers_for_installed_plugins(
-    const std::vector<std::string>& installed_plugin_ids) const
+    const std::vector<StoragePluginManifest>& installed_plugins) const
 {
     std::vector<std::shared_ptr<IStorageProvider>> providers;
-    for (const auto& plugin_id : installed_plugin_ids) {
-        const auto manifest = find_plugin(plugin_id);
-        if (!manifest.has_value()) {
-            continue;
-        }
-        append_unique_providers(providers, entry_point_registry_.create_runtime_providers(*manifest));
+    for (const auto& manifest : installed_plugins) {
+        append_unique_providers(providers, entry_point_registry_.create_runtime_providers(manifest));
     }
     return providers;
 }

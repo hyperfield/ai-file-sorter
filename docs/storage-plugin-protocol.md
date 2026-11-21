@@ -4,10 +4,9 @@ This document freezes the current external-process storage plugin contract for
 `aifs-storage-plugin-v1`. It describes the JSON messages exchanged between AI
 File Sorter and a storage connector process such as a cloud-storage helper.
 
-Storage plugins are executable processes, not Qt/C++ in-process plugins. The app
-starts the connector, writes one compact JSON request to stdin, closes stdin,
-waits for the process to finish, and parses stdout as one JSON object. Stderr is
-used only as diagnostic text when stdout is not valid JSON.
+For an external-process plugin, the app starts the connector, writes one compact
+JSON request to stdin, closes stdin, waits for the process to finish, and parses
+stdout as one JSON object. Stderr provides diagnostics when stdout is invalid.
 
 The machine-readable schemas live in:
 
@@ -16,12 +15,23 @@ The machine-readable schemas live in:
 
 ## Package Trust
 
-External-process storage connectors are distributed as signed `.aifsplugin`
-archives. Before the host trusts a package manifest, it verifies
+Storage packages are distributed as signed `.aifsplugin` archives. Before the
+host trusts a package manifest, it verifies
 `plugin-signature.sig` over the exact bytes of `plugin-signature.json`, resolves
 the signature `key_id` to a configured storage-package public key, and checks
 the signed SHA-256 hash for every non-signature payload file. `manifest.json`
 must be covered by the signed file list.
+
+A declarative storage package uses `entry_point_kind: builtin_bundle` and
+names a provider bundle registered in the app. Its only payload file is
+`manifest.json`. The app retains and revalidates the signed archive on reload
+and checks the local entitlement before enabling a paid provider.
+
+OneDrive Storage Support uses the `onedrive_storage_bundle` built into the
+Windows and macOS app. On macOS, detection uses File Provider domain metadata.
+Moves coordinate same-volume renames and require the source to be available
+locally. The provider checks undo against a content fingerprint when it can
+read the file without downloading it.
 
 Package paths must be relative, use forward slashes, and stay inside the package
 root. Storage manifests may use top-level `entry_point`/`package_paths` for a

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <filesystem>
 #include <mutex>
 #include <optional>
@@ -7,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "PluginEntitlementService.hpp"
 #include "StoragePluginLoader.hpp"
 #include "StoragePluginManifest.hpp"
 #include "StoragePluginPackageFetcher.hpp"
@@ -23,6 +25,8 @@ class StoragePluginManager {
     struct InstalledPluginRecord {
         std::string id;
         std::string version;
+        /** @brief Verified manifest from the installed data-only archive, when present. */
+        std::optional<StoragePluginManifest> declarative_manifest;
     };
 
     /**
@@ -32,11 +36,12 @@ class StoragePluginManager {
      * @param download_fn Optional fetch override used
      * primarily by tests.
      * @param trusted_package_keys Trusted public keys for signed storage package archives.
-
+     * @param entitlement_service Optional local receipt verifier. Defaults to the app's configured keys.
      */
     explicit StoragePluginManager(std::string config_dir,
                                   StoragePluginPackageFetcher::DownloadFunction download_fn = {},
-                                  std::vector<StoragePluginPackagePublicKey> trusted_package_keys = {});
+                                  std::vector<StoragePluginPackagePublicKey> trusted_package_keys = {},
+                                  std::shared_ptr<const PluginEntitlementService> entitlement_service = {});
 
     /**
      * @brief Returns the managed manifest directory for a config directory.
@@ -119,6 +124,11 @@ class StoragePluginManager {
      * @return Installed plugin id list.
      */
     std::vector<std::string> installed_plugin_ids() const;
+    /**
+     * @brief Returns the installed manifests whose providers may be activated.
+     * @return Verified declarative manifests with valid entitlements and installed legacy manifests.
+     */
+    std::vector<StoragePluginManifest> installed_plugin_manifests() const;
     /**
      * @brief Installs a plugin by id from local or remote sources.
      * @param plugin_id Plugin identifier.
@@ -220,9 +230,25 @@ class StoragePluginManager {
      * @brief Installs a fully materialized manifest into managed state.
      * @param manifest Plugin manifest to persist and activate.
      * @param error Optional output for a user-facing failure description.
+     * @param verified_builtin_archive Staged, verified archive for a declarative bundle.
      * @return True when the manifest installs successfully.
      */
-    bool install_manifest(const StoragePluginManifest& manifest, std::string* error = nullptr);
+    bool install_manifest(const StoragePluginManifest& manifest, std::string* error = nullptr,
+                          const std::filesystem::path& verified_builtin_archive = {});
+    /**
+     * @brief Revalidates a previously installed data-only package.
+     * @param plugin_id Expected plugin identifier from install state.
+     * @param version Expected plugin version from install state.
+     * @return Its authenticated manifest, or an empty value if verification failed.
+     */
+    std::optional<StoragePluginManifest> load_installed_builtin(
+        const std::string& plugin_id, const std::string& version) const;
+    /**
+     * @brief Checks a declarative plugin's local license entitlement.
+     * @param manifest Verified manifest describing the licensing requirement.
+     * @return True for a free plugin or a plugin unlocked by a local entitlement.
+     */
+    bool builtin_entitled(const StoragePluginManifest& manifest) const;
     /**
      * @brief Persists a manifest into the managed manifest directory.
      * @param manifest Plugin manifest to persist.
@@ -264,6 +290,7 @@ class StoragePluginManager {
     StoragePluginLoader loader_;
     StoragePluginPackageFetcher package_fetcher_;
     std::vector<StoragePluginPackagePublicKey> trusted_package_keys_;
+    std::shared_ptr<const PluginEntitlementService> entitlement_service_;
     std::string remote_catalog_url_;
     std::unordered_map<std::string, InstalledPluginRecord> installed_plugins_;
     std::vector<StoragePluginManifest> remote_catalog_manifests_;
