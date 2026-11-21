@@ -1100,8 +1100,8 @@ Current live coverage includes categorization with and without subcategories, se
 
 Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and the Windows launcher (`aifilesorter.exe` in bundled Windows builds) accept the following optional flags:
 
-- `--cuda={on|off}` – force-enable or disable the CUDA backend.
-- `--vulkan={on|off}` – force-enable or disable the Vulkan backend.
+- `--cuda={on|off}` - force-enable or disable the CUDA backend.
+- `--vulkan={on|off}` - force-enable or disable the Vulkan backend.
 
 When no flags are provided the app auto-detects available runtimes in priority order (CUDA → Vulkan → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU. On Linux, CPU mode can reuse the staged Vulkan runtime payload when the dedicated CPU payload is not present.
 
@@ -1340,7 +1340,7 @@ Prefer Google's models? Use your own Gemini API key:
 3. In the app, open **Settings -> Select LLM**, choose **Gemini (Google AI Studio API key)**, paste your key, and enter the Gemini model you want (for example `gemini-2.5-flash-lite`, `gemini-2.5-flash`, or `gemini-2.5-pro`).
 4. Click **OK**. The key is stored locally in your AI File Sorter config and reused for future runs. Clear the field to remove it.
 
-> AI Studio keys can be used on the free tier until you hit Google’s limits; higher quotas or enterprise use require billing via Google Cloud.
+> AI Studio keys can be used on the free tier until you hit Google's limits; higher quotas or enterprise use require billing via Google Cloud.
 > The app calls the Gemini `v1` `generateContent` endpoint; use model IDs from `https://generativelanguage.googleapis.com/v1/models?key=YOUR_KEY`. You can enter them with or without the leading `models/` prefix.
 
 ---
@@ -1439,10 +1439,8 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 
 ## Contributing
 
-- Fork the repository and submit pull requests.
-- Report ordinary bugs or suggest features on the GitHub issue tracker.
-- Report suspected security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
-- Follow the existing code style and documentation format.
+Guidelines for pull requests, bug reports, and language requests are in the
+[contribution guide](CONTRIBUTING.md).
 
 ---
 

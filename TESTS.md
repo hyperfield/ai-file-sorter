@@ -32,8 +32,9 @@ Use the equivalent executable/build directory on POSIX. The maintained cases in
 
 - `Translated taxonomy accepts wrapped JSON and collapsed pairs`: plain, fenced
   and prose-wrapped French JSON, plus collapsed category/subcategory fields.
-- `Loose taxonomy pairs preserve Unicode letters`: Chinese/Cyrillic pairs and
-  sanitizer extraction after chatter.
+- `Shared taxonomy response formats preserve multilingual labels`: English,
+  French, Simplified Chinese, Hindi, and Russian values in JSON and plain-text
+  responses, including the local model sanitizer.
 - `Category length accepts fifty Unicode letters`: ASCII, accented Latin,
   Cyrillic and Japanese labels pass both public validators.
 - `Retry After numbers use the protocol decimal separator in French`: actual
@@ -69,7 +70,7 @@ Use the equivalent executable/build directory on POSIX. The maintained cases in
 Additional maintained cases:
 
 - `Unicode geocoded places survive filename prefixes and cache reopen` in
-  `test_image_rename_metadata_service.cpp`: München, 東京, Москва and New York,
+  `test_image_rename_metadata_service.cpp`: München, 東京, Сан-Паулу and New York,
   duplicate-prefix handling and native SQLite reopen, with synthetic GPS/loopback HTTP.
 - `Storage plugin installation and process execution preserve Unicode native paths`
   in `test_cache_interactions.cpp`: signed archive extraction, staging, manifest
@@ -431,7 +432,7 @@ The production executable supports two developer-oriented test modes:
 
 `tests/live_llm/headless_live_llm_tests.py` is an opt-in black-box integration suite. It runs the production `aifilesorter --headless` command against isolated copies of real/generated files, seeds a temporary app config with a custom local text model, writes a persisted test whitelist, and validates the emitted status/review JSON plus filesystem effects. The explicit `--model` / `AI_FILE_SORTER_LIVE_LLM_MODEL` value wins; if omitted, the runner reads AI File Sorter `config.ini` and uses the selected local/custom GGUF when it can resolve the file. On bundled Windows builds it uses the `aifilesorter.exe` launcher, or auto-promotes a supplied `aifilesorter-bin.exe` path to the sibling launcher, so llama.cpp backend DLL selection matches the non-Store app. The runner emits per-case progress, writes `progress.log`, and includes runtime backend fields from the headless status JSON. The suite exits with `77` when the required executable or usable text model path is missing so CTest reports it as skipped rather than failed.
 
-Covered cases include categorization with and without subcategories, whitelist-restricted categorization, selected-file auto-apply boundaries, document renaming in English/French/Simplified Chinese/Hindi, optional image-content renaming in the same languages when visual artifacts are configured, a FLAC metadata rename capability probe, and categorize-and-rename review-plan generation. Exact model labels are not treated as golden output; assertions focus on stable invariants such as non-empty categories, whitelist confinement, extension preservation, and review-plan creation. Non-English rename language/script signals are warning-only by default; set `AI_FILE_SORTER_LIVE_REQUIRE_LOCALIZED_RENAMES=1` for strict localized rename failures.
+Covered cases include categorization with and without subcategories, whitelist-restricted categorization, selected-file auto-apply boundaries, document renaming in English/French/Simplified Chinese/Hindi/Russian, optional image-content renaming in the same languages when visual artifacts are configured, a FLAC metadata rename capability probe, and categorize-and-rename review-plan generation. The `categorize_russian_unicode_paths` and `categorize_simplified_chinese_unicode_paths` cases verify generated category folders and actual moves from directories and filenames using Cyrillic and Han characters. Exact model labels are not treated as golden output; assertions focus on stable invariants such as non-empty categories, whitelist confinement, extension preservation, and review-plan creation. Non-English rename language/script signals are warning-only by default; set `AI_FILE_SORTER_LIVE_REQUIRE_LOCALIZED_RENAMES=1` for strict localized rename failures.
 
 Run directly with: `python tests/live_llm/headless_live_llm_tests.py --app app\build-windows\Release\aifilesorter.exe --model C:\models\text-model.gguf --backend cpu --keep-work-dir --verbose`. See `tests/live_llm/README.md` for all environment variables and public fixture sources.
 
@@ -4643,11 +4644,11 @@ Ninja and Visual Studio. It checks enabled, disabled, and enabled-then-disabled
 unit/live-test options, ensuring explicit OFF flags clear prior cached test builds.
 Run `ctest --test-dir build-tests -C Release -R '^windows_build_options$' --output-on-failure`.
 
-### Windows executable DPI manifests
+### Windows executable manifests
 
 `windows_app_manifest` reads the embedded manifest resources of the freshly
 built app and launcher without executing either binary or loading dependencies.
-It requires Per-Monitor V2, the older per-monitor fallback, and standard-user
+It requires a UTF-8 process code page, Per-Monitor V2, the older per-monitor fallback, and standard-user
 `asInvoker` privileges without UI access. Rebuild the native targets, then run
 `ctest --test-dir build-tests -C Release -R '^windows_app_manifest$' --output-on-failure`.
 

@@ -276,7 +276,7 @@ not send photo coordinates. These preferences retain their existing JSON types.
 ```
 
 Each property independently controls the maximum content-derived words in suggested filenames.
-The supported range is 3–6, with a persisted app default of 3. Integer values outside the range
+The supported range is 3-6, with a persisted app default of 3. Integer values outside the range
 are clamped. Omitted properties, nulls, strings, booleans, arrays, objects, fractional numbers,
 and non-finite numbers leave the corresponding persisted preference in use. The host also
 clamps overrides supplied through the in-memory API. These overlays apply only to the current
