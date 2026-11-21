@@ -234,6 +234,16 @@ LOCALIZED_DOCUMENTS = {
             "# परियोजना बैठक नोट्स\nटीम निर्णय, कार्य सूची, समय सीमा और जोखिम समीक्षा।",
         ),
     ],
+    "Russian": [
+        (
+            "запись_024.txt",
+            "В ботаническом саду Куритибы отмечены виды папоротников, условия освещения и время наблюдений.",
+        ),
+        (
+            "черновик_07.md",
+            "# Репетиция школьного оркестра\nПорядок выступлений, настройка инструментов и распределение партий.",
+        ),
+    ],
 }
 
 
@@ -254,6 +264,10 @@ LOCALIZED_EXTRA_DOCUMENTS = {
         "कॉन्फ़िग_जांच.yml",
         "पर्यावरण: परीक्षण\nविषय: स्थानीयकृत नामकरण\nस्वामी: हिंदी गुणवत्ता टीम\n",
     ),
+    "Russian": (
+        "параметры_сеанса.yml",
+        "площадка: планетарий\nсеанс: вечерний\nтема: созвездия южного неба\n",
+    ),
 }
 
 
@@ -262,12 +276,14 @@ LOCALIZED_IMAGE_NAMES = {
     "French": ["photo_sans_nom_été.png", "image_brute_0002.jpeg"],
     "Simplified Chinese": ["照片_未命名_001.png", "扫描_图像_0002.jpeg"],
     "Hindi": ["तस्वीर_नामहीन_001.png", "फोटो_कच्ची_0002.jpeg"],
+    "Russian": ["кадр_проверка_031.png", "цветовой_образец_18.jpeg"],
 }
 
 
 LANGUAGE_SCRIPT_CHECKS = {
     "Simplified Chinese": re.compile(r"[\u4e00-\u9fff]"),
     "Hindi": re.compile(r"[\u0900-\u097f]"),
+    "Russian": re.compile(r"[\u0400-\u04ff]"),
 }
 
 
@@ -1045,14 +1061,18 @@ def run_cases(ctx: LiveContext, only: str) -> int:
         ("categorize_with_subcategories", case_categorize_with_subcategories),
         ("categorize_selected_file_boundary", case_selected_file_boundary),
         ("categorize_whitelist_restrictions", case_whitelist_restrictions),
+        ("categorize_russian_unicode_paths", lambda c: case_categorize_language_paths(c, "Russian", "Подборка материалов")),
+        ("categorize_simplified_chinese_unicode_paths", lambda c: case_categorize_language_paths(c, "Simplified Chinese", "收件箱")),
         ("rename_documents_english", lambda c: case_rename_documents_language(c, "English")),
         ("rename_documents_french", lambda c: case_rename_documents_language(c, "French")),
         ("rename_documents_simplified_chinese", lambda c: case_rename_documents_language(c, "Simplified Chinese")),
         ("rename_documents_hindi", lambda c: case_rename_documents_language(c, "Hindi")),
+        ("rename_documents_russian", lambda c: case_rename_documents_language(c, "Russian")),
         ("rename_images_english", lambda c: case_rename_images_language(c, "English")),
         ("rename_images_french", lambda c: case_rename_images_language(c, "French")),
         ("rename_images_simplified_chinese", lambda c: case_rename_images_language(c, "Simplified Chinese")),
         ("rename_images_hindi", lambda c: case_rename_images_language(c, "Hindi")),
+        ("rename_images_russian", lambda c: case_rename_images_language(c, "Russian")),
         ("rename_media_metadata_flac", case_rename_media_metadata_flac),
         ("categorize_and_rename_review_plan", case_categorize_and_rename_review_plan),
     ]
@@ -1257,12 +1277,38 @@ def case_whitelist_restrictions(ctx: LiveContext) -> None:
             raise LiveTestFailure(f"subcategory escaped whitelist: {entry}")
 
 
+def case_categorize_language_paths(ctx: LiveContext, language: str, directory: str) -> None:
+    case_name = f"categorize_{slug(language)}_unicode_paths"
+    target_dir = make_case_dir(ctx, case_name) / directory
+    fixtures = write_localized_document_fixtures(target_dir, language)
+    overrides = base_categorization_overrides(use_subcategories=False, use_whitelist=False)
+    overrides["categoryLanguage"] = language
+    overrides["sortingMode"] = "GeneratedCategories"
+    result = run_headless(ctx, case_name, "categorize", [target_dir], overrides, auto_apply=True)
+    assert_completed(result.status)
+
+    entries = review_entries(result.status)
+    assert_count_exact(entries, len(fixtures), f"{language} categorization entries")
+    script = LANGUAGE_SCRIPT_CHECKS[language]
+    if sum(bool(script.search(str(entry.get("category") or ""))) for entry in entries) <= len(fixtures) // 2:
+        raise LiveTestFailure(f"expected most category labels to use the {language} script: {entries}")
+
+    moved_files = {path.name: path for path in target_dir.rglob("*") if path.is_file()}
+    for fixture in fixtures:
+        if fixture.exists() or fixture.name not in moved_files:
+            raise LiveTestFailure(f"file was not moved with its original name: {fixture}")
+    if not any(script.search(path.parent.name) for path in moved_files.values()):
+        raise LiveTestFailure(f"no file moved into a folder using the {language} script: {moved_files}")
+
+
+def write_localized_document_fixtures(target_dir: Path, language: str) -> list[Path]:
+    documents = [*LOCALIZED_DOCUMENTS[language], LOCALIZED_EXTRA_DOCUMENTS[language]]
+    return [write_fixture(target_dir, name, content) for name, content in documents]
+
+
 def case_rename_documents_language(ctx: LiveContext, language: str) -> None:
     target_dir = make_case_dir(ctx, f"rename_documents_{slug(language)}")
-    for name, content in LOCALIZED_DOCUMENTS[language]:
-        write_fixture(target_dir, name, content)
-    extra_name, extra_content = LOCALIZED_EXTRA_DOCUMENTS[language]
-    write_fixture(target_dir, extra_name, extra_content)
+    write_localized_document_fixtures(target_dir, language)
     result = run_headless(
         ctx,
         case_name=f"rename_documents_{slug(language)}",

@@ -75,7 +75,7 @@ TEST_CASE("Unicode geocoded places survive filename prefixes and cache reopen", 
     ImageMetadataTestFixtures::write_gps_tiff(image, 10.1234567, 20.7654321);
     const auto place = GENERATE(std::pair<std::string, std::string>{"München", "münchen"},
         std::pair<std::string, std::string>{"東京", "東京"},
-        std::pair<std::string, std::string>{"Москва", "москва"},
+        std::pair<std::string, std::string>{"Сан-Паулу", "сан_паулу"},
         std::pair<std::string, std::string>{"New York", "new_york"});
     ChatCompletionTestServer server;
     EnvVarGuard endpoint("AI_FILE_SORTER_NOMINATIM_URL", server.url());

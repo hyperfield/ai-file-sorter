@@ -59,13 +59,23 @@ TEST_CASE("Translated taxonomy accepts wrapped JSON and collapsed pairs", "[unic
     CHECK(labels->second == "Navigateurs");
 }
 
-TEST_CASE("Loose taxonomy pairs preserve Unicode letters", "[unicode-boundaries]")
+TEST_CASE("Shared taxonomy response formats preserve multilingual labels", "[unicode-boundaries]")
 {
-    const auto pair = GENERATE(std::pair<std::string, std::string>{"文档", "合同"},
-        std::pair<std::string, std::string>{"Документы", "Счета"});
-    const auto response = pair.first + " : " + pair.second;
-    CHECK(CategorizationResponseParser::split_category_subcategory(response) == pair);
-    CHECK(LocalLLMResponseSanitizer::sanitize_categorization_output("Here is the answer:\n" + response) == response);
+    const auto pair = GENERATE(
+        std::pair<std::string, std::string>{"Science", "Astronomy"},
+        std::pair<std::string, std::string>{"Éducation", "Études"},
+        std::pair<std::string, std::string>{"文档", "合同"},
+        std::pair<std::string, std::string>{"संगीत", "अभ्यास"},
+        std::pair<std::string, std::string>{"Лаборатории", "Образцы"});
+    const auto plain_pair = pair.first + " : " + pair.second;
+    const auto labeled_pair = "Main Category: " + pair.first + "\nSub Category: " + pair.second;
+    const auto json = "{\"category\":\"" + pair.first + "\",\"subcategory\":\"" + pair.second + "\"}";
+
+    CHECK(CategorizationResponseParser::split_category_subcategory(plain_pair) == pair);
+    CHECK(CategorizationResponseParser::split_category_subcategory(labeled_pair) == pair);
+    CHECK(CategorizationResponseParser::parse_translated_category_response(json) == pair);
+    CHECK(LocalLLMResponseSanitizer::sanitize_categorization_output("Here is the answer:\n" + plain_pair) == plain_pair);
+    CHECK(LocalLLMResponseSanitizer::sanitize_categorization_output(labeled_pair) == plain_pair);
 }
 
 TEST_CASE("Category length accepts fifty Unicode letters", "[unicode-boundaries]")
@@ -182,9 +192,11 @@ TEST_CASE("Legacy Russian byte locale cannot corrupt UTF-8 taxonomy text", "[uni
 #else
     std::setlocale(LC_ALL, "C");
 #endif
-    CHECK(CategorizationResponseParser::split_category_subcategory("Документы : Счета") ==
-        std::pair<std::string, std::string>{"Документы", "Счета"});
-    CHECK(TextEncoding::place_slug("МОСКВА München 東京") == "москва_münchen_東京");
+    CHECK(CategorizationResponseParser::split_category_subcategory("Экспедиции : Маршруты") ==
+        std::pair<std::string, std::string>{"Экспедиции", "Маршруты"});
+    CHECK(LocalLLMResponseSanitizer::sanitize_categorization_output(
+        "CATEGORY: Экспедиции\nSUBCATEGORY: Маршруты") == "Экспедиции : Маршруты");
+    CHECK(TextEncoding::place_slug("САН-ПАУЛУ München 東京") == "сан_паулу_münchen_東京");
     CHECK(TextEncoding::place_slug("Cafe\xcc\x81 भारत") == "café_भारत");
     CHECK(RemoteApiError::parse_retry_after_seconds("1.25") == 2);
 }
@@ -227,12 +239,12 @@ TEST_CASE("Native Unicode log sink writes rotates and flushes exact filenames", 
     logger.set_pattern("%v");
     logger.info("{}", std::string(60, 'a'));
     logger.flush();
-    logger.info("Unicode München 東京 Москва");
+    logger.info("Unicode München 東京 Сан-Паулу");
     logger.flush();
     CHECK(std::filesystem::is_regular_file(path.parent_path() / "core.1.log"));
     std::ifstream stream(path, std::ios::binary);
     const std::string contents{std::istreambuf_iterator<char>(stream), {}};
-    CHECK(contents.find("Unicode München 東京 Москва") != std::string::npos);
+    CHECK(contents.find("Unicode München 東京 Сан-Паулу") != std::string::npos);
 }
 
 TEST_CASE("Logger initialization write and cleanup preserve a wide Unicode profile", "[unicode-boundaries]")
@@ -262,12 +274,12 @@ TEST_CASE("Logger initialization write and cleanup preserve a wide Unicode profi
     const auto logs = Utils::utf8_to_path(Logger::get_log_directory());
     const auto core = Logger::get_logger("core_logger");
     REQUIRE(core);
-    core->info("Unicode München 東京 Москва");
+    core->info("Unicode München 東京 Сан-Паулу");
     core->flush();
     {
         std::ifstream stream(logs / "core.log", std::ios::binary);
         const std::string contents{std::istreambuf_iterator<char>(stream), {}};
-        CHECK(contents.find("Unicode München 東京 Москва") != std::string::npos);
+        CHECK(contents.find("Unicode München 東京 Сан-Паулу") != std::string::npos);
     }
     const auto obsolete = logs / Utils::utf8_to_path("ancien_Счета.log");
     std::ofstream(obsolete) << "old";
