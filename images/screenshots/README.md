@@ -16,7 +16,7 @@ and `D:\Files\Library`.
 
 <table>
   <thead>
-    <tr><th>Windows — English</th><th>Windows — Français</th></tr>
+    <tr><th>Windows - English</th><th>Windows - Français</th></tr>
   </thead>
   <tbody>
     <tr>
@@ -25,15 +25,15 @@ and `D:\Files\Library`.
     </tr>
     <tr>
       <td><p><strong>2. Use an existing folder structure</strong></p><a href="aifs-folder-tree-win.png"><img src="aifs-folder-tree-win.png" alt="Existing library with folders for documents, pictures, data, software, design, and media" width="440"></a></td>
-      <td><p><strong>2. Utiliser une arborescence existante</strong></p><a href="fr/aifs-folder-tree-win.png"><img src="fr/aifs-folder-tree-win.png" alt="Arborescence de destination dans l’interface Windows en français" width="440"></a></td>
+      <td><p><strong>2. Utiliser une arborescence existante</strong></p><a href="fr/aifs-folder-tree-win.png"><img src="fr/aifs-folder-tree-win.png" alt="Arborescence de destination dans l'interface Windows en français" width="440"></a></td>
     </tr>
     <tr>
       <td><p><strong>3. Choose a model</strong></p><a href="llm-select-win.png"><img src="llm-select-win.png" alt="Windows model selection dialog with local Gemma selected" width="440"></a></td>
-      <td><p><strong>3. Choisir un modèle</strong></p><a href="fr/llm-select-win.png"><img src="fr/llm-select-win.png" alt="Sélection du modèle local Gemma dans l’interface en français" width="440"></a></td>
+      <td><p><strong>3. Choisir un modèle</strong></p><a href="fr/llm-select-win.png"><img src="fr/llm-select-win.png" alt="Sélection du modèle local Gemma dans l'interface en français" width="440"></a></td>
     </tr>
     <tr>
       <td><p><strong>4. Follow content analysis</strong></p><a href="aifs-progress-dialog-win.png"><img src="aifs-progress-dialog-win.png" alt="Windows progress dialog with image and document analysis stages" width="440"></a></td>
-      <td><p><strong>4. Suivre l’analyse du contenu</strong></p><a href="fr/aifs-progress-dialog-win.png"><img src="fr/aifs-progress-dialog-win.png" alt="Progression de l’analyse des images et des documents en français" width="440"></a></td>
+      <td><p><strong>4. Suivre l'analyse du contenu</strong></p><a href="fr/aifs-progress-dialog-win.png"><img src="fr/aifs-progress-dialog-win.png" alt="Progression de l'analyse des images et des documents en français" width="440"></a></td>
     </tr>
     <tr>
       <td><p><strong>5. Review names and destinations</strong></p><a href="aifs-review-dialog-win.png"><img src="aifs-review-dialog-win.png" alt="Review table with proposed filenames and existing destination folders" width="440"></a></td>
@@ -49,7 +49,7 @@ and `D:\Files\Library`.
     </tr>
     <tr>
       <td><p><strong>8. Browse the organized library</strong></p><a href="aifs-organized-library-win.png"><img src="aifs-organized-library-win.png" alt="Windows file browser showing the collection in the existing library folders" width="440"></a></td>
-      <td><p><strong>8. Parcourir la bibliothèque organisée</strong></p><a href="fr/aifs-organized-library-win.png"><img src="fr/aifs-organized-library-win.png" alt="Bibliothèque organisée dans l’interface Windows en français" width="440"></a></td>
+      <td><p><strong>8. Parcourir la bibliothèque organisée</strong></p><a href="fr/aifs-organized-library-win.png"><img src="fr/aifs-organized-library-win.png" alt="Bibliothèque organisée dans l'interface Windows en français" width="440"></a></td>
     </tr>
   </tbody>
 </table>

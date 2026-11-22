@@ -1268,13 +1268,13 @@ Status: %4%5
         <name>FolderStructureUiText</name>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="64"></location>
-            <source>Johnny.Decimal Support</source>
-            <translation>Johnny.Decimal 지원</translation>
+            <source>Numbered Folder Tools</source>
+            <translation>번호 매기기 폴더 도구</translation>
         </message>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="77"></location>
-            <source>Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.</source>
-            <translation>Johnny.Decimal 시작 폴더, 보관 인식, 검증, 인덱스 보기, 다음 폴더 생성 및 라우팅 안내를 추가합니다.</translation>
+            <source>Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.</source>
+            <translation>번호가 매겨진 폴더를 만들고, 보관 인덱스를 살펴보고, 폴더 구조를 점검하세요. Johnny.Decimal과 호환됩니다.</translation>
         </message>
     </context>
     <context>
@@ -1992,8 +1992,8 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         <name>MainApp</name>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2800"></location>
-            <source>Johnny.Decimal support available</source>
-            <translation>Johnny.Decimal 지원 사용 가능</translation>
+            <source>%1: available</source>
+            <translation>%1: 사용 가능</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2803"></location>
@@ -2002,8 +2002,8 @@ Supports: Nvidia (CUDA), Apple (Metal), CPU.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2818"></location>
-            <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
-            <translation>Johnny.Decimal Support 플러그인은 전용 시작 폴더와 라우팅 지침을 추가할 수 있습니다.</translation>
+            <source>%1 can add dedicated starter folders and routing guidance.</source>
+            <translation>%1 플러그인은 전용 시작 폴더와 분류 지침을 추가할 수 있습니다.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2821"></location>
@@ -2595,8 +2595,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2630"></location>
-            <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
-            <translation>Johnny.Decimal 플러그인 패키지는 아직 플러그인 카탈로그에서 사용할 수 없습니다.</translation>
+            <source>The %1 plugin package is not available from the plugin catalog yet.</source>
+            <translation>%1 플러그인 패키지는 아직 플러그인 카탈로그에서 사용할 수 없습니다.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2631"></location>
@@ -2615,8 +2615,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2651"></location>
-            <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
-            <translation>Johnny.Decimal 지원이 설치되었습니다. 새 폴더 안내를 사용하려면 분석을 다시 실행하세요.</translation>
+            <source>%1 is installed. Run the analysis again to use the new folder guidance.</source>
+            <translation>%1 플러그인이 설치되었습니다. 새 폴더 안내를 사용하려면 분석을 다시 실행하세요.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2819"></location>
@@ -2625,13 +2625,13 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2799"></location>
-            <source>Johnny.Decimal support disabled</source>
-            <translation>Johnny.Decimal 지원 비활성화됨</translation>
+            <source>%1: disabled</source>
+            <translation>%1: 비활성화됨</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2812"></location>
-            <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
-            <translation>Johnny.Decimal 지원이 설치되어 있으나 비활성화되어 있습니다. 폴더 안내를 불러오려면 활성화하세요.</translation>
+            <source>%1 is installed but disabled. Enable it to load its folder guidance.</source>
+            <translation>%1 플러그인이 설치되어 있지만 비활성화되어 있습니다. 폴더 안내를 불러오려면 활성화하세요.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2813"></location>
@@ -2655,8 +2655,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2666"></location>
-            <source>Failed to enable Johnny.Decimal Support.</source>
-            <translation>Johnny.Decimal 지원을 활성화하지 못했습니다.</translation>
+            <source>Failed to enable %1.</source>
+            <translation>%1 플러그인을 활성화하지 못했습니다.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2673"></location>
@@ -2665,8 +2665,8 @@ A valid code will permanently hide this support reminder.</source>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2674"></location>
-            <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
-            <translation>Johnny.Decimal 지원이 활성화되었습니다. 폴더 안내를 사용하려면 분석을 다시 실행하세요.</translation>
+            <source>%1 is enabled. Run the analysis again to use the folder guidance.</source>
+            <translation>%1 플러그인이 활성화되었습니다. 폴더 안내를 사용하려면 분석을 다시 실행하세요.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2259"></location>

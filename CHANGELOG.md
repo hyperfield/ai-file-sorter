@@ -8,7 +8,7 @@
 - Get a clear warning when a destination contains folders more than eight levels deep, with guidance on choosing a more specific destination.
 - Clearer sorting and renaming options, with more consistent file-type filters, subfolder scanning, and saved preferences.
 - Create starter folder layouts, including a broader Downloads layout, and choose the language of new folder names separately from your category language.
-- Add optional Johnny.Decimal plugins for numbered folders, archive indexes, and checks for problems in an archive's structure. Some plugins require a separate license.
+- Add Numbered Folder Tools for Johnny.Decimal-compatible numbered folders, archive indexes, and structure checks. If you already installed it as Johnny.Decimal Support, the new name appears automatically without reinstalling or reactivating it.
 - Use **Qwen3.5 4B** by default for local text and image analysis, with simpler model lists. Gemma models remain available. Existing Mistral 7B setups still work, although new Mistral downloads are no longer offered.
 - Fixed custom AI connections, including local LM Studio and Ollama servers, being blocked by an unrelated internet connection check.
 - Analyze images through OpenAI-compatible connections, including local servers, without downloading a separate image model. You are asked to confirm image uploads when enabling this option.

@@ -10,7 +10,7 @@ Jeśli używasz AI File Sorter po raz pierwszy, zacznij od małego testowego fol
 
 Dobre foldery na pierwszy przebieg to:
 
-- kopia 20–50 plików z `Downloads`
+- kopia 20-50 plików z `Downloads`
 - niewielki folder ze zrzutami ekranu lub zdjęciami do oczyszczenia
 - tymczasowy folder z kilkoma plikami PDF lub dokumentami
 

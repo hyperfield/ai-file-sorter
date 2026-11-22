@@ -32,8 +32,9 @@ Use the equivalent executable/build directory on POSIX. The maintained cases in
 
 - `Translated taxonomy accepts wrapped JSON and collapsed pairs`: plain, fenced
   and prose-wrapped French JSON, plus collapsed category/subcategory fields.
-- `Loose taxonomy pairs preserve Unicode letters`: Chinese/Cyrillic pairs and
-  sanitizer extraction after chatter.
+- `Shared taxonomy response formats preserve multilingual labels`: English,
+  French, Simplified Chinese, Hindi, and Russian values in JSON and plain-text
+  responses, including the local model sanitizer.
 - `Category length accepts fifty Unicode letters`: ASCII, accented Latin,
   Cyrillic and Japanese labels pass both public validators.
 - `Retry After numbers use the protocol decimal separator in French`: actual
@@ -69,7 +70,7 @@ Use the equivalent executable/build directory on POSIX. The maintained cases in
 Additional maintained cases:
 
 - `Unicode geocoded places survive filename prefixes and cache reopen` in
-  `test_image_rename_metadata_service.cpp`: München, 東京, Москва and New York,
+  `test_image_rename_metadata_service.cpp`: München, 東京, Сан-Паулу and New York,
   duplicate-prefix handling and native SQLite reopen, with synthetic GPS/loopback HTTP.
 - `Storage plugin installation and process execution preserve Unicode native paths`
   in `test_cache_interactions.cpp`: signed archive extraction, staging, manifest
@@ -431,7 +432,7 @@ The production executable supports two developer-oriented test modes:
 
 `tests/live_llm/headless_live_llm_tests.py` is an opt-in black-box integration suite. It runs the production `aifilesorter --headless` command against isolated copies of real/generated files, seeds a temporary app config with a custom local text model, writes a persisted test whitelist, and validates the emitted status/review JSON plus filesystem effects. The explicit `--model` / `AI_FILE_SORTER_LIVE_LLM_MODEL` value wins; if omitted, the runner reads AI File Sorter `config.ini` and uses the selected local/custom GGUF when it can resolve the file. On bundled Windows builds it uses the `aifilesorter.exe` launcher, or auto-promotes a supplied `aifilesorter-bin.exe` path to the sibling launcher, so llama.cpp backend DLL selection matches the non-Store app. The runner emits per-case progress, writes `progress.log`, and includes runtime backend fields from the headless status JSON. The suite exits with `77` when the required executable or usable text model path is missing so CTest reports it as skipped rather than failed.
 
-Covered cases include categorization with and without subcategories, whitelist-restricted categorization, selected-file auto-apply boundaries, document renaming in English/French/Simplified Chinese/Hindi, optional image-content renaming in the same languages when visual artifacts are configured, a FLAC metadata rename capability probe, and categorize-and-rename review-plan generation. Exact model labels are not treated as golden output; assertions focus on stable invariants such as non-empty categories, whitelist confinement, extension preservation, and review-plan creation. Non-English rename language/script signals are warning-only by default; set `AI_FILE_SORTER_LIVE_REQUIRE_LOCALIZED_RENAMES=1` for strict localized rename failures.
+Covered cases include categorization with and without subcategories, whitelist-restricted categorization, selected-file auto-apply boundaries, document renaming in English/French/Simplified Chinese/Hindi/Russian, optional image-content renaming in the same languages when visual artifacts are configured, a FLAC metadata rename capability probe, and categorize-and-rename review-plan generation. The `categorize_russian_unicode_paths` and `categorize_simplified_chinese_unicode_paths` cases verify generated category folders and actual moves from directories and filenames using Cyrillic and Han characters. Exact model labels are not treated as golden output; assertions focus on stable invariants such as non-empty categories, whitelist confinement, extension preservation, and review-plan creation. Non-English rename language/script signals are warning-only by default; set `AI_FILE_SORTER_LIVE_REQUIRE_LOCALIZED_RENAMES=1` for strict localized rename failures.
 
 Run directly with: `python tests/live_llm/headless_live_llm_tests.py --app app\build-windows\Release\aifilesorter.exe --model C:\models\text-model.gguf --backend cpu --keep-work-dir --verbose`. See `tests/live_llm/README.md` for all environment variables and public fixture sources.
 
@@ -1545,6 +1546,13 @@ Procedure: Retranslate the window through the test access layer, capture the vis
 Expected outcome: The translated visible labels are already alphabetized.
 Run: `./build-tests/ai_file_sorter_tests "Category language menu keeps visible entries alphabetized"`
 
+#### Test case: Category language labels strip postfix interface mnemonics
+Purpose: Keep translated postfix accelerators out of category-language labels reused from the interface-language menu.
+Setup: Install a synthetic Swedish translation and create `MainApp` with headless Qt and isolated settings explicitly set to English, so a host-language catalog cannot override the synthetic translator.
+Procedure: Retranslate with `瑞典文(&W)` and `瑞典文 (&W)` and inspect the Swedish category-language action.
+Expected outcome: Both category-language labels contain only `瑞典文`, without the postfix accelerator or its preceding whitespace.
+Run: `./build-tests/ai_file_sorter_tests "Category language labels strip postfix interface mnemonics"`
+
 #### Test case: Full Gemma 3 category language menus are compartmentalized into submenus
 Purpose: Keep the much longer Gemma/custom category-language list usable on smaller screens by grouping it into alphabetic submenus instead of forcing one oversized flat menu.
 Setup: Build `MainApp` with offscreen Qt in a temporary config directory and switch settings to `Local_4b_Gemma`.
@@ -1575,11 +1583,18 @@ Procedure: Call `retranslate_all()` and verify the text of buttons, checkboxes, 
 Expected outcome: All UI elements show the expected English strings, including File/Edit/View, the interface/category language menus, the `Reset learned behavior…` and `Clear cache…` Settings actions, representative category-language labels such as `Hindi`, `Japanese`, `Simplified Chinese`, and `Traditional Chinese`, the interface-language menu is alphabetized, and the French language action is marked checked, demonstrating the retranslate pipeline is correctly wired.
 Run: `./build-tests/ai_file_sorter_tests "*UiTranslator updates menus*"`
 
+#### Test case: MenuMnemonicController strips postfix mnemonics while preserving literal text
+Purpose: Verify the shared mnemonic stripper removes postfix accelerators without damaging escaped ampersands or ordinary parentheses.
+Setup: Provide translated labels, prefix/postfix accelerators, whitespace, escaped ampersands, short strings, and non-accelerator parentheses.
+Procedure: Strip mnemonic markers from each label and compare the visible text with its expected value.
+Expected outcome: Valid trailing `(&X)` suffixes and preceding whitespace disappear; escaped ampersands and ordinary parentheses remain visible.
+Run: `./build-tests/ai_file_sorter_tests "MenuMnemonicController strips postfix mnemonics while preserving literal text"`
+
 #### Test case: MenuMnemonicController hides top-level menu mnemonics until activated
 Purpose: Verify that top-level menu access-key markers remain available for keyboard navigation without rendering underlines during normal pointer-driven use.
-Setup: Build a headless Qt `QMainWindow` with File and Edit menus and attach `MenuMnemonicController` to its menu bar.
-Procedure: Store mnemonic titles such as `&File` and `&Edit`, verify the visible menu titles are stripped by default, then toggle mnemonic visibility on and off.
-Expected outcome: Visible top-level titles are `File` and `Edit` until mnemonics are activated, while the stored mnemonic titles remain `&File` and `&Edit` for Alt-key access.
+Setup: Build a headless Qt `QMainWindow` with File, Edit, and postfix-mnemonic Tools menus and attach `MenuMnemonicController` to its menu bar.
+Procedure: Store mnemonic titles such as `&File`, `&Edit`, and `工具(&T)`, verify the visible menu titles are stripped by default, then send Alt press/release events and toggle mnemonic visibility on and off.
+Expected outcome: Visible top-level titles omit prefix and postfix accelerators until mnemonics are activated, while the stored mnemonic titles remain intact for Alt-key access.
 Run: `./build-tests/ai_file_sorter_tests "MenuMnemonicController hides top-level menu mnemonics until activated"`
 
 ### `tests/unit/test_cache_maintenance_service.cpp`
@@ -3230,16 +3245,16 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog controls p
 
 #### Test case: FolderStructurePluginDialog lists remote catalog plugins
 Purpose: Ensure the folder-structure plugin dialog can show server-catalog plugins that are not installed yet.
-Setup: Refresh a manager from a mock catalog containing the Johnny.Decimal support entry, with and without an active entitlement receipt, and construct the dialog.
+Setup: Refresh a manager from a mock catalog containing the legacy Johnny.Decimal Support entry, with and without an active entitlement receipt, and construct the dialog.
 Procedure: Inspect the plugin list row and the selected plugin actions.
-Expected outcome: The dialog lists Johnny.Decimal Support as an available catalog plugin with the advertised version, shows purchase plus license activation actions when entitlement is missing, and shows an enabled `Read more` link when the license is active before installation.
+Expected outcome: The dialog lists Numbered Folder Tools with its Johnny.Decimal compatibility description and advertised version. It shows purchase and activation actions without a license, and an enabled `Read more` link with an active license.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog lists remote catalog plugins"`
 
 #### Test case: FolderStructurePluginDialog shows read-more action for installed activated plugins
-Purpose: Ensure installed licensed folder-structure plugins keep a visible link to their product/info page after activation.
-Setup: Store a signed Johnny.Decimal entitlement receipt, install a signed licensed Johnny.Decimal archive, and construct the dialog.
-Procedure: Inspect the selected plugin actions.
-Expected outcome: The dialog shows an enabled `Read more` action instead of the `Get It` action.
+Purpose: Ensure an existing licensed installation displays the new name without reinstalling or reactivating.
+Setup: Store a signed entitlement receipt, install a signed plugin package with the legacy name, then reopen the manager and entitlement service using the same data.
+Procedure: Inspect the signed metadata, entitlement, and selected plugin row and actions.
+Expected outcome: The signed name stays unchanged, the license and enabled state carry over, and the dialog shows Numbered Folder Tools with an enabled `Read more` action instead of `Get It`.
 Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginDialog shows read-more action for installed activated plugins"`
 
 #### Test case: PluginArchiveExtractor rejects unsafe paths with either separator
@@ -3274,8 +3289,9 @@ Run: `./build-tests/ai_file_sorter_tests "FolderStructurePluginManager rejects e
 
 Run `[folder-language]` for starter-language defaults, independent language
 selection, translated-preview creation, numeric-prefix and parent preservation,
-invalid/incomplete/colliding translation rejection, retry, and cancellation that
-holds the analysis runtime until the worker has finished. These tests use
+invalid/incomplete/colliding translation rejection, retry, cancellation that
+holds the analysis runtime until the worker has finished, and localized display
+of current and legacy Numbered Folder Tools metadata. These tests use
 injected clients; they do not download models or contact API services.
 
 ### `tests/unit/test_folder_structure_templates.cpp`
@@ -4496,17 +4512,42 @@ Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager installs catalog 
 
 #### Test case: UndoManager rejects external-process restores when revision metadata changed
 Purpose: Verify host undo safety still works when metadata comes from an external-process storage connector.
-Setup: Install a signed mock storage package, move a file through the external connector, then modify the moved file.
-Procedure: Save an undo plan with the connector metadata and attempt to restore it.
-Expected outcome: Undo skips the changed file and leaves the moved file in place.
+Setup: Install a signed mock storage package and move a file through the external connector.
+Procedure: Try undo after a same-length edit, with an unavailable revision, and with the recorded revision intact.
+Expected outcome: Undo skips changed and unverifiable revisions and restores the file with the recorded revision.
 Run: `./build-tests/ai_file_sorter_tests "UndoManager rejects external-process restores when revision metadata changed"`
 
+#### Test case: External storage listings preserve project protection and scan errors
+Purpose: Verify external listings respect built-in project protections and propagate enumeration failures.
+Setup: Create a fixture with a nested Git repository, a Python project, and an empty directory.
+Procedure: List the fixture recursively, scan the protected repository and empty root directly, and submit invalid roots.
+Expected outcome: Project trees are excluded, the empty directory returns an empty list, and invalid roots report the connector error.
+Run: `./build-tests/ai_file_sorter_tests "External storage listings preserve project protection and scan errors"`
+
+#### Test case: External storage undo verifies contents after hydration changes metadata
+Purpose: Verify that undo uses the content revision captured from a supporting connector.
+Procedure: Save a move with a content revision and try undo after metadata changes, a same-length edit with the original timestamp, an unavailable file, or a switch to a legacy connector.
+Expected outcome: Undo restores the unchanged contents after metadata changes and skips the edit and both unverifiable cases.
+Run: `./build-tests/ai_file_sorter_tests "External storage undo verifies contents after hydration changes metadata"`
+
 #### Test case: StorageProviderRegistry resolves installed OneDrive external connector
-Purpose: Prove the public host can install and invoke a signed package that provides the `onedrive` provider id without bundling OneDrive implementation code.
+Purpose: Preserve compatibility with earlier signed OneDrive packages that used an external connector.
 Setup: Install a signed test package for `onedrive_storage_support` that points at the generic external-process stub.
-Procedure: Detect a OneDrive-root path, resolve the runtime provider, and run preflight against a locked file.
-Expected outcome: The installed external connector wins over the local fallback and reports the locked-file preflight result through the protocol.
+Procedure: Detect a OneDrive-root path, resolve the runtime provider, and request a preflight and move for a locked file.
+Expected outcome: The installed external connector wins over the local fallback and reports the retryable lock for both requests.
 Run: `./build-tests/ai_file_sorter_tests "StorageProviderRegistry resolves installed OneDrive external connector"`
+
+#### Test case: StoragePluginManager activates a signed declarative OneDrive package
+Purpose: Verify signature and entitlement checks for the in-app OneDrive provider.
+Procedure: Install a manifest-only package with a valid test receipt, reload it, and try extra payload files and a replacement archive without a signature.
+Expected outcome: Only the valid package activates the in-app provider, and the installed files consist of the signed archive.
+Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager activates a signed declarative OneDrive package"`
+
+### `tests/unit/test_onedrive_storage_provider.cpp`
+
+Purpose: Exercise the built-in OneDrive provider and its native platform helpers.
+Coverage: Authoritative root detection, hydration and lock handling, scan filters, project protection, move and undo, and native file IDs and revision checks. macOS cases use File Provider metadata fixtures and native coordinated moves. Windows cases use sharing locks and a temporary Cloud Files sync root.
+Run: `./build-tests/ai_file_sorter_tests "[onedrive]"`
 
 ### `tests/unit/test_storage_plugin_conformance.cpp`
 
@@ -4615,11 +4656,11 @@ Ninja and Visual Studio. It checks enabled, disabled, and enabled-then-disabled
 unit/live-test options, ensuring explicit OFF flags clear prior cached test builds.
 Run `ctest --test-dir build-tests -C Release -R '^windows_build_options$' --output-on-failure`.
 
-### Windows executable DPI manifests
+### Windows executable manifests
 
 `windows_app_manifest` reads the embedded manifest resources of the freshly
 built app and launcher without executing either binary or loading dependencies.
-It requires Per-Monitor V2, the older per-monitor fallback, and standard-user
+It requires a UTF-8 process code page, Per-Monitor V2, the older per-monitor fallback, and standard-user
 `asInvoker` privileges without UI access. Rebuild the native targets, then run
 `ctest --test-dir build-tests -C Release -R '^windows_app_manifest$' --output-on-failure`.
 

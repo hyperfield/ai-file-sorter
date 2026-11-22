@@ -122,7 +122,11 @@ AnalysisRunResult HeadlessAnalysisWorkflowHost::execute()
     AnalysisRunResult result = AnalysisCoordinator(make_context()).execute();
     if (result.status == AnalysisRunStatus::Completed) {
         filter_review_entries_to_selected_paths();
-        append_media_rename_suggestions();
+        try {
+            append_media_rename_suggestions();
+        } catch (const std::exception& error) {
+            return {AnalysisRunStatus::Failed, std::string("Analysis error: ") + error.what()};
+        }
         if (should_stop()) {
             return {AnalysisRunStatus::Cancelled, {}};
         }

@@ -4,10 +4,9 @@ This document freezes the current external-process storage plugin contract for
 `aifs-storage-plugin-v1`. It describes the JSON messages exchanged between AI
 File Sorter and a storage connector process such as a cloud-storage helper.
 
-Storage plugins are executable processes, not Qt/C++ in-process plugins. The app
-starts the connector, writes one compact JSON request to stdin, closes stdin,
-waits for the process to finish, and parses stdout as one JSON object. Stderr is
-used only as diagnostic text when stdout is not valid JSON.
+For an external-process plugin, the app starts the connector, writes one compact
+JSON request to stdin, closes stdin, waits for the process to finish, and parses
+stdout as one JSON object. Stderr provides diagnostics when stdout is invalid.
 
 The machine-readable schemas live in:
 
@@ -16,12 +15,23 @@ The machine-readable schemas live in:
 
 ## Package Trust
 
-External-process storage connectors are distributed as signed `.aifsplugin`
-archives. Before the host trusts a package manifest, it verifies
+Storage packages are distributed as signed `.aifsplugin` archives. Before the
+host trusts a package manifest, it verifies
 `plugin-signature.sig` over the exact bytes of `plugin-signature.json`, resolves
 the signature `key_id` to a configured storage-package public key, and checks
 the signed SHA-256 hash for every non-signature payload file. `manifest.json`
 must be covered by the signed file list.
+
+A declarative storage package uses `entry_point_kind: builtin_bundle` and
+names a provider bundle registered in the app. Its only payload file is
+`manifest.json`. The app retains and revalidates the signed archive on reload
+and checks the local entitlement before enabling a paid provider.
+
+OneDrive Storage Support uses the `onedrive_storage_bundle` built into the
+Windows and macOS app. On macOS, detection uses File Provider domain metadata.
+Moves coordinate same-volume renames and require the source to be available
+locally. The provider checks undo against a content fingerprint when it can
+read the file without downloading it.
 
 Package paths must be relative, use forward slashes, and stay inside the package
 root. Storage manifests may use top-level `entry_point`/`package_paths` for a
@@ -88,7 +98,7 @@ connector has provider-specific detection available.
 | `detect` | `root_path` string. | `detection` object. |
 | `capabilities` | Base fields only. | `capabilities` object. |
 | `list_directory` | `directory` string and `options` bitmask. | `entries` array. |
-| `inspect_path` | `path` string. | `status` object. |
+| `inspect_path` | `path` string, optional `expected_revision_token` and `expected_stable_identity` strings. | `status` object and optional content revision fields. |
 | `preflight_move` | `source` and `destination` strings. | `preflight` object. |
 | `path_exists` | `path` string. | `exists` boolean. |
 | `ensure_directory` | `directory` string. | Base success response only. |
@@ -105,6 +115,12 @@ connector has provider-specific detection available.
 | 1 | `2` | Include directories. |
 | 2 | `4` | Include hidden files. |
 | 3 | `8` | Recurse into subdirectories. |
+
+When the hidden bit is clear, omit hidden entries and prune hidden directories
+before recursion. If enumeration fails, return `success: false` with a diagnostic.
+Reserve a successful empty `entries` array for a scan with no eligible entries.
+For locally accessible paths, the host applies its built-in project protections
+to connector listings, including descendants of protected project directories.
 
 ## Data Objects
 
@@ -204,4 +220,25 @@ provider id returned inside `detection`.
 
 When `mutation_success` is `false`, the host treats `skipped` and `message` as
 the user-facing mutation result and reads missing metadata fields as default
-zero or empty values.
+zero or empty values. Temporary lock failures can include `sync_locked: true`,
+`should_retry: true`, and a suggested `retry_after_ms` delay.
+
+Undo compares the recorded revision token against the token returned by
+`inspect_path`. A connector that returns a revision token after a move must
+return a comparable token during later inspection. An unavailable or different
+token prevents undo of that entry.
+
+A move may set `metadata.can_capture_content_revision` to `true`. The host then
+inspects the destination with both move metadata values supplied as
+`expected_revision_token` and `expected_stable_identity`. A connector may return
+`content_revision_token` after confirming the native metadata and hashing the
+file contents. The host records this token for undo. The move remains successful
+if the separate capture request fails or times out, and the host retains the
+native metadata in that case.
+
+For undo the host supplies the recorded `expected_revision_token` without
+`expected_stable_identity`. Connectors recognizing a content token return
+`content_revision_matches: true` after checking the contents or `false` if they
+changed or cannot be read safely. A verified match supersedes native timestamp,
+identity and revision comparisons. The original-path and size checks still
+apply. Omit `content_revision_matches` for legacy metadata tokens.

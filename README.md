@@ -173,7 +173,7 @@ highlights, or the [full changelog](CHANGELOG.md) for earlier releases.
 
 - **AI-powered categorization**: Sort files using either local AI models on your computer or remote models with your own API key.
 - **Flexible destinations**: Generate category folders or sort into an existing folder structure, with a separate destination and optional new-folder suggestions.
-- **Folder structures and plugins**: Create starter layouts and add optional Johnny.Decimal guidance, numbered-folder tools, archive indexes, and validation reports.
+- **Folder structures and plugins**: Create starter layouts and use the optional Numbered Folder Tools plugin for Johnny.Decimal-compatible numbered folders, archive indexes, and validation reports.
 - **Offline-Friendly**: Use a local LLM to categorize files entirely - no internet or API key required.
 - **Robust categorization**: Built-in rules and category matching help keep results more consistent across runs.
 - **Configurable categorization controls**: Use whitelists, taxonomy normalization, consistency modes, and review-time edits to steer categories and subcategories.
@@ -232,13 +232,13 @@ default to 3. You can edit each suggested name during review.
 ### Folder structures and plugins
 
 Use **Create folder structure...** to preview and create an available starter
-layout. Johnny.Decimal support includes tools for creating the next numbered
-folder, browsing an archive index, and checking the archive for structural issues.
+layout. The optional **Numbered Folder Tools** plugin is compatible with
+Johnny.Decimal. It lets you create the next numbered folder, browse the archive
+index, and check the folder structure for issues.
 
-Optional folder-structure plugins provide additional guidance for supported
-archives. Install and manage them from the **Plugins** menu. The app can suggest
-Johnny.Decimal support when it recognizes a matching archive; some plugins require
-a separate license and activation.
+Install and manage folder-structure plugins from the **Plugins** menu. The app
+can suggest Numbered Folder Tools when it recognizes a compatible archive.
+Some plugins require a separate license and activation.
 
 Existing-folder sorting supports destination folders up to eight levels below
 the selected destination root. The app checks the destination in the background
@@ -1101,8 +1101,8 @@ Current live coverage includes categorization with and without subcategories, se
 
 Both the Linux launcher (`app/bin/run_aifilesorter.sh` / `aifilesorter-bin`) and the Windows launcher (`aifilesorter.exe` in bundled Windows builds) accept the following optional flags:
 
-- `--cuda={on|off}` – force-enable or disable the CUDA backend.
-- `--vulkan={on|off}` – force-enable or disable the Vulkan backend.
+- `--cuda={on|off}` - force-enable or disable the CUDA backend.
+- `--vulkan={on|off}` - force-enable or disable the Vulkan backend.
 
 When no flags are provided the app auto-detects available runtimes in priority order (CUDA → Vulkan → CPU). Use the flags to skip a backend (`--cuda=off` forces Vulkan/CPU even if CUDA is installed, `--vulkan=off` tests CUDA explicitly) or to validate a newly installed stack (`--vulkan=on`). Passing `on` to both flags is rejected, and if neither GPU backend is detected the app automatically stays on CPU. On Linux, CPU mode can reuse the staged Vulkan runtime payload when the dedicated CPU payload is not present.
 
@@ -1341,7 +1341,7 @@ Prefer Google's models? Use your own Gemini API key:
 3. In the app, open **Settings -> Select LLM**, choose **Gemini (Google AI Studio API key)**, paste your key, and enter the Gemini model you want (for example `gemini-2.5-flash-lite`, `gemini-2.5-flash`, or `gemini-2.5-pro`).
 4. Click **OK**. The key is stored locally in your AI File Sorter config and reused for future runs. Clear the field to remove it.
 
-> AI Studio keys can be used on the free tier until you hit Google’s limits; higher quotas or enterprise use require billing via Google Cloud.
+> AI Studio keys can be used on the free tier until you hit Google's limits; higher quotas or enterprise use require billing via Google Cloud.
 > The app calls the Gemini `v1` `generateContent` endpoint; use model IDs from `https://generativelanguage.googleapis.com/v1/models?key=YOUR_KEY`. You can enter them with or without the leading `models/` prefix.
 
 ---
@@ -1440,10 +1440,8 @@ Follow the steps in [How to Use](#how-to-use), but modify **step 2** as follows:
 
 ## Contributing
 
-- Fork the repository and submit pull requests.
-- Report ordinary bugs or suggest features on the GitHub issue tracker.
-- Report suspected security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
-- Follow the existing code style and documentation format.
+Guidelines for pull requests, bug reports, and language requests are in the
+[contribution guide](CONTRIBUTING.md).
 
 ---
 

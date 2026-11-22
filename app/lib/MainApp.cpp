@@ -18,6 +18,7 @@
 #include "FolderStructurePluginDialog.hpp"
 #include "FolderStructurePluginInstallFlow.hpp"
 #include "FolderStructurePluginManager.hpp"
+#include "FolderStructureUiText.hpp"
 #include "LLMClient.hpp"
 #include "LlmCatalog.hpp"
 #include "GeminiClient.hpp"
@@ -2281,7 +2282,7 @@ void MainApp::rebuild_storage_provider_registry()
 
     if (storage_plugin_manager_) {
         for (auto& provider : storage_plugin_loader_.create_providers_for_installed_plugins(
-                 storage_plugin_manager_->installed_plugin_ids())) {
+                 storage_plugin_manager_->installed_plugin_manifests())) {
             storage_provider_registry_.register_builtin(std::move(provider));
         }
     }
@@ -2627,7 +2628,8 @@ bool MainApp::install_johnny_decimal_plugin_from_suggestion()
         package_unavailable.setIcon(QMessageBox::Information);
         package_unavailable.setWindowTitle(tr("Plugin package unavailable"));
         package_unavailable.setText(
-            tr("The Johnny.Decimal plugin package is not available from the plugin catalog yet."));
+            tr("The %1 plugin package is not available from the plugin catalog yet.")
+                .arg(FolderStructureUiText::numbered_folder_tools_name()));
         package_unavailable.setInformativeText(tr("Open the plugin page instead?"));
         auto* open_page_button = package_unavailable.addButton(tr("Open Plugin Page"), QMessageBox::AcceptRole);
         package_unavailable.addButton(QMessageBox::Cancel);
@@ -2648,7 +2650,8 @@ bool MainApp::install_johnny_decimal_plugin_from_suggestion()
     QMessageBox::information(
         this,
         tr("Plugin installed"),
-        tr("Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance."));
+        tr("%1 is installed. Run the analysis again to use the new folder guidance.")
+            .arg(FolderStructureUiText::numbered_folder_tools_name()));
     return true;
 }
 
@@ -2663,7 +2666,7 @@ bool MainApp::enable_johnny_decimal_plugin_from_suggestion()
         QMessageBox::warning(this,
                              tr("Enable failed"),
                              error.empty()
-                                 ? tr("Failed to enable Johnny.Decimal Support.")
+                                 ? tr("Failed to enable %1.").arg(FolderStructureUiText::numbered_folder_tools_name())
                                  : QString::fromStdString(error));
         return false;
     }
@@ -2671,7 +2674,8 @@ bool MainApp::enable_johnny_decimal_plugin_from_suggestion()
     QMessageBox::information(
         this,
         tr("Plugin enabled"),
-        tr("Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance."));
+        tr("%1 is enabled. Run the analysis again to use the folder guidance.")
+            .arg(FolderStructureUiText::numbered_folder_tools_name()));
     return true;
 }
 
@@ -2795,9 +2799,8 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion(const QString& matched
         }
 
         QMessageBox dialog(this);
-        dialog.setWindowTitle(installed
-                                  ? tr("Johnny.Decimal support disabled")
-                                  : tr("Johnny.Decimal support available"));
+        const auto plugin_name = FolderStructureUiText::numbered_folder_tools_name();
+        dialog.setWindowTitle((installed ? tr("%1: disabled") : tr("%1: available")).arg(plugin_name));
         dialog.setIcon(QMessageBox::Information);
         dialog.setText(matched_folder_description.isEmpty()
                            ? tr("This folder looks like a Johnny.Decimal archive.")
@@ -2809,13 +2812,13 @@ bool MainApp::maybe_show_johnny_decimal_plugin_suggestion(const QString& matched
         QPushButton* suppress_button = nullptr;
         if (installed) {
             dialog.setInformativeText(
-                tr("Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance."));
+                tr("%1 is installed but disabled. Enable it to load its folder guidance.").arg(plugin_name));
             primary_button = dialog.addButton(tr("Enable"), QMessageBox::AcceptRole);
             dialog.addButton(tr("Ignore"), QMessageBox::RejectRole);
             suppress_button = dialog.addButton(tr("Do not suggest"), QMessageBox::DestructiveRole);
         } else {
             dialog.setInformativeText(
-                tr("The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance."));
+                tr("%1 can add dedicated starter folders and routing guidance.").arg(plugin_name));
             primary_button = dialog.addButton(tr("Activate / Install..."), QMessageBox::AcceptRole);
             if (PluginBuildConfig::commercial_plugin_actions_enabled()) {
                 obtain_button = dialog.addButton(tr("Read More"), QMessageBox::ActionRole);

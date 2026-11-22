@@ -79,7 +79,7 @@
 * Allow `zip_source_tell()` on sources that don't support seeking and `zip_ftell()` on compressed data.
 * Provide more details for consistency check errors.
 * Improve output of `zipcmp`.
-* In `zipcmp`, don’t ignore empty directories when comparing directory listing.
+* In `zipcmp`, don't ignore empty directories when comparing directory listing.
 * Treat empty string as no password given in `zip_file_set_encryption()`, `zip_fopen_encrypted()`, and `zip_set_default_password()`.
 
 

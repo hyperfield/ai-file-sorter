@@ -46,8 +46,8 @@ public:
     static QString mnemonic_title(const QMenu* menu);
 
     /**
-     * @brief Returns a copy of a label without Qt ampersand mnemonic markers.
-     * @param value Label that may contain mnemonic markers.
+     * @brief Removes Qt mnemonic markers and trailing postfix accelerators such as "(&X)".
+     * @param value Label that may contain mnemonic markers or an escaped "&&".
      * @return Label suitable for normal pointer-driven menu display.
      */
     static QString strip_mnemonic_markers(const QString& value);

@@ -1,11 +1,11 @@
 # Johnny.Decimal on macOS
 
-These native app captures show what enabling the Johnny.Decimal Support plugin
+These native app captures show what enabling the Numbered Folder Tools plugin
 adds to AI File Sorter's existing folder-structure tools. Click an image for the
 original Retina capture. The comparison views use the same archive, whose
 intentionally invalid folders are kept separate from the working library.
 
-| Built into the app | With the Johnny.Decimal plugin enabled |
+| Built into the app | With Numbered Folder Tools enabled |
 | --- | --- |
 | **Starter template.** A Johnny.Decimal-like starter is already included. [![Built-in starter template](without-plugin-starter.png)](without-plugin-starter.png) | **Additional Complete template.** The verified plugin contributes its own System, Admin, Work, Personal, Reference, and Archive folders and routing guidance. The list labels this template “(plugin)”. [![Plugin Complete template](starter-structure.png)](starter-structure.png) |
 | **Plain-text archive index.** Displays the numbered hierarchy. [![Built-in text index](without-plugin-index.png)](without-plugin-index.png) | **Interactive archive index.** Adds ID/name search, item-ID status indicators, folder opening, and linked Markdown export. Duplicate, malformed, misplaced, and missing IDs are visible here. [![Plugin index with item-ID statuses](archive-index.png)](archive-index.png) |

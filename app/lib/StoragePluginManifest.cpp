@@ -282,13 +282,15 @@ const std::vector<StoragePluginManifest>& manifest_catalog() {
         StoragePluginManifest{
             .id = "onedrive_storage_support",
             .name = "OneDrive Storage Support",
-            .description = "Adds a dedicated OneDrive connector process with stronger sync-state detection, move "
-                           "preflight checks, and richer undo metadata for synced folders.",
+            .description = "Enables the built-in OneDrive provider with sync-state detection, move preflight checks, "
+                           "and richer undo metadata for synced folders.",
             .version = "1.1.0",
             .provider_ids = {"onedrive"},
+            .platforms = {"windows", "macos"},
             .remote_manifest_url = env_or_default("AI_FILE_SORTER_ONEDRIVE_PLUGIN_MANIFEST_URL",
                                                   AIFS_ONEDRIVE_STORAGE_PLUGIN_MANIFEST_URL),
-            .entry_point_kind = "external_process",
+            .entry_point_kind = "builtin_bundle",
+            .entry_point = "onedrive_storage_bundle",
             .license_required = true,
             .product_id = "onedrive_storage_support",
             .purchase_url = "https://filesorter.app/plugins/onedrive"},
@@ -331,7 +333,9 @@ QJsonObject to_json_object(const StoragePluginManifest& manifest) {
     object["architectures"] = architectures;
     object["entry_point_kind"] = QString::fromStdString(manifest.entry_point_kind);
     object["entry_point"] = QString::fromStdString(manifest.entry_point);
-    object["package_paths"] = package_paths;
+    if (manifest.entry_point_kind != "builtin_bundle") {
+        object["package_paths"] = package_paths;
+    }
     object["license_required"] = manifest.license_required;
     object["product_id"] = QString::fromStdString(manifest.product_id);
     object["purchase_url"] = QString::fromStdString(manifest.purchase_url);
@@ -368,6 +372,13 @@ std::optional<StoragePluginManifest> from_json_object(const QJsonObject& object,
     }
 
     manifest.package_paths = parse_string_list_field(object, "package_paths", {"package_path"}, nullptr);
+    if (manifest.entry_point_kind == "builtin_bundle" &&
+        (manifest.entry_point.empty() || !manifest.package_paths.empty() || object.contains("runtimes"))) {
+        if (error) {
+            *error = "Built-in storage bundles must name an app provider without runtime files.";
+        }
+        return std::nullopt;
+    }
 
     const bool has_runtime_entries = apply_best_runtime_entry(&manifest, object);
 

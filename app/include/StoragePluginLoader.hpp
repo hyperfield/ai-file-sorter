@@ -24,8 +24,13 @@ public:
                          std::string* error = nullptr) const;
 
     std::vector<std::shared_ptr<IStorageProvider>> create_detection_providers() const;
+    /**
+     * @brief Creates runtime providers from the plugin manager's verified installed manifests.
+     * @param installed_plugins Manifests authorized for runtime use.
+     * @return Runtime providers declared by those manifests.
+     */
     std::vector<std::shared_ptr<IStorageProvider>> create_providers_for_installed_plugins(
-        const std::vector<std::string>& installed_plugin_ids) const;
+        const std::vector<StoragePluginManifest>& installed_plugins) const;
 
 private:
     std::filesystem::path manifest_directory_;

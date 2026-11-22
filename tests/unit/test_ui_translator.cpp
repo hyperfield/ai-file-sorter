@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <utility>
 
 namespace {
 
@@ -520,6 +521,32 @@ TEST_CASE("UiTranslator updates menus, actions, and controls")
     verify_tree_and_status(h);
 }
 
+TEST_CASE("MenuMnemonicController strips postfix mnemonics while preserving literal text")
+{
+    const std::pair<QString, QString> cases[] = {
+        {QString(), QString()},
+        {QStringLiteral("&Swedish"), QStringLiteral("Swedish")},
+        {QStringLiteral("瑞典文(&W)"), QStringLiteral("瑞典文")},
+        {QStringLiteral("瑞典文 (&W)"), QStringLiteral("瑞典文")},
+        {QStringLiteral("瑞典文\t (&W)"), QStringLiteral("瑞典文")},
+        {QStringLiteral("&Tools(&T)"), QStringLiteral("Tools")},
+        {QStringLiteral("Research && Development"), QStringLiteral("Research & Development")},
+        {QStringLiteral("Research && Development (&D)"), QStringLiteral("Research & Development")},
+        {QStringLiteral("Swedish (W)"), QStringLiteral("Swedish (W)")},
+        {QStringLiteral("Swedish (Western)"), QStringLiteral("Swedish (Western)")},
+        {QStringLiteral("Tools (&&)"), QStringLiteral("Tools (&)")},
+        {QStringLiteral("Tools (&AB)"), QStringLiteral("Tools (AB)")},
+        {QStringLiteral("Tools (&T) settings"), QStringLiteral("Tools (T) settings")},
+        {QStringLiteral("(&W)"), QString()},
+        {QStringLiteral("(&)"), QStringLiteral("()")},
+    };
+
+    for (const auto& [input, expected] : cases) {
+        CAPTURE(input.toStdString());
+        CHECK(MenuMnemonicController::strip_mnemonic_markers(input) == expected);
+    }
+}
+
 TEST_CASE("MenuMnemonicController hides top-level menu mnemonics until activated")
 {
     EnvVarGuard platform_guard("QT_QPA_PLATFORM", preferred_qt_test_platform());
@@ -527,22 +554,27 @@ TEST_CASE("MenuMnemonicController hides top-level menu mnemonics until activated
     QMainWindow window;
     auto* file_menu = window.menuBar()->addMenu(QString());
     auto* edit_menu = window.menuBar()->addMenu(QString());
+    auto* tools_menu = window.menuBar()->addMenu(QString());
 
     MenuMnemonicController controller(window.menuBar(), &window);
     MenuMnemonicController::set_mnemonic_title(file_menu, QStringLiteral("&File"));
     MenuMnemonicController::set_mnemonic_title(edit_menu, QStringLiteral("&Edit"));
+    MenuMnemonicController::set_mnemonic_title(tools_menu, QStringLiteral("工具(&T)"));
     controller.refresh_titles();
 
     REQUIRE_FALSE(controller.mnemonics_visible());
     REQUIRE(file_menu->title() == QStringLiteral("File"));
     REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+    REQUIRE(tools_menu->title() == QStringLiteral("工具"));
     REQUIRE(MenuMnemonicController::mnemonic_title(file_menu) == QStringLiteral("&File"));
+    REQUIRE(MenuMnemonicController::mnemonic_title(tools_menu) == QStringLiteral("工具(&T)"));
 
     QKeyEvent alt_press(QEvent::KeyPress, Qt::Key_Alt, Qt::AltModifier);
     QCoreApplication::sendEvent(qApp, &alt_press);
     REQUIRE(controller.mnemonics_visible());
     REQUIRE(file_menu->title() == QStringLiteral("&File"));
     REQUIRE(edit_menu->title() == QStringLiteral("&Edit"));
+    REQUIRE(tools_menu->title() == QStringLiteral("工具(&T)"));
 
     QKeyEvent alt_release(QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
     QCoreApplication::sendEvent(qApp, &alt_release);
@@ -550,14 +582,17 @@ TEST_CASE("MenuMnemonicController hides top-level menu mnemonics until activated
     REQUIRE_FALSE(controller.mnemonics_visible());
     REQUIRE(file_menu->title() == QStringLiteral("File"));
     REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+    REQUIRE(tools_menu->title() == QStringLiteral("工具"));
 
     controller.set_mnemonics_visible(true);
     REQUIRE(controller.mnemonics_visible());
     REQUIRE(file_menu->title() == QStringLiteral("&File"));
     REQUIRE(edit_menu->title() == QStringLiteral("&Edit"));
+    REQUIRE(tools_menu->title() == QStringLiteral("工具(&T)"));
 
     controller.set_mnemonics_visible(false);
     REQUIRE_FALSE(controller.mnemonics_visible());
     REQUIRE(file_menu->title() == QStringLiteral("File"));
     REQUIRE(edit_menu->title() == QStringLiteral("Edit"));
+    REQUIRE(tools_menu->title() == QStringLiteral("工具"));
 }

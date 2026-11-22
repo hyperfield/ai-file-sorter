@@ -116,14 +116,23 @@ TEST_CASE("UI translations preserve external and signed plugin metadata", "[fold
     CHECK(FolderStructureUiText::template_name(external) == QString::fromStdString(external.name));
     CHECK(FolderStructureUiText::template_description(external) == QString::fromStdString(external.description));
     const std::string id = "johnny_decimal_support";
-    const std::string name = "Johnny.Decimal Support";
-    const std::string description = "Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.";
-    CHECK(FolderStructureUiText::plugin_name(id, name) == "Prise en charge de Johnny.Decimal");
-    CHECK(FolderStructureUiText::plugin_description(id, description) != QString::fromStdString(description));
-    CHECK(FolderStructureUiText::plugin_name("other-plugin", name) == QString::fromStdString(name));
+    const std::string old_name = "Johnny.Decimal Support";
+    const std::string old_catalog_description = "Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.";
+    const std::string old_manifest_description = "Adds Johnny.Decimal starter folders, recognition, and routing guidance.";
+    const std::string name = "Numbered Folder Tools";
+    const std::string description = "Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.";
+    const auto localized_description = FolderStructureUiText::plugin_description(id, description);
+    CHECK(FolderStructureUiText::plugin_name(id, name) == "Outils pour dossiers numérotés");
+    CHECK(FolderStructureUiText::plugin_name(id, old_name) == FolderStructureUiText::plugin_name(id, name));
+    CHECK(localized_description != QString::fromStdString(description));
+    CHECK(localized_description.contains("Compatible avec Johnny.Decimal."));
+    CHECK(FolderStructureUiText::plugin_description(id, old_catalog_description) == localized_description);
+    CHECK(FolderStructureUiText::plugin_description(id, old_manifest_description) == localized_description);
+    CHECK(FolderStructureUiText::plugin_name("other-plugin", old_name) == QString::fromStdString(old_name));
+    CHECK(FolderStructureUiText::plugin_description("other-plugin", old_manifest_description) ==
+          QString::fromStdString(old_manifest_description));
     CHECK(FolderStructureUiText::plugin_name(id, "Custom name") == "Custom name");
     CHECK(FolderStructureUiText::plugin_description(id, "Custom description") == "Custom description");
-    CHECK(name == "Johnny.Decimal Support");
     TranslationManager::instance().set_language(Language::English);
 }
 

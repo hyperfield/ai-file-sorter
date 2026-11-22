@@ -1268,13 +1268,13 @@ Tila: %4%5
         <name>FolderStructureUiText</name>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="64"></location>
-            <source>Johnny.Decimal Support</source>
-            <translation>Johnny.Decimal-tuki</translation>
+            <source>Numbered Folder Tools</source>
+            <translation>Numeroitujen kansioiden työkalut</translation>
         </message>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="77"></location>
-            <source>Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.</source>
-            <translation>Lisää Johnny.Decimalin aloituskansiot, arkiston tunnistuksen, validoinnin, indeksinäkymät, seuraavan kansion luomisen ja reititysohjeet.</translation>
+            <source>Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.</source>
+            <translation>Luo numeroituja kansioita, selaa arkiston hakemistoa ja tarkista kansiorakenne. Yhteensopiva Johnny.Decimalin kanssa.</translation>
         </message>
     </context>
     <context>
@@ -1992,8 +1992,8 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <name>MainApp</name>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2800"></location>
-            <source>Johnny.Decimal support available</source>
-            <translation>Johnny.Decimal-tuki saatavilla</translation>
+            <source>%1: available</source>
+            <translation>%1: saatavilla</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2803"></location>
@@ -2002,8 +2002,8 @@ Tukee: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2818"></location>
-            <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
-            <translation>Johnny.Decimal Support -lisäosa voi lisätä omat aloituskansiot ja reititysohjeet.</translation>
+            <source>%1 can add dedicated starter folders and routing guidance.</source>
+            <translation>%1 voi lisätä omat aloituskansiot ja lajitteluohjeet.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2821"></location>
@@ -2593,8 +2593,8 @@ Voimassa oleva koodi piilottaa tämän tukimuistutuksen pysyvästi.</translation
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2630"></location>
-            <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
-            <translation>Johnny.Decimal-laajennuspakettia ei ole vielä saatavilla laajennuskatalogista.</translation>
+            <source>The %1 plugin package is not available from the plugin catalog yet.</source>
+            <translation>Lisäosan %1 pakettia ei ole vielä saatavilla lisäosaluettelosta.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2631"></location>
@@ -2613,8 +2613,8 @@ Voimassa oleva koodi piilottaa tämän tukimuistutuksen pysyvästi.</translation
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2651"></location>
-            <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
-            <translation>Johnny.Decimal-tuki on asennettu. Suorita analyysi uudelleen käyttääksesi uusia kansio-ohjeita.</translation>
+            <source>%1 is installed. Run the analysis again to use the new folder guidance.</source>
+            <translation>%1 on asennettu. Suorita analyysi uudelleen, jotta uudet kansio-ohjeet tulevat käyttöön.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2819"></location>
@@ -2623,13 +2623,13 @@ Voimassa oleva koodi piilottaa tämän tukimuistutuksen pysyvästi.</translation
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2799"></location>
-            <source>Johnny.Decimal support disabled</source>
-            <translation>Johnny.Decimal-tuki pois käytöstä</translation>
+            <source>%1: disabled</source>
+            <translation>%1: pois käytöstä</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2812"></location>
-            <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
-            <translation>Johnny.Decimal-tuki on asennettu mutta pois käytöstä. Ota se käyttöön ladataksesi kansio-ohjeistuksen.</translation>
+            <source>%1 is installed but disabled. Enable it to load its folder guidance.</source>
+            <translation>%1 on asennettu, mutta se ei ole käytössä. Ota lisäosa käyttöön, jotta kansio-ohjeet ladataan.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2813"></location>
@@ -2653,8 +2653,8 @@ Voimassa oleva koodi piilottaa tämän tukimuistutuksen pysyvästi.</translation
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2666"></location>
-            <source>Failed to enable Johnny.Decimal Support.</source>
-            <translation>Johnny.Decimal-tuen käyttöönotto epäonnistui.</translation>
+            <source>Failed to enable %1.</source>
+            <translation>Lisäosan %1 käyttöönotto epäonnistui.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2673"></location>
@@ -2663,8 +2663,8 @@ Voimassa oleva koodi piilottaa tämän tukimuistutuksen pysyvästi.</translation
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2674"></location>
-            <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
-            <translation>Johnny.Decimal-tuki on otettu käyttöön. Suorita analyysi uudelleen käyttääksesi kansio-ohjeistusta.</translation>
+            <source>%1 is enabled. Run the analysis again to use the folder guidance.</source>
+            <translation>%1 on otettu käyttöön. Suorita analyysi uudelleen, jotta kansio-ohjeet tulevat käyttöön.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2259"></location>

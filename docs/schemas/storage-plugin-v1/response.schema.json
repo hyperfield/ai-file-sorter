@@ -288,6 +288,9 @@
         },
         "revision_token": {
           "type": "string"
+        },
+        "can_capture_content_revision": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -386,6 +389,13 @@
           "properties": {
             "status": {
               "$ref": "#/$defs/pathStatus"
+            },
+            "content_revision_token": {
+              "type": "string",
+              "minLength": 1
+            },
+            "content_revision_matches": {
+              "type": "boolean"
             }
           }
         }
@@ -449,6 +459,16 @@
             },
             "skipped": {
               "type": "boolean"
+            },
+            "sync_locked": {
+              "type": "boolean"
+            },
+            "should_retry": {
+              "type": "boolean"
+            },
+            "retry_after_ms": {
+              "type": "integer",
+              "minimum": 0
             },
             "message": {
               "type": "string"

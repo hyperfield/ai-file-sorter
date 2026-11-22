@@ -1268,13 +1268,13 @@ Staða: %4%5
         <name>FolderStructureUiText</name>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="64"></location>
-            <source>Johnny.Decimal Support</source>
-            <translation>Johnny.Decimal Stuðningur</translation>
+            <source>Numbered Folder Tools</source>
+            <translation>Verkfæri fyrir númeraðar möppur</translation>
         </message>
         <message>
             <location filename="../../include/FolderStructureUiText.hpp" line="77"></location>
-            <source>Adds Johnny.Decimal starter folders, archive recognition, validation, index views, next-folder creation, and routing guidance.</source>
-            <translation>Bætir við Johnny.Decimal byrjunarmöppum, viðurkenningu skjalasafna, staðfestingu, yfirlitsskoðunum, möguleika til að búa til næstu möppu og leiðbeiningum um hvernig flokka skuli.</translation>
+            <source>Create numbered folders, browse the archive index, and check your folder structure. Compatible with Johnny.Decimal.</source>
+            <translation>Búðu til númeraðar möppur, skoðaðu yfirlit skjalasafnsins og athugaðu möppuskipanina. Samhæft við Johnny.Decimal.</translation>
         </message>
     </context>
     <context>
@@ -1992,8 +1992,8 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         <name>MainApp</name>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2800"></location>
-            <source>Johnny.Decimal support available</source>
-            <translation>Johnny.Decimal stuðningur í boði</translation>
+            <source>%1: available</source>
+            <translation>%1: í boði</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2803"></location>
@@ -2002,8 +2002,8 @@ Styður: Nvidia (CUDA), Apple (Metal), CPU.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2818"></location>
-            <source>The Johnny.Decimal Support plugin can add dedicated starter folders and routing guidance.</source>
-            <translation>Johnny.Decimal Support viðbótin getur bætt við sérstökum upphafsmöppum og leiðbeiningum um flokkun.</translation>
+            <source>%1 can add dedicated starter folders and routing guidance.</source>
+            <translation>%1 getur bætt við sérstökum upphafsmöppum og leiðbeiningum um flokkun.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2821"></location>
@@ -2593,8 +2593,8 @@ Gildur kóði mun varanlega fela þessa stuðningsáminningu.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2630"></location>
-            <source>The Johnny.Decimal plugin package is not available from the plugin catalog yet.</source>
-            <translation>Johnny.Decimal viðbótarpakki er ekki enn fáanlegur í viðbótarkatalógnum.</translation>
+            <source>The %1 plugin package is not available from the plugin catalog yet.</source>
+            <translation>Viðbótarpakkinn fyrir %1 er ekki enn í viðbótalistanum.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2631"></location>
@@ -2613,8 +2613,8 @@ Gildur kóði mun varanlega fela þessa stuðningsáminningu.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2651"></location>
-            <source>Johnny.Decimal Support is installed. Run the analysis again to use the new folder guidance.</source>
-            <translation>Johnny.Decimal stuðningur er uppsettur. Keyrðu greininguna aftur til að nota nýju leiðbeiningarnar um möppur.</translation>
+            <source>%1 is installed. Run the analysis again to use the new folder guidance.</source>
+            <translation>Viðbótin %1 hefur verið sett upp. Keyrðu greininguna aftur til að nota nýju leiðbeiningarnar um möppur.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2819"></location>
@@ -2623,13 +2623,13 @@ Gildur kóði mun varanlega fela þessa stuðningsáminningu.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2799"></location>
-            <source>Johnny.Decimal support disabled</source>
-            <translation>Johnny.Decimal stuðningur óvirkur</translation>
+            <source>%1: disabled</source>
+            <translation>%1: óvirk</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2812"></location>
-            <source>Johnny.Decimal Support is installed but disabled. Enable it to load its folder guidance.</source>
-            <translation>Johnny.Decimal stuðningur er uppsettur en óvirkur. Virkjaðu hann til að hlaða leiðbeiningum um möppur.</translation>
+            <source>%1 is installed but disabled. Enable it to load its folder guidance.</source>
+            <translation>Viðbótin %1 er uppsett en óvirk. Virkjaðu hana til að hlaða leiðbeiningum um möppur.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2813"></location>
@@ -2653,8 +2653,8 @@ Gildur kóði mun varanlega fela þessa stuðningsáminningu.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2666"></location>
-            <source>Failed to enable Johnny.Decimal Support.</source>
-            <translation>Mistókst að virkja Johnny.Decimal stuðning.</translation>
+            <source>Failed to enable %1.</source>
+            <translation>Ekki tókst að virkja %1.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2673"></location>
@@ -2663,8 +2663,8 @@ Gildur kóði mun varanlega fela þessa stuðningsáminningu.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2674"></location>
-            <source>Johnny.Decimal Support is enabled. Run the analysis again to use the folder guidance.</source>
-            <translation>Johnny.Decimal stuðningur er virkjaður. Keyrðu greininguna aftur til að nota leiðbeiningar um möppur.</translation>
+            <source>%1 is enabled. Run the analysis again to use the folder guidance.</source>
+            <translation>Viðbótin %1 er virk. Keyrðu greininguna aftur til að nota leiðbeiningarnar um möppur.</translation>
         </message>
         <message>
             <location filename="../../lib/MainApp.cpp" line="2259"></location>
