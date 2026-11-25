@@ -1,4 +1,4 @@
-#include "OneDriveStorageProvider.hpp"
+#include "NativeSyncStorageProvider.hpp"
 
 #include "Logger.hpp"
 #include "ProtectedProjectDetector.hpp"
@@ -11,6 +11,7 @@
 
 #include <filesystem>
 #include <stdexcept>
+#include <string_view>
 #include <system_error>
 
 namespace {
@@ -19,12 +20,33 @@ namespace fs = std::filesystem;
 using one_drive::PathInspection;
 using one_drive::PlatformFileInfo;
 using one_drive::PlatformProbe;
-using one_drive::inspect_onedrive_path;
+using one_drive::SyncProvider;
+using one_drive::inspect_sync_path;
 using one_drive::path_from_qstring;
 using one_drive::path_to_qstring;
 
-constexpr auto kProviderId = "onedrive";
+constexpr std::string_view kOneDrivePrefix = "onedrive:";
 constexpr int kInstalledProviderConfidenceBonus = 20;
+
+const char* provider_id(SyncProvider provider)
+{
+    return provider == SyncProvider::Dropbox ? NativeSyncStorageProvider::dropbox_provider_id() : "onedrive";
+}
+
+std::string_view token_prefix(SyncProvider provider)
+{
+    return provider == SyncProvider::Dropbox ? "dropbox:" : kOneDrivePrefix;
+}
+
+std::string qualified_native_token(const QString& value, SyncProvider provider)
+{
+    auto token = value.toStdString();
+    // Preserve the existing OneDrive record format used by the platform primitives.
+    if (provider == SyncProvider::Dropbox && token.starts_with(kOneDrivePrefix)) {
+        token.replace(0, kOneDrivePrefix.size(), token_prefix(provider));
+    }
+    return token;
+}
 
 fs::path native_path(const std::string& path)
 {
@@ -48,8 +70,11 @@ bool is_protected_project(const ProtectedProjectDetector& detector, const fs::pa
 }
 
 bool append_scan_entry(std::vector<FileEntry>& entries, const fs::path& path,
-                       FileScanOptions options, const ProtectedProjectDetector& detector)
+                       FileScanOptions options, const ProtectedProjectDetector& detector, SyncProvider provider)
 {
+    if (provider == SyncProvider::Dropbox && one_drive::is_dropbox_metadata_name(path_to_qstring(path.filename()))) {
+        return false;
+    }
     const auto info = one_drive::scan_entry_info(path);
     if (info.hidden && !has_flag(options, FileScanOptions::HiddenFiles)) {
         return false;
@@ -76,12 +101,15 @@ bool append_scan_entry(std::vector<FileEntry>& entries, const fs::path& path,
     return info.directory;
 }
 
-std::string revision_token(const PlatformFileInfo& platform)
+std::string revision_token(const PlatformFileInfo& platform, SyncProvider provider)
 {
-    return platform.revision_suffix.isEmpty() ? std::string{} : "onedrive:" + platform.revision_suffix.toStdString();
+    if (platform.revision_suffix.isEmpty()) {
+        return {};
+    }
+    return std::string(token_prefix(provider)) + platform.revision_suffix.toStdString();
 }
 
-StoragePathStatus make_status(const PathInspection& inspection)
+StoragePathStatus make_status(const PathInspection& inspection, SyncProvider provider)
 {
     const auto& state = inspection.state;
     return {
@@ -91,17 +119,17 @@ StoragePathStatus make_status(const PathInspection& inspection)
         .conflict_copy = state.conflict_copy,
         .should_retry = state.should_retry,
         .retry_after_ms = state.retry_after_ms,
-        .stable_identity = state.stable_identity.toStdString(),
-        .revision_token = inspection.exists ? revision_token(state) : std::string{},
+        .stable_identity = qualified_native_token(state.stable_identity, provider),
+        .revision_token = inspection.exists ? revision_token(state, provider) : std::string{},
         .message = state.message.toStdString()
     };
 }
 
 StorageMovePreflight preflight(const fs::path& source, const fs::path& destination,
-                               const PlatformProbe& platform)
+                               const PlatformProbe& platform, SyncProvider provider)
 {
-    const auto source_info = inspect_onedrive_path(source, platform);
-    const auto destination_info = inspect_onedrive_path(destination, platform);
+    const auto source_info = inspect_sync_path(source, platform, provider);
+    const auto destination_info = inspect_sync_path(destination, platform, provider);
     const auto* state = &source_info.state;
     std::string message;
     if (source_info.state.move_blocked) {
@@ -127,16 +155,17 @@ StorageMovePreflight preflight(const fs::path& source, const fs::path& destinati
         .destination_conflict = destination_info.exists,
         .should_retry = state->should_retry,
         .retry_after_ms = state->retry_after_ms,
-        .source_status = make_status(source_info),
-        .destination_status = make_status(destination_info),
+        .source_status = make_status(source_info, provider),
+        .destination_status = make_status(destination_info, provider),
         .message = std::move(message)
     };
 }
 
-StorageEntryMetadata moved_metadata(const fs::path& path, const PathInspection& inspection, bool capture_content)
+StorageEntryMetadata moved_metadata(const fs::path& path, const PathInspection& inspection,
+                                   bool capture_content, SyncProvider provider)
 {
     const auto& state = inspection.state;
-    auto revision = revision_token(state);
+    auto revision = revision_token(state, provider);
 #ifdef _WIN32
     const bool can_capture = state.stable_identity.startsWith(QStringLiteral("onedrive:fileid:")) &&
         state.revision_suffix.startsWith(QStringLiteral("write-v1:")) && QFileInfo(path_to_qstring(path)).isFile();
@@ -146,13 +175,13 @@ StorageEntryMetadata moved_metadata(const fs::path& path, const PathInspection& 
     if (capture_content && can_capture && !state.hydration_required) {
         const auto snapshot = one_drive::local_content_revision(path, state.stable_identity, state.revision_suffix);
         if (!snapshot.isEmpty()) {
-            revision = snapshot.toStdString();
+            revision = qualified_native_token(snapshot, provider);
         }
     }
     return {
         .size_bytes = static_cast<std::uintmax_t>(inspection.size_bytes),
         .mtime = static_cast<std::time_t>(inspection.mtime),
-        .stable_identity = state.stable_identity.toStdString(),
+        .stable_identity = qualified_native_token(state.stable_identity, provider),
         .revision_token = std::move(revision)
     };
 }
@@ -172,28 +201,36 @@ void remove_empty_directories(const std::vector<std::string>& directories)
 
 } // namespace
 
-OneDriveStorageProvider::OneDriveStorageProvider(bool requires_installation, const PlatformProbe& platform)
-    : requires_installation_(requires_installation), platform_(platform)
+NativeSyncStorageProvider::NativeSyncStorageProvider(SyncProvider provider, bool requires_installation)
+    : NativeSyncStorageProvider(provider, requires_installation, one_drive::default_platform_probe(provider))
 {
 }
 
-std::string OneDriveStorageProvider::id() const
+NativeSyncStorageProvider::NativeSyncStorageProvider(
+    SyncProvider provider, bool requires_installation, const PlatformProbe& platform)
+    : provider_(provider), requires_installation_(requires_installation), platform_(platform)
 {
-    return requires_installation_ ? "onedrive_detector" : kProviderId;
 }
 
-StorageProviderDetection OneDriveStorageProvider::detect(const std::string& root_path) const
+std::string NativeSyncStorageProvider::id() const
+{
+    const std::string id = provider_id(provider_);
+    return requires_installation_ ? id + "_detector" : id;
+}
+
+StorageProviderDetection NativeSyncStorageProvider::detect(const std::string& root_path) const
 {
     const auto root = native_path(root_path);
     if (root.empty()) {
         return {};
     }
-    const auto detection = one_drive::detect_onedrive_root(root, platform_);
-    if (!detection.matched || detection.vetoed) {
+    const bool dropbox = provider_ == SyncProvider::Dropbox;
+    const auto detection = dropbox ? platform_.detect_sync_root(root) : one_drive::detect_onedrive_root(root, platform_);
+    if (!detection.matched || detection.vetoed || (dropbox && !detection.authoritative)) {
         return {};
     }
     return {
-        .provider_id = kProviderId,
+        .provider_id = provider_id(provider_),
         .matched = true,
         .needs_additional_support = requires_installation_,
         .confidence = detection.confidence + (requires_installation_ ? 0 : kInstalledProviderConfidenceBonus),
@@ -202,7 +239,7 @@ StorageProviderDetection OneDriveStorageProvider::detect(const std::string& root
     };
 }
 
-StorageProviderCapabilities OneDriveStorageProvider::capabilities() const
+StorageProviderCapabilities NativeSyncStorageProvider::capabilities() const
 {
     return {
         .supports_online_only_files = true,
@@ -211,12 +248,12 @@ StorageProviderCapabilities OneDriveStorageProvider::capabilities() const
     };
 }
 
-std::vector<FileEntry> OneDriveStorageProvider::list_directory(
+std::vector<FileEntry> NativeSyncStorageProvider::list_directory(
     const std::string& directory, FileScanOptions options) const
 {
     auto root = native_path(directory);
     if (root.empty()) {
-        throw std::invalid_argument("Invalid OneDrive directory path.");
+        throw std::invalid_argument("Invalid synced directory path.");
     }
 #ifdef __APPLE__
     // Keep the selected root spelling even if the directory is reached through a symlink.
@@ -224,53 +261,58 @@ std::vector<FileEntry> OneDriveStorageProvider::list_directory(
 #endif
     std::vector<FileEntry> entries;
     const ProtectedProjectDetector detector;
-    if (is_protected_project(detector, root)) {
+    if ((provider_ == SyncProvider::Dropbox && one_drive::is_dropbox_metadata_path(root)) ||
+        is_protected_project(detector, root)) {
         return entries;
     }
     if (has_flag(options, FileScanOptions::Recursive)) {
         for (fs::recursive_directory_iterator it(root), end; it != end; ++it) {
-            if (!append_scan_entry(entries, it->path(), options, detector)) {
+            if (!append_scan_entry(entries, it->path(), options, detector, provider_)) {
                 it.disable_recursion_pending();
             }
         }
     } else {
         for (const auto& entry : fs::directory_iterator(root)) {
-            append_scan_entry(entries, entry.path(), options, detector);
+            append_scan_entry(entries, entry.path(), options, detector, provider_);
         }
     }
     return entries;
 }
 
-StoragePathStatus OneDriveStorageProvider::inspect_path(const std::string& path) const
+StoragePathStatus NativeSyncStorageProvider::inspect_path(const std::string& path) const
 {
-    return make_status(inspect_onedrive_path(native_path(path), platform_));
+    return make_status(inspect_sync_path(native_path(path), platform_, provider_), provider_);
 }
 
-StorageUndoCheck OneDriveStorageProvider::inspect_for_undo(
+StorageUndoCheck NativeSyncStorageProvider::inspect_for_undo(
     const std::string& path, const std::string& expected_revision) const
 {
     const auto native = native_path(path);
-    StorageUndoCheck result{make_status(inspect_onedrive_path(native, platform_)), std::nullopt};
-    if (!expected_revision.starts_with("onedrive:sha256:")) {
+    StorageUndoCheck result{make_status(inspect_sync_path(native, platform_, provider_), provider_), std::nullopt};
+    const auto content_prefix = std::string(token_prefix(provider_)) + "sha256:";
+    if (!expected_revision.starts_with(content_prefix)) {
         return result;
     }
     const auto revision = one_drive::local_content_revision(native, {}, {});
-    result.content_matches = revision == QString::fromStdString(expected_revision);
+    result.content_matches = qualified_native_token(revision, provider_) == expected_revision;
+    const auto name = provider_ == SyncProvider::Dropbox ? "Dropbox" : "OneDrive";
     if (revision.isEmpty()) {
-        result.status.message = "Could not verify OneDrive contents. Make sure the file is available locally and retry.";
+        result.status.message = QStringLiteral("Could not verify %1 contents. Make sure the file is available locally and retry.")
+                                    .arg(QString::fromLatin1(name)).toStdString();
     } else if (!*result.content_matches) {
-        result.status.message = "OneDrive file contents changed since the move.";
+        result.status.message = QStringLiteral("%1 file contents changed since the move.")
+                                    .arg(QString::fromLatin1(name)).toStdString();
     }
     return result;
 }
 
-StorageMovePreflight OneDriveStorageProvider::preflight_move(
+StorageMovePreflight NativeSyncStorageProvider::preflight_move(
     const std::string& source, const std::string& destination) const
 {
-    return preflight(native_path(source), native_path(destination), platform_);
+    return preflight(native_path(source), native_path(destination), platform_, provider_);
 }
 
-bool OneDriveStorageProvider::path_exists(const std::string& path) const
+bool NativeSyncStorageProvider::path_exists(const std::string& path) const
 {
     const auto native = native_path(path);
 #ifdef __APPLE__
@@ -281,9 +323,18 @@ bool OneDriveStorageProvider::path_exists(const std::string& path) const
 #endif
 }
 
-bool OneDriveStorageProvider::ensure_directory(const std::string& path, std::string* error) const
+bool NativeSyncStorageProvider::ensure_directory(const std::string& path, std::string* error) const
 {
     const auto native = native_path(path);
+    if (provider_ == SyncProvider::Dropbox) {
+        const auto inspection = inspect_sync_path(native, platform_, provider_);
+        if (inspection.state.move_blocked) {
+            if (error) {
+                *error = inspection.state.message.toStdString();
+            }
+            return false;
+        }
+    }
 #ifdef __APPLE__
     const auto result = one_drive::ensure_macos_directory(native);
     if (!result.error_code.isEmpty()) {
@@ -305,27 +356,27 @@ bool OneDriveStorageProvider::ensure_directory(const std::string& path, std::str
     return true;
 }
 
-StorageMutationResult OneDriveStorageProvider::move_entry(const std::string& source, const std::string& destination) const
+StorageMutationResult NativeSyncStorageProvider::move_entry(const std::string& source, const std::string& destination) const
 {
     return rename_path(native_path(source), native_path(destination), {}, true);
 }
 
-StorageMutationResult OneDriveStorageProvider::undo_move(const std::string& source, const std::string& destination) const
+StorageMutationResult NativeSyncStorageProvider::undo_move(const std::string& source, const std::string& destination) const
 {
     return undo_move(source, destination, {});
 }
 
-StorageMutationResult OneDriveStorageProvider::undo_move(
+StorageMutationResult NativeSyncStorageProvider::undo_move(
     const std::string& source, const std::string& destination, const std::vector<std::string>& created_directories) const
 {
     return rename_path(native_path(destination), native_path(source), created_directories, false);
 }
 
-StorageMutationResult OneDriveStorageProvider::rename_path(
+StorageMutationResult NativeSyncStorageProvider::rename_path(
     const fs::path& source, const fs::path& destination, const std::vector<std::string>& created_directories,
     bool capture_content) const
 {
-    const auto check = preflight(source, destination, platform_);
+    const auto check = preflight(source, destination, platform_, provider_);
     if (!check.allowed) {
         return {.skipped = check.skipped, .message = check.message};
     }
@@ -339,7 +390,7 @@ StorageMutationResult OneDriveStorageProvider::rename_path(
     if (!result.moved_metadata) {
         return {.skipped = result.skipped, .message = result.message.toStdString()};
     }
-    return {.success = true, .metadata = moved_metadata(destination, *result.moved_metadata, capture_content)};
+    return {.success = true, .metadata = moved_metadata(destination, *result.moved_metadata, capture_content, provider_)};
 #else
     std::error_code error;
     if (const auto parent = destination.parent_path(); !parent.empty()) {
@@ -348,7 +399,14 @@ StorageMutationResult OneDriveStorageProvider::rename_path(
             return {.message = error.message()};
         }
     }
-    fs::rename(source, destination, error);
+#ifdef _WIN32
+    if (provider_ == SyncProvider::Dropbox) {
+        error = one_drive::rename_windows_dropbox_path(source, destination);
+    } else
+#endif
+    {
+        fs::rename(source, destination, error);
+    }
     if (one_drive::is_retryable_move_error(error)) {
         return {.skipped = true, .message = one_drive::move_lock_message().toStdString()};
     }
@@ -357,6 +415,7 @@ StorageMutationResult OneDriveStorageProvider::rename_path(
     }
     remove_empty_directories(created_directories);
     return {.success = true,
-            .metadata = moved_metadata(destination, inspect_onedrive_path(destination, platform_), capture_content)};
+            .metadata = moved_metadata(destination, inspect_sync_path(destination, platform_, provider_),
+                                       capture_content, provider_)};
 #endif
 }

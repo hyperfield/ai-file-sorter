@@ -177,22 +177,31 @@ query_sync_root_provider(const std::filesystem::path &path) {
 }
 
 SyncRootDetection
-detect_windows_cloud_files_root(const std::filesystem::path &path) {
-  const auto provider = query_sync_root_provider(path);
-  if (!provider) {
+detect_windows_cloud_files_root(const std::filesystem::path &path, SyncProvider expected) {
+  std::error_code error;
+  const auto absolute = std::filesystem::absolute(path, error);
+  if (error) {
+    return {};
+  }
+  const auto registered = query_sync_root_provider(absolute);
+  if (!registered) {
     return {};
   }
 
   SyncRootDetection detection;
   detection.authoritative = true;
   detection.source = QStringLiteral("windows_cloud_files");
-  detection.provider_name = wide_to_qstring(provider->ProviderName);
+  detection.provider_name = wide_to_qstring(registered->ProviderName);
 
-  if (provider_name_is_onedrive(detection.provider_name)) {
+  const bool dropbox = expected == SyncProvider::Dropbox;
+  const bool matched = dropbox
+      ? detection.provider_name.trimmed().compare(QStringLiteral("Dropbox"), Qt::CaseInsensitive) == 0
+      : provider_name_is_onedrive(detection.provider_name);
+  if (matched) {
     detection.matched = true;
     detection.confidence = 95;
-    detection.message =
-        QStringLiteral("Detected OneDrive via Windows Cloud Files.");
+    detection.message = dropbox ? QStringLiteral("Detected Dropbox via Windows Cloud Files.")
+                                : QStringLiteral("Detected OneDrive via Windows Cloud Files.");
     return detection;
   }
 
@@ -383,12 +392,14 @@ PlatformFileInfo inspect_windows_path(const std::filesystem::path &path) {
 
 class DefaultPlatformProbe final : public PlatformProbe {
 public:
+  explicit DefaultPlatformProbe(SyncProvider provider) : provider_(provider) {}
+
   SyncRootDetection
   detect_sync_root(const std::filesystem::path &path) const override {
 #ifdef _WIN32
-    return detect_windows_cloud_files_root(path);
+    return detect_windows_cloud_files_root(path, provider_);
 #elif defined(__APPLE__)
-    return detect_macos_onedrive_root(path);
+    return detect_macos_sync_root(path, provider_);
 #else
     Q_UNUSED(path);
     return {};
@@ -408,6 +419,9 @@ public:
     return inspection;
 #endif
   }
+
+private:
+  [[maybe_unused]] SyncProvider provider_;
 };
 
 } // namespace
@@ -533,12 +547,35 @@ QString local_content_revision(const std::filesystem::path &path,
 }
 
 QString move_lock_message() {
-  return QStringLiteral("This item is in use. Retry after the application or OneDrive releases it.");
+  return QStringLiteral("This item is in use. Retry after the application or sync client releases it.");
 }
 
-const PlatformProbe &default_platform_probe() {
-  static const DefaultPlatformProbe probe;
-  return probe;
+const PlatformProbe &default_platform_probe(SyncProvider provider) {
+  static const DefaultPlatformProbe onedrive(SyncProvider::OneDrive);
+  static const DefaultPlatformProbe dropbox(SyncProvider::Dropbox);
+  return provider == SyncProvider::Dropbox ? dropbox : onedrive;
+}
+
+#ifdef _WIN32
+std::error_code rename_windows_dropbox_path(const std::filesystem::path &source,
+                                            const std::filesystem::path &destination) {
+  if (MoveFileExW(source.c_str(), destination.c_str(), 0)) {
+    return {};
+  }
+  return {static_cast<int>(GetLastError()), std::system_category()};
+}
+#endif
+
+bool is_dropbox_metadata_name(const QString &name) {
+  const auto lower = name.toCaseFolded();
+  return lower == QStringLiteral(".dropbox") || lower == QStringLiteral(".dropbox.attr") ||
+         lower == QStringLiteral(".dropbox.cache");
+}
+
+bool is_dropbox_metadata_path(const std::filesystem::path &path) {
+  return std::any_of(path.begin(), path.end(), [](const auto &part) {
+    return is_dropbox_metadata_name(path_to_qstring(part));
+  });
 }
 
 SyncRootDetection detect_onedrive_root(const std::filesystem::path &path,
@@ -579,13 +616,30 @@ SyncRootDetection detect_onedrive_root(const std::filesystem::path &path,
 
 PathInspection inspect_onedrive_path(const std::filesystem::path &path,
                                      const PlatformProbe &platform_probe) {
+  return inspect_sync_path(path, platform_probe, SyncProvider::OneDrive);
+}
+
+PathInspection inspect_sync_path(const std::filesystem::path &path,
+                                 const PlatformProbe &platform_probe, SyncProvider provider) {
   auto inspection = platform_probe.inspect_path(path);
   auto &info = inspection.state;
 
+  const bool dropbox = provider == SyncProvider::Dropbox;
+  const auto provider_name = dropbox ? QStringLiteral("Dropbox") : QStringLiteral("OneDrive");
   const QString filename = path_to_qstring(path.filename());
-  info.conflict_copy = info.conflict_copy || filename_looks_like_conflict_copy(filename);
-  info.sync_locked =
-      info.sync_locked || path_name_is_sync_locked(path) || info.conflict_copy;
+  const bool conflict_name = dropbox ? filename.contains(QStringLiteral("conflicted copy"), Qt::CaseInsensitive)
+                                    : filename_looks_like_conflict_copy(filename);
+  info.conflict_copy = info.conflict_copy || conflict_name;
+  const bool lock_name = dropbox ? filename_looks_like_office_lock(filename) : path_name_is_sync_locked(path);
+  info.sync_locked = info.sync_locked || lock_name || info.conflict_copy;
+
+  if (dropbox && is_dropbox_metadata_path(path)) {
+    info.move_blocked = true;
+    info.message = QStringLiteral("Dropbox client metadata cannot be moved.");
+  }
+  if (dropbox && info.hydration_required) {
+    info.move_blocked = true;
+  }
   const bool retry_sync_lock = info.sync_locked && !info.move_blocked;
   info.should_retry = !info.conflict_copy &&
                       (info.should_retry || retry_sync_lock || info.hydration_required);
@@ -605,12 +659,12 @@ PathInspection inspect_onedrive_path(const std::filesystem::path &path,
 #endif
 
   if (info.conflict_copy) {
-    info.message = QStringLiteral("OneDrive conflict copy requires manual review before moving.");
+    info.message = QStringLiteral("%1 conflict copy requires manual review before moving.").arg(provider_name);
   } else if (info.sync_locked && info.message.isEmpty()) {
-    info.message = QStringLiteral("OneDrive is still syncing this item.");
+    info.message = QStringLiteral("%1 is still syncing this item.").arg(provider_name);
   } else if (info.hydration_required && info.message.isEmpty()) {
-    info.message =
-        QStringLiteral("OneDrive has not fully hydrated this item yet.");
+    info.message = dropbox ? QStringLiteral("Make this Dropbox item available offline before moving it.")
+                           : QStringLiteral("OneDrive has not fully hydrated this item yet.");
   }
 
   return inspection;

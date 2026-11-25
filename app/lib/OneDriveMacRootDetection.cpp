@@ -17,6 +17,7 @@ namespace {
 constexpr auto kDomainAttribute = "com.apple.file-provider-domain-id";
 constexpr QByteArrayView kStandaloneProvider = "com.microsoft.OneDrive.FileProvider";
 constexpr QByteArrayView kAppStoreProvider = "com.microsoft.OneDrive-mac.FileProvider";
+constexpr QByteArrayView kDropboxProvider = "com.getdropbox.dropbox.fileprovider";
 constexpr std::size_t kMaxDomainAttributeBytes = 1024;
 
 std::optional<QByteArray> read_file_provider_domain(
@@ -35,35 +36,46 @@ std::optional<QByteArray> read_file_provider_domain(
   return std::nullopt;
 }
 
-SyncRootDetection classify_file_provider_domain(QByteArrayView domain) {
+SyncRootDetection classify_file_provider_domain(QByteArrayView domain, SyncProvider expected) {
   const auto separator = domain.indexOf('/');
   if (separator <= 0 || separator + 1 == domain.size() || domain.contains('\0')) {
     return {};
   }
 
   const auto provider = domain.first(separator);
-  const bool is_onedrive =
-      provider == kStandaloneProvider || provider == kAppStoreProvider;
+  const bool dropbox = expected == SyncProvider::Dropbox;
+  const bool matched = dropbox ? provider == kDropboxProvider
+                               : provider == kStandaloneProvider || provider == kAppStoreProvider;
+  const auto name = dropbox ? QStringLiteral("Dropbox") : QStringLiteral("Microsoft OneDrive");
   return SyncRootDetection{
-      .matched = is_onedrive,
+      .matched = matched,
       .authoritative = true,
-      .vetoed = !is_onedrive,
-      .confidence = is_onedrive ? 95 : 0,
+      .vetoed = !matched,
+      .confidence = matched ? 95 : 0,
       .source = QStringLiteral("macos_file_provider"),
-      .provider_name = is_onedrive ? QStringLiteral("Microsoft OneDrive") : QString(),
-      .message = is_onedrive
-                     ? QStringLiteral("Detected OneDrive via macOS File Provider.")
+      .provider_name = matched ? name : QString(),
+      .message = matched
+                     ? QStringLiteral("Detected %1 via macOS File Provider.").arg(name)
                      : QStringLiteral("A different macOS File Provider manages this folder.")};
 }
 
 } // namespace
 
 SyncRootDetection detect_macos_onedrive_root(const std::filesystem::path &path) {
-  return detect_macos_onedrive_root(path, read_file_provider_domain);
+  return detect_macos_sync_root(path, SyncProvider::OneDrive);
 }
 
 SyncRootDetection detect_macos_onedrive_root(
     const std::filesystem::path &path, const FileProviderDomainReader &read_domain) {
+  return detect_macos_sync_root(path, SyncProvider::OneDrive, read_domain);
+}
+
+SyncRootDetection detect_macos_sync_root(const std::filesystem::path &path, SyncProvider provider) {
+  return detect_macos_sync_root(path, provider, read_file_provider_domain);
+}
+
+SyncRootDetection detect_macos_sync_root(
+    const std::filesystem::path &path, SyncProvider provider, const FileProviderDomainReader &read_domain) {
   if (path.empty() || path.native().find('\0') != std::filesystem::path::string_type::npos) {
     return {};
   }
@@ -75,7 +87,7 @@ SyncRootDetection detect_macos_onedrive_root(
   }
 
   // Find the nearest registered ancestor without inheriting a domain from a
-  // different volume. Root metadata also works for relocated OneDrive domains.
+  // different volume. Root metadata also works for relocated domains.
   std::optional<dev_t> device;
   while (true) {
     struct stat info {};
@@ -90,7 +102,7 @@ SyncRootDetection detect_macos_onedrive_root(
       return {};
     }
     if (domain) {
-      return classify_file_provider_domain(*domain);
+      return classify_file_provider_domain(*domain, provider);
     }
 
     auto parent = directory.parent_path();

@@ -85,7 +85,7 @@ PathInspection inspect_macos_path(const std::filesystem::path &path) {
   auto &state = inspection.state;
   if (state.hydration_required) {
     state.move_blocked = true;
-    state.message = QStringLiteral("This OneDrive item is online-only. Download it in Finder before moving it.");
+    state.message = QStringLiteral("This item is online-only. Download it in Finder before moving it.");
   }
 
   constexpr auto kMoveLockFlags = UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND |

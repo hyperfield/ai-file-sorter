@@ -29,7 +29,7 @@
 #include "FolderTreeCatalog.hpp"
 #include "ILLMClient.hpp"
 #include "LocalFsProvider.hpp"
-#include "OneDriveStorageProvider.hpp"
+#include "NativeSyncStorageProvider.hpp"
 #include "PluginBuildConfig.hpp"
 #include "ResultsCoordinator.hpp"
 #include "Settings.hpp"
@@ -1050,13 +1050,35 @@ TEST_CASE("StoragePluginManager activates a signed declarative OneDrive package"
             reloaded.installed_plugin_manifests());
         REQUIRE(providers.size() == 1);
         CHECK(providers.front()->id() == "onedrive");
-        CHECK(dynamic_cast<OneDriveStorageProvider*>(providers.front().get()) != nullptr);
+        CHECK(dynamic_cast<NativeSyncStorageProvider*>(providers.front().get()) != nullptr);
 
         // Replacing the installed archive with a zip of the same manifest cannot unlock the provider.
         create_zip_archive(package_dir / "bundle.aifsplugin", {{"manifest.json", manifest}});
         REQUIRE(reloaded.reload());
         CHECK_FALSE(reloaded.is_installed(plugin_id));
         CHECK(reloaded.installed_plugin_manifests().empty());
+    }
+
+    SECTION("the new manifest enables Dropbox alongside the existing compatibility provider") {
+        auto both = QJsonDocument::fromJson(QByteArray::fromStdString(manifest)).object();
+        both["provider_ids"] = QJsonArray{NativeSyncStorageProvider::dropbox_provider_id(), "onedrive"};
+        create_signed_storage_plugin_archive(
+            archive, QJsonDocument(both).toJson(QJsonDocument::Compact).toStdString(), {});
+        REQUIRE(manager.install("cloud_storage_compat"));
+        REQUIRE(manager.install_from_archive(archive, nullptr, &error));
+
+        const auto native_dropbox = manager.find_plugin_for_provider(NativeSyncStorageProvider::dropbox_provider_id());
+        REQUIRE(native_dropbox);
+        CHECK(native_dropbox->id == plugin_id);
+        StorageProviderRegistry registry;
+        for (auto& provider : StoragePluginLoader().create_providers_for_installed_plugins(
+                 manager.installed_plugin_manifests())) {
+            registry.register_builtin(std::move(provider));
+        }
+        CHECK(dynamic_cast<NativeSyncStorageProvider*>(registry.find_by_id("onedrive").get()) != nullptr);
+        CHECK(dynamic_cast<NativeSyncStorageProvider*>(
+                  registry.find_by_id(NativeSyncStorageProvider::dropbox_provider_id()).get()) != nullptr);
+        CHECK(dynamic_cast<CloudCompatibilityProvider*>(registry.find_by_id("dropbox").get()) != nullptr);
     }
 }
 #endif

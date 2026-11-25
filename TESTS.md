@@ -4549,6 +4549,13 @@ Purpose: Exercise the built-in OneDrive provider and its native platform helpers
 Coverage: Authoritative root detection, hydration and lock handling, scan filters, project protection, move and undo, and native file IDs and revision checks. macOS cases use File Provider metadata fixtures and native coordinated moves. Windows cases use sharing locks and a temporary Cloud Files sync root.
 Run: `./build-tests/ai_file_sorter_tests "[onedrive]"`
 
+#### Dropbox provider tests
+
+The Dropbox tests cover verified root detection, the online-only move guard,
+client metadata and conflicted copies, and content-based undo. The signed
+archive test also checks that native Dropbox and the compatibility provider
+can coexist. Run `./build-tests/ai_file_sorter_tests "[dropbox],[onedrive]"`.
+
 ### `tests/unit/test_storage_plugin_conformance.cpp`
 
 #### Test case: Storage plugin conformance harness validates the mock connector protocol

@@ -53,7 +53,7 @@ MacMutationResult native_failure(const QString &code, int error) {
   case ENOTEMPTY:
     return {code, QStringLiteral("Destination path already exists."), true};
   case EXDEV:
-    return {code, QStringLiteral("OneDrive moves on macOS require the same volume."), true};
+    return {code, QStringLiteral("Moves on macOS require the same volume."), true};
   case ENODEV:
     return {code, QStringLiteral("The destination volume is unavailable. Reconnect it and retry."), true, true};
   case EDEADLK:

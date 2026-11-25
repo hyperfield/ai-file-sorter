@@ -7,6 +7,9 @@
 
 namespace one_drive {
 
+/** @brief Providers supported by the shared native sync implementation. */
+enum class SyncProvider { OneDrive, Dropbox };
+
 /** @brief Delay suggested after a temporary sharing or sync lock. */
 inline constexpr int kLockRetryAfterMs = 2000;
 
@@ -90,7 +93,24 @@ QString local_content_revision(const std::filesystem::path &path,
                                const QString &expected_identity,
                                const QString &expected_revision);
 
-const PlatformProbe &default_platform_probe();
+/** @brief Returns the native filesystem probe for the requested sync provider. */
+const PlatformProbe &default_platform_probe(SyncProvider provider = SyncProvider::OneDrive);
+
+/** @brief Tests whether a path component is reserved for Dropbox client metadata. */
+bool is_dropbox_metadata_name(const QString &name);
+
+/** @brief Tests whether a path is or is inside reserved Dropbox client metadata. */
+bool is_dropbox_metadata_path(const std::filesystem::path &path);
+
+/** @brief Inspects an entry without recalling data and applies the provider's move safeguards. */
+PathInspection inspect_sync_path(const std::filesystem::path &path,
+                                 const PlatformProbe &platform_probe, SyncProvider provider);
+
+#ifdef _WIN32
+/** @brief Renames a Dropbox path without replacing an existing target or copying across volumes. */
+std::error_code rename_windows_dropbox_path(const std::filesystem::path &source,
+                                            const std::filesystem::path &destination);
+#endif
 
 SyncRootDetection detect_onedrive_root(
     const std::filesystem::path &path,

@@ -3,17 +3,30 @@
 #include "OneDrivePlatform.hpp"
 #include "StorageProvider.hpp"
 
-/** @brief Implements the app's built-in OneDrive storage operations. */
-class OneDriveStorageProvider final : public IStorageProvider {
+/** @brief Implements storage operations for providers using the OS sync integration. */
+class NativeSyncStorageProvider final : public IStorageProvider {
 public:
     /**
+     * @brief Constructs a provider using native sync metadata.
+     * @param provider Sync provider whose roots may be detected.
+     * @param requires_installation True for detection before a plugin is installed.
+     */
+    explicit NativeSyncStorageProvider(one_drive::SyncProvider provider, bool requires_installation = false);
+
+    /**
      * @brief Constructs an installed provider or a detector for an uninstalled plugin.
+     * @param provider Sync provider whose roots may be detected.
      * @param requires_installation True for detection before the plugin is installed.
      * @param platform Native filesystem probe. Tests can use a fixture probe.
      */
-    explicit OneDriveStorageProvider(
-        bool requires_installation = false,
-        const one_drive::PlatformProbe& platform = one_drive::default_platform_probe());
+    NativeSyncStorageProvider(one_drive::SyncProvider provider, bool requires_installation,
+                              const one_drive::PlatformProbe& platform);
+
+    /**
+     * @brief Returns the native Dropbox provider ID used by the manifest and undo records.
+     * @return Stable ID distinct from the Dropbox compatibility provider.
+     */
+    static constexpr auto dropbox_provider_id() { return "dropbox_native"; }
 
     /** @copydoc IStorageProvider::id */
     std::string id() const override;
@@ -47,6 +60,7 @@ private:
                                       const std::vector<std::string>& created_directories,
                                       bool capture_content) const;
 
+    one_drive::SyncProvider provider_;
     bool requires_installation_;
     const one_drive::PlatformProbe& platform_;
 };

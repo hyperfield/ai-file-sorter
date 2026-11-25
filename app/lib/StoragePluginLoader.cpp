@@ -3,7 +3,7 @@
 #include "CloudCompatibilityProvider.hpp"
 #include "CloudPathDetectorProvider.hpp"
 #include "ExternalProcessStorageProvider.hpp"
-#include "OneDriveStorageProvider.hpp"
+#include "NativeSyncStorageProvider.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -22,7 +22,7 @@ std::shared_ptr<IStorageProvider> make_dropbox_detector()
 std::shared_ptr<IStorageProvider> make_onedrive_detector()
 {
 #if defined(__APPLE__) || defined(_WIN32)
-    return std::make_shared<OneDriveStorageProvider>(true);
+    return std::make_shared<NativeSyncStorageProvider>(one_drive::SyncProvider::OneDrive, true);
 #else
     return std::make_shared<CloudPathDetectorProvider>(
         "onedrive_detector",
@@ -33,16 +33,38 @@ std::shared_ptr<IStorageProvider> make_onedrive_detector()
 }
 
 #if defined(__APPLE__) || defined(_WIN32)
-bool validate_onedrive_bundle(const StoragePluginManifest& manifest, std::string* error)
+bool includes_native_dropbox(const StoragePluginManifest& manifest)
 {
+    const auto& providers = manifest.provider_ids;
+    return std::find(providers.begin(), providers.end(), NativeSyncStorageProvider::dropbox_provider_id()) !=
+           providers.end();
+}
+
+bool validate_synced_folder_bundle(const StoragePluginManifest& manifest, std::string* error)
+{
+    const auto& providers = manifest.provider_ids;
+    const bool has_onedrive = std::find(providers.begin(), providers.end(), "onedrive") != providers.end();
+    const bool valid_providers = has_onedrive &&
+        (providers.size() == 1 || (providers.size() == 2 && includes_native_dropbox(manifest)));
     if (manifest.id == "onedrive_storage_support" && manifest.license_required &&
-        manifest.product_id == manifest.id && manifest.provider_ids == std::vector<std::string>{"onedrive"}) {
+        manifest.product_id == manifest.id && valid_providers) {
         return true;
     }
     if (error) {
-        *error = "The OneDrive bundle requires the OneDrive provider and matching licensed plugin and product IDs.";
+        *error = "Synced Folder Tools requires a supported provider list and matching licensed plugin and product IDs.";
     }
     return false;
+}
+
+StoragePluginEntryPointFactory::ProviderList make_synced_folder_bundle(const StoragePluginManifest& manifest)
+{
+    using one_drive::SyncProvider;
+    StoragePluginEntryPointFactory::ProviderList providers;
+    providers.push_back(std::make_shared<NativeSyncStorageProvider>(SyncProvider::OneDrive));
+    if (includes_native_dropbox(manifest)) {
+        providers.push_back(std::make_shared<NativeSyncStorageProvider>(SyncProvider::Dropbox));
+    }
+    return providers;
 }
 #endif
 
@@ -214,10 +236,8 @@ StoragePluginLoader::StoragePluginLoader(std::filesystem::path manifest_director
         "builtin_bundle",
         "onedrive_storage_bundle",
         StoragePluginEntryPointFactory{
-            .validate_manifest = validate_onedrive_bundle,
-            .create_runtime_providers = [](const StoragePluginManifest&) -> StoragePluginEntryPointFactory::ProviderList {
-                return {std::make_shared<OneDriveStorageProvider>()};
-            }
+            .validate_manifest = validate_synced_folder_bundle,
+            .create_runtime_providers = make_synced_folder_bundle
         });
 #endif
 }
