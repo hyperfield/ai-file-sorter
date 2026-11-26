@@ -3637,6 +3637,38 @@ Procedure: Hide the subcategory column, close the dialog, and reload the cached 
 Expected outcome: The cached category and subcategory remain unchanged instead of being normalized to `General`.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog preserves cached subcategories when the subcategory column is hidden"`
 
+#### Local filesystem move regressions
+
+Rebuild `ai_file_sorter_tests`, then run
+`QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[local-fs]"`
+(use the executable in your configured build directory). Cross-filesystem tests
+inject `std::errc::cross_device_link` at the initial rename and exercise real
+destination-side staging, copying, exclusive publication, and source removal;
+they do not require a mounted second volume or NAS.
+
+- `LocalFsProvider moves and undoes entries on the same filesystem`: verifies
+  the normal rename path and reverse move preserve file contents.
+- `LocalFsProvider copies files and folders across filesystems and supports undo`:
+  covers binary contents, Unicode paths, nested/empty/hidden entries, permissions,
+  modification times, returned metadata, staging cleanup, and persisted
+  `UndoManager` plans for both files and whole folders.
+- `LocalFsProvider preserves symlinks during cross-filesystem moves`: covers
+  dangling links, external targets, and directory-link cycles without following
+  links, including reverse moves. Skips if symlink creation is unavailable.
+- `LocalFsProvider only falls back for cross-device errors`: verifies permission
+  errors do not trigger copying or remove the source.
+- `LocalFsProvider preserves the source and cleans staging after an incomplete copy`:
+  simulates a partial copy followed by an out-of-space failure; the source remains
+  intact, the final destination is absent, and temporary data is removed.
+- `LocalFsProvider never overwrites destinations during cross-filesystem transfer`:
+  covers existing targets and files or empty directories appearing during copying.
+- `LocalFsProvider retains the complete copy when source removal fails`: simulates
+  a directory deletion failing partway through and verifies the full destination
+  survives with an explicit recovery diagnostic.
+- `LocalFsProvider rejects unsupported entries without deleting source data`:
+  verifies a folder containing a FIFO fails safely without deleting original
+  contents or leaving a partial final destination (POSIX only).
+
 #### Test case: UndoManager restores saved plans through the active storage provider
 Purpose: Verify persisted undo plans can be replayed through the storage provider abstraction.
 Setup: Create a saved move plan and attach a storage provider that records undo calls.

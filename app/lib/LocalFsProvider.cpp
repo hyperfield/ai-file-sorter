@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <utility>
 
 namespace {
 
@@ -34,6 +35,11 @@ StorageEntryMetadata read_metadata(const std::filesystem::path& path)
 }
 
 } // namespace
+
+LocalFsProvider::LocalFsProvider(LocalFileTransfer transfer)
+    : transfer_(std::move(transfer))
+{
+}
 
 std::string LocalFsProvider::id() const
 {
@@ -118,7 +124,8 @@ StorageMovePreflight LocalFsProvider::preflight_move(const std::string& source,
 bool LocalFsProvider::path_exists(const std::string& path) const
 {
     std::error_code ec;
-    return std::filesystem::exists(Utils::utf8_to_path(path), ec);
+    const auto status = std::filesystem::symlink_status(Utils::utf8_to_path(path), ec);
+    return !ec && std::filesystem::exists(status);
 }
 
 bool LocalFsProvider::ensure_directory(const std::string& directory, std::string* error) const
@@ -162,10 +169,8 @@ StorageMutationResult LocalFsProvider::move_entry(const std::string& source,
         return result;
     }
 
-    std::error_code ec;
-    std::filesystem::rename(source_path, destination_path, ec);
-    if (ec) {
-        result.message = ec.message();
+    result = transfer_.move(source_path, destination_path);
+    if (!result.success) {
         return result;
     }
 
@@ -223,13 +228,5 @@ StorageMutationResult LocalFsProvider::restore_moved_entry(const std::string& so
         return result;
     }
 
-    std::error_code ec;
-    std::filesystem::rename(destination_path, source_path, ec);
-    if (ec) {
-        result.message = ec.message();
-        return result;
-    }
-
-    result.success = true;
-    return result;
+    return transfer_.move(destination_path, source_path);
 }

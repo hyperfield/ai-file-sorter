@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FileScanner.hpp"
+#include "LocalFileTransfer.hpp"
 #include "StorageProvider.hpp"
 
 /**
@@ -8,6 +9,16 @@
  */
 class LocalFsProvider : public IStorageProvider {
 public:
+    /**
+     * @brief Constructs a provider with the default local transfer service.
+     */
+    LocalFsProvider() = default;
+    /**
+     * @brief Constructs a provider with injectable filesystem transfer operations.
+     * @param transfer Transfer service used for moves and undo.
+     */
+    explicit LocalFsProvider(LocalFileTransfer transfer);
+
     std::string id() const override;
     std::string comparison_key(const std::string& path) const override;
     StorageProviderDetection detect(const std::string& root_path) const override;
@@ -45,4 +56,5 @@ private:
                                               const std::string& destination) const;
 
     FileScanner scanner_;
+    LocalFileTransfer transfer_;
 };
