@@ -1,6 +1,6 @@
 #include "OneDriveMacMutations.hpp"
 
-#include "OneDriveMacMaterialization.hpp"
+#include "MacDatalessFiles.hpp"
 #include "OneDriveMacPathInspection.hpp"
 #include "OneDriveMacPaths.hpp"
 #include "OneDriveMacRevision.hpp"
@@ -53,7 +53,7 @@ MacMutationResult native_failure(const QString &code, int error) {
   case ENOTEMPTY:
     return {code, QStringLiteral("Destination path already exists."), true};
   case EXDEV:
-    return {code, QStringLiteral("OneDrive moves on macOS require the same volume."), true};
+    return {code, QStringLiteral("Moves on macOS require the same volume."), true};
   case ENODEV:
     return {code, QStringLiteral("The destination volume is unavailable. Reconnect it and retry."), true, true};
   case EDEADLK:
@@ -319,7 +319,7 @@ void clean_undo_directories(const fs::path &source_parent,
 
 MacMutationResult ensure_macos_directory(const fs::path &directory) {
   @autoreleasepool {
-    const DisableMaterialization no_downloads;
+    const mac_dataless::DisableMaterialization no_downloads;
     const auto code = QStringLiteral("ensure_directory_failed");
     if (!no_downloads.active() || !valid_path(directory)) {
       return native_failure(code, EINVAL);
@@ -364,7 +364,7 @@ MacMutationResult ensure_macos_directory(const fs::path &directory) {
 MacMutationResult move_macos_path(const fs::path &source, const fs::path &destination,
                                  const std::vector<fs::path> &undo_directories) {
   @autoreleasepool {
-    const DisableMaterialization no_downloads;
+    const mac_dataless::DisableMaterialization no_downloads;
     const auto code = QStringLiteral("move_failed");
     if (!no_downloads.active() || !valid_path(source) || !valid_path(destination) ||
         !source.has_filename() || !destination.has_filename() ||

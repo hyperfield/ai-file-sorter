@@ -27,11 +27,16 @@ names a provider bundle registered in the app. Its only payload file is
 `manifest.json`. The app retains and revalidates the signed archive on reload
 and checks the local entitlement before enabling a paid provider.
 
-OneDrive Storage Support uses the `onedrive_storage_bundle` built into the
-Windows and macOS app. On macOS, detection uses File Provider domain metadata.
-Moves coordinate same-volume renames and require the source to be available
-locally. The provider checks undo against a content fingerprint when it can
-read the file without downloading it.
+Synced Folder Tools uses the `onedrive_storage_bundle` built into the Windows
+and macOS app. The signed provider list can enable OneDrive and native Dropbox
+support. Dropbox paths are verified against Apple File Provider domain
+metadata on macOS or Cloud Files sync-root registration on Windows. Moves
+require locally available Dropbox files and protect existing destinations.
+The provider checks undo against a content fingerprint when it can read the
+file without downloading it.
+
+Native Dropbox uses a separate provider ID so earlier Dropbox undo records
+can still use the existing compatibility provider.
 
 Package paths must be relative, use forward slashes, and stay inside the package
 root. Storage manifests may use top-level `entry_point`/`package_paths` for a

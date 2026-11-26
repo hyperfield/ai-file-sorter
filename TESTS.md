@@ -2893,6 +2893,22 @@ Procedure: Scan with `Files | Recursive`.
 Expected outcome: The readable file is returned, the scan does not throw, and the unreadable subtree is skipped.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans skip unreadable directories and continue"`
 
+#### macOS dataless source scans
+
+Run `./build-tests/ai_file_sorter_tests "[mac-dataless]~[.live]"` on macOS. The
+default, compatibility, and native OneDrive and Dropbox providers must restore
+the caller's materialization policy after flat or recursive scans, including
+when enumeration fails or the caller already disabled downloads.
+
+To exercise real placeholders, create a dedicated File Provider test folder
+containing a downloaded `local.txt`, a dataless `online-only.txt`, and a dataless
+`Online Folder`. Use Finder to evict the latter two and verify the `dataless`
+flag with `ls -lO` on the test folder. Set `AI_FILE_SORTER_DATALESS_SCAN_FIXTURE`
+to the test folder's path and run
+`./build-tests/ai_file_sorter_tests "[mac-dataless][.live]"`. All four providers
+must return only `local.txt`, yield no entries when the online-only folder is
+selected directly, and leave the dataless flags set.
+
 ### `tests/unit/test_folder_tree_catalog.cpp`
 
 #### Test case: FolderTreeCatalog scans relative destination folders
@@ -3636,6 +3652,38 @@ Setup: Seed the cache with a categorized file that has a non-General subcategory
 Procedure: Hide the subcategory column, close the dialog, and reload the cached categorization entry.
 Expected outcome: The cached category and subcategory remain unchanged instead of being normalized to `General`.
 Run: `./build-tests/ai_file_sorter_tests "CategorizationDialog preserves cached subcategories when the subcategory column is hidden"`
+
+#### Local filesystem move regressions
+
+Rebuild `ai_file_sorter_tests`, then run
+`QT_QPA_PLATFORM=offscreen ./build-tests/ai_file_sorter_tests "[local-fs]"`
+(use the executable in your configured build directory). Cross-filesystem tests
+inject `std::errc::cross_device_link` at the initial rename and exercise real
+destination-side staging, copying, exclusive publication, and source removal;
+they do not require a mounted second volume or NAS.
+
+- `LocalFsProvider moves and undoes entries on the same filesystem`: verifies
+  the normal rename path and reverse move preserve file contents.
+- `LocalFsProvider copies files and folders across filesystems and supports undo`:
+  covers binary contents, Unicode paths, nested/empty/hidden entries, permissions,
+  modification times, returned metadata, staging cleanup, and persisted
+  `UndoManager` plans for both files and whole folders.
+- `LocalFsProvider preserves symlinks during cross-filesystem moves`: covers
+  dangling links, external targets, and directory-link cycles without following
+  links, including reverse moves. Skips if symlink creation is unavailable.
+- `LocalFsProvider only falls back for cross-device errors`: verifies permission
+  errors do not trigger copying or remove the source.
+- `LocalFsProvider preserves the source and cleans staging after an incomplete copy`:
+  simulates a partial copy followed by an out-of-space failure; the source remains
+  intact, the final destination is absent, and temporary data is removed.
+- `LocalFsProvider never overwrites destinations during cross-filesystem transfer`:
+  covers existing targets and files or empty directories appearing during copying.
+- `LocalFsProvider retains the complete copy when source removal fails`: simulates
+  a directory deletion failing partway through and verifies the full destination
+  survives with an explicit recovery diagnostic.
+- `LocalFsProvider rejects unsupported entries without deleting source data`:
+  verifies a folder containing a FIFO fails safely without deleting original
+  contents or leaving a partial final destination (POSIX only).
 
 #### Test case: UndoManager restores saved plans through the active storage provider
 Purpose: Verify persisted undo plans can be replayed through the storage provider abstraction.
@@ -4548,6 +4596,13 @@ Run: `./build-tests/ai_file_sorter_tests "StoragePluginManager activates a signe
 Purpose: Exercise the built-in OneDrive provider and its native platform helpers.
 Coverage: Authoritative root detection, hydration and lock handling, scan filters, project protection, move and undo, and native file IDs and revision checks. macOS cases use File Provider metadata fixtures and native coordinated moves. Windows cases use sharing locks and a temporary Cloud Files sync root.
 Run: `./build-tests/ai_file_sorter_tests "[onedrive]"`
+
+#### Dropbox provider tests
+
+The Dropbox tests cover verified root detection, the online-only move guard,
+client metadata and conflicted copies, and content-based undo. The signed
+archive test also checks that native Dropbox and the compatibility provider
+can coexist. Run `./build-tests/ai_file_sorter_tests "[dropbox],[onedrive]"`.
 
 ### `tests/unit/test_storage_plugin_conformance.cpp`
 

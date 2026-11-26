@@ -10,6 +10,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__APPLE__)
+#include "MacDatalessFiles.hpp"
 #endif
 
 namespace fs = std::filesystem;
@@ -52,6 +54,17 @@ FileScanner::get_directory_entries(const std::string &directory_path,
 
     try {
         const fs::path scan_path = Utils::utf8_to_path(directory_path);
+#ifdef __APPLE__
+        const mac_dataless::DisableMaterialization no_downloads;
+        if (!no_downloads.active()) {
+            throw fs::filesystem_error("Disable automatic downloads for scan", scan_path,
+                                       std::make_error_code(std::errc::operation_not_supported));
+        }
+        if (mac_dataless::needs_materialization(scan_path)) {
+            if (logger) logger->info("Skipping online-only scan root '{}'", directory_path);
+            return file_paths_and_names;
+        }
+#endif
         if (const auto match = strong_protected_project_match(scan_path, context)) {
             log_protected_project_skip(context, *match);
             return file_paths_and_names;
@@ -84,6 +97,12 @@ void FileScanner::scan_non_recursive(const fs::path& scan_path,
     std::error_code ec;
     fs::directory_iterator it(scan_path, kIteratorOptions, ec);
     if (ec) {
+#ifdef __APPLE__
+        if (mac_dataless::materialization_blocked(ec)) {
+            log_scan_warning(context, scan_path, ec, "Skipping online-only directory");
+            return;
+        }
+#endif
         throw fs::filesystem_error("directory_iterator", scan_path, ec);
     }
 
@@ -120,6 +139,12 @@ void FileScanner::scan_recursive(const fs::path& scan_path,
         std::error_code open_ec;
         fs::directory_iterator it(current_dir, kIteratorOptions, open_ec);
         if (open_ec) {
+#ifdef __APPLE__
+            if (mac_dataless::materialization_blocked(open_ec)) {
+                log_scan_warning(context, current_dir, open_ec, "Skipping online-only directory");
+                continue;
+            }
+#endif
             if (current_dir == scan_path) {
                 throw fs::filesystem_error("directory_iterator", current_dir, open_ec);
             }
@@ -135,21 +160,20 @@ void FileScanner::scan_recursive(const fs::path& scan_path,
             const std::string full_path = Utils::path_to_utf8(entry_path);
             const std::string file_name = Utils::path_to_utf8(entry_path.filename());
 
-            std::error_code dir_ec;
-            const bool is_directory = entry.is_directory(dir_ec);
-            if (dir_ec) {
-                log_scan_warning(context, entry_path, dir_ec,
-                                 "Skipping entry after filesystem error");
-            } else {
-                const bool bundle = is_file_bundle(entry_path, is_directory);
-                const bool skip_entry = should_skip_entry(entry, entry_path, file_name, context, full_path);
-                if (!skip_entry) {
+            if (!should_skip_entry(entry, entry_path, file_name, context, full_path)) {
+                std::error_code dir_ec;
+                const bool is_directory = entry.is_directory(dir_ec);
+                if (dir_ec) {
+                    log_scan_warning(context, entry_path, dir_ec,
+                                     "Skipping entry after filesystem error");
+                } else {
+                    const bool bundle = is_file_bundle(entry_path, is_directory);
                     if (auto type = classify_entry(entry, bundle, is_directory, context)) {
                         results.push_back(FileEntry{full_path, file_name, *type});
                     }
-                }
-                if (is_directory && !bundle && !skip_entry) {
-                    pending_dirs.push_back(entry_path);
+                    if (is_directory && !bundle) {
+                        pending_dirs.push_back(entry_path);
+                    }
                 }
             }
 
@@ -309,6 +333,13 @@ bool FileScanner::should_skip_entry(const fs::directory_entry& entry,
         }
         return true;
     }
+
+#ifdef __APPLE__
+    if (mac_dataless::needs_materialization(entry_path)) {
+        if (context.logger) context.logger->trace("Skipping online-only entry '{}'", full_path);
+        return true;
+    }
+#endif
 
     if (const auto match = strong_protected_project_match(entry_path, context)) {
         log_protected_project_skip(context, *match);

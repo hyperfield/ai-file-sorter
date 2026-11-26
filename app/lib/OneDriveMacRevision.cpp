@@ -1,6 +1,6 @@
 #include "OneDriveMacRevision.hpp"
 
-#include "OneDriveMacMaterialization.hpp"
+#include "MacDatalessFiles.hpp"
 
 #include <QByteArray>
 #include <QCryptographicHash>
@@ -179,7 +179,7 @@ QString macos_content_revision(const std::filesystem::path &path,
                                const QString &expected_identity,
                                const QString &expected_revision) {
   const auto deadline = Clock::now() + kHashBudget;
-  const DisableMaterialization no_downloads;
+  const mac_dataless::DisableMaterialization no_downloads;
   struct stat initial {};
   if (!no_downloads.active() || path.empty() ||
       path.native().find('\0') != std::filesystem::path::string_type::npos ||

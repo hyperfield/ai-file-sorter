@@ -18,4 +18,10 @@ SyncRootDetection detect_macos_onedrive_root(const std::filesystem::path &path);
 SyncRootDetection detect_macos_onedrive_root(
     const std::filesystem::path &path, const FileProviderDomainReader &read_domain);
 
+/** @brief Detects the requested provider using the nearest File Provider domain. */
+SyncRootDetection detect_macos_sync_root(const std::filesystem::path &path, SyncProvider provider);
+/** @brief Detects the requested provider using an injected domain metadata reader. */
+SyncRootDetection detect_macos_sync_root(
+    const std::filesystem::path &path, SyncProvider provider, const FileProviderDomainReader &read_domain);
+
 } // namespace one_drive

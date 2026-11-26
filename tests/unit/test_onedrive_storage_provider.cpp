@@ -1,5 +1,5 @@
 #include "OneDrivePlatform.hpp"
-#include "OneDriveStorageProvider.hpp"
+#include "NativeSyncStorageProvider.hpp"
 #include "TestHelpers.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -33,6 +33,8 @@
 #endif
 
 namespace {
+
+using one_drive::SyncProvider;
 
 constexpr auto kFiles = FileScanOptions::Files;
 constexpr auto kDirectories = FileScanOptions::Directories;
@@ -87,7 +89,7 @@ TEST_CASE("OneDrive authoritative onedrive detection", "[onedrive]") {
       .provider_name = QStringLiteral("Microsoft OneDrive"),
       .message = QStringLiteral("Detected OneDrive via Windows Cloud Files.")};
 
-  const OneDriveStorageProvider detector(true, probe);
+  const NativeSyncStorageProvider detector(SyncProvider::OneDrive, true, probe);
   const auto detection = detector.detect("C:/Neutral/Folder");
   require(detection.matched && detection.needs_additional_support &&
               detection.detection_source == "windows_cloud_files",
@@ -106,7 +108,7 @@ TEST_CASE("OneDrive authoritative non onedrive vetoes path heuristic", "[onedriv
       .message = QStringLiteral(
           "Windows Cloud Files identified sync provider 'Dropbox'.")};
 
-  require(!OneDriveStorageProvider(false, probe).detect("C:/Users/example/OneDrive - Work/Documents").matched,
+  require(!NativeSyncStorageProvider(SyncProvider::OneDrive, false, probe).detect("C:/Users/example/OneDrive - Work/Documents").matched,
           "non-OneDrive authoritative provider did not veto heuristic match");
 }
 
@@ -195,7 +197,7 @@ TEST_CASE("OneDrive macos local move blockers", "[onedrive]") {
   require(lock_status.move_blocked && lock_status.sync_locked && !lock_status.should_retry,
           "immutable file must require the user to remove the lock");
 
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
   const auto collision = provider.preflight_move(path_text(source), path_text(root / "moved.txt"));
   require(!collision.allowed && collision.source_status.conflict_copy,
           "native filename conflict must block preflight independently of the filename");
@@ -229,7 +231,7 @@ TEST_CASE("OneDrive macos coordinated move and undo", "[onedrive]") {
           "coordinated rename replaced an existing destination or lost the source");
 
   fs::remove_all(actual / "Created");
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
   const auto moved = provider.move_entry(path_text(source), path_text(target));
   require(moved.success && moved.metadata.size_bytes == 3 && !fs::exists(source) && fs::file_size(target) == 3,
           "coordinated move through a linked root did not create the missing parents");
@@ -267,7 +269,7 @@ TEST_CASE("OneDrive macos content revision verifies undo", "[onedrive]") {
   const auto destination = root / "destination.txt";
   write_file(source, "original");
 
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
   const auto before = provider.inspect_path(path_text(source));
   const auto moved = provider.move_entry(path_text(source), path_text(destination));
   require(moved.success, "macOS revision fixture move failed");
@@ -333,7 +335,7 @@ TEST_CASE("OneDrive platform hydration status is reported", "[onedrive]") {
   probe.file_info.message =
       QStringLiteral("OneDrive has not fully hydrated this item yet.");
 
-  const OneDriveStorageProvider provider(false, probe);
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive, false, probe);
   const auto status = provider.inspect_path(path_text(file_path));
   require(status.exists && status.hydration_required && status.should_retry,
           "platform hydration and retry flags were not preserved");
@@ -347,7 +349,7 @@ TEST_CASE("OneDrive platform hydration status is reported", "[onedrive]") {
 }
 
 std::vector<FileEntry> scan(const std::filesystem::path &root, FileScanOptions options) {
-  return OneDriveStorageProvider().list_directory(path_text(root), options);
+  return NativeSyncStorageProvider(SyncProvider::OneDrive).list_directory(path_text(root), options);
 }
 
 TEST_CASE("OneDrive scan filters hidden entries and reports errors", "[onedrive]") {
@@ -396,7 +398,7 @@ TEST_CASE("OneDrive preserves move safeguards in the built-in provider", "[onedr
     write_file(path, "fixture");
   }
   const EnvVarGuard environment("OneDrive", path_text(root));
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
 #ifdef __APPLE__
   CHECK_FALSE(provider.detect(path_text(root)).matched);
 #else
@@ -480,7 +482,7 @@ TEST_CASE("OneDrive macos scan preserves names without following links", "[onedr
           "scan lost a Unicode name or crossed a hidden folder or link");
 
   REQUIRE(scan(selected, kFiles | kDirectories | kHidden | kRecursive).size() == 4);
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
   const auto invalid = path_text(selected) + '\0' + "suffix";
   REQUIRE_THROWS_AS(provider.list_directory(invalid, kFiles), std::invalid_argument);
   REQUIRE_THROWS_AS(scan(finder_alias, kFiles), std::filesystem::filesystem_error);
@@ -488,6 +490,104 @@ TEST_CASE("OneDrive macos scan preserves names without following links", "[onedr
   const auto result = provider.preflight_move(path_text(finder_alias), path_text(root / "Moved Alias"));
   require(!result.allowed && result.message.find("Finder aliases") != std::string::npos,
           "preflight did not protect a Finder alias");
+}
+#endif
+
+TEST_CASE("Dropbox native provider needs authoritative sync-root detection", "[dropbox]") {
+  QTemporaryDir fixture;
+  REQUIRE(fixture.isValid());
+  const auto root = one_drive::path_from_qstring(fixture.path()) / "Dropbox";
+  std::filesystem::create_directory(root);
+  CHECK_FALSE(NativeSyncStorageProvider(SyncProvider::Dropbox).detect(path_text(root)).matched);
+
+  FakePlatformProbe probe;
+  const NativeSyncStorageProvider provider(SyncProvider::Dropbox, false, probe);
+  probe.detection = one_drive::SyncRootDetection{
+      .matched = true, .confidence = 80, .source = QStringLiteral("path_heuristic")};
+  CHECK_FALSE(provider.detect(path_text(root)).matched);
+  probe.detection->authoritative = true;
+  probe.detection->source = QStringLiteral("fixture_sync_root");
+  CHECK(provider.detect(path_text(root)).provider_id == NativeSyncStorageProvider::dropbox_provider_id());
+  probe.detection->vetoed = true;
+  CHECK_FALSE(provider.detect(path_text(root)).matched);
+}
+
+TEST_CASE("Dropbox protects online-only files and client metadata", "[dropbox]") {
+  QTemporaryDir fixture;
+  REQUIRE(fixture.isValid());
+  const auto root = one_drive::path_from_qstring(fixture.path());
+  const auto source = root / "source.txt";
+  const auto destination = root / "sorted" / "source.txt";
+  const auto conflict = root / "notes (Alex's conflicted copy).txt";
+  const auto cache = root / ".dropbox.cache";
+  write_file(source, "fixture");
+  write_file(conflict, "conflicting edit");
+  write_file(cache / "private.txt", "sync state");
+
+  FakePlatformProbe probe;
+  probe.file_info.hydration_required = true;
+  const NativeSyncStorageProvider offline(SyncProvider::Dropbox, false, probe);
+  const auto preflight = offline.preflight_move(path_text(source), path_text(destination));
+  CHECK(preflight.hydration_required);
+  CHECK_FALSE(preflight.allowed);
+  CHECK_FALSE(offline.move_entry(path_text(source), path_text(destination)).success);
+  CHECK_FALSE(std::filesystem::exists(destination.parent_path()));
+
+  const NativeSyncStorageProvider provider(SyncProvider::Dropbox);
+  CHECK(provider.inspect_path(path_text(conflict)).conflict_copy);
+  CHECK_FALSE(provider.preflight_move(path_text(conflict), path_text(destination)).allowed);
+  CHECK_FALSE(provider.preflight_move(path_text(cache / "private.txt"), path_text(destination)).allowed);
+  CHECK_FALSE(provider.ensure_directory(path_text(cache / "sorted")));
+  CHECK_FALSE(std::filesystem::exists(cache / "sorted"));
+  CHECK(provider.list_directory(path_text(cache), kFiles | kHidden | kRecursive).empty());
+  const auto entries = provider.list_directory(path_text(root), kFiles | kDirectories | kRecursive | kHidden);
+  CHECK(entries.size() == 2);
+
+  const auto moved = provider.move_entry(path_text(source), path_text(destination));
+  REQUIRE(moved.success);
+  CHECK(moved.metadata.stable_identity.starts_with("dropbox:"));
+#if defined(__APPLE__) || defined(_WIN32)
+  REQUIRE(moved.metadata.revision_token.starts_with("dropbox:sha256:"));
+  CHECK(provider.inspect_for_undo(path_text(destination), moved.metadata.revision_token).content_matches == true);
+  write_file(destination, "changed");
+  CHECK(provider.inspect_for_undo(path_text(destination), moved.metadata.revision_token).content_matches == false);
+  write_file(destination, "fixture");
+#endif
+  CHECK(provider.undo_move(path_text(source), path_text(destination), {path_text(destination.parent_path())}).success);
+  CHECK(std::filesystem::exists(source));
+  CHECK_FALSE(std::filesystem::exists(destination));
+}
+
+#ifdef __APPLE__
+TEST_CASE("Dropbox macOS detection verifies the nearest File Provider domain", "[dropbox]") {
+  namespace fs = std::filesystem;
+  QTemporaryDir fixture;
+  REQUIRE(fixture.isValid());
+  const auto base = fs::canonical(one_drive::path_from_qstring(fixture.path()));
+  const auto root = base / "Relocated Dropbox";
+  const auto nearest = root / "Separate Domain";
+  const auto malformed = base / "Unverified Dropbox";
+  const auto link = base / "Shortcut";
+  fs::create_directories(nearest);
+  fs::create_directories(malformed);
+  fs::create_directory_symlink(root, link);
+
+  const std::map<fs::path, QByteArray> domains{
+      {root, "com.getdropbox.dropbox.fileprovider/account"},
+      {nearest, "com.getdropbox.dropbox.fileprovider.other/account"},
+      {malformed, "com.getdropbox.dropbox.fileprovider/"},
+  };
+  const auto reader = [&](const fs::path& path, std::error_code&) -> std::optional<QByteArray> {
+    const auto it = domains.find(path);
+    return it == domains.end() ? std::nullopt : std::optional{it->second};
+  };
+  const auto verified = one_drive::detect_macos_sync_root(link, SyncProvider::Dropbox, reader);
+  CHECK(verified.matched);
+  CHECK(verified.authoritative);
+  CHECK_FALSE(verified.message.contains(QStringLiteral("account")));
+  CHECK(one_drive::detect_macos_sync_root(nearest, SyncProvider::Dropbox, reader).vetoed);
+  CHECK_FALSE(one_drive::detect_macos_sync_root(malformed, SyncProvider::Dropbox, reader).matched);
+  CHECK(one_drive::detect_macos_sync_root(root, SyncProvider::OneDrive, reader).vetoed);
 }
 #endif
 
@@ -513,7 +613,7 @@ TEST_CASE("OneDrive content revision survives file replacement", "[onedrive]") {
   const auto source = root / "source.txt";
   const auto destination = root / "destination.txt";
   write_file(source, "original");
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
   const auto moved = provider.move_entry(path_text(source), path_text(destination));
   REQUIRE(moved.success);
   const auto &metadata = moved.metadata;
@@ -552,7 +652,7 @@ TEST_CASE("OneDrive exclusive windows lock can be retried", "[onedrive]") {
   const auto source = root / "source.txt";
   const auto destination = root / "destination.txt";
   write_file(source, "fixture");
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
   const auto from = path_text(source);
   const auto to = path_text(destination);
   {
@@ -564,7 +664,7 @@ TEST_CASE("OneDrive exclusive windows lock can be retried", "[onedrive]") {
 
     // Hide the lock from preflight to exercise the same error path as a lock taken after preflight.
     const FakePlatformProbe probe;
-    const auto failed = OneDriveStorageProvider(false, probe).move_entry(from, to);
+    const auto failed = NativeSyncStorageProvider(SyncProvider::OneDrive, false, probe).move_entry(from, to);
     require(!failed.success && failed.skipped && failed.message == one_drive::move_lock_message().toStdString(),
             "rename sharing violation was not classified as retryable");
     require(std::filesystem::exists(source) && !std::filesystem::exists(destination),
@@ -576,10 +676,11 @@ TEST_CASE("OneDrive exclusive windows lock can be retried", "[onedrive]") {
 
 class CloudFixtureRoot {
 public:
-  explicit CloudFixtureRoot(const std::filesystem::path &path) : path(path) {
+  explicit CloudFixtureRoot(const std::filesystem::path &path,
+                            const wchar_t* provider = L"AIFS synthetic OneDrive fixture") : path(path) {
     CF_SYNC_REGISTRATION registration{};
     registration.StructSize = sizeof(registration);
-    registration.ProviderName = L"AIFS synthetic OneDrive fixture";
+    registration.ProviderName = provider;
     registration.ProviderVersion = L"1.0";
     CF_SYNC_POLICIES policies{};
     policies.StructSize = sizeof(policies);
@@ -599,6 +700,20 @@ public:
 private:
   std::filesystem::path path;
 };
+
+TEST_CASE("Dropbox Windows detection uses Cloud Files registration", "[dropbox]") {
+  QTemporaryDir fixture;
+  REQUIRE(fixture.isValid());
+  const auto root = one_drive::path_from_qstring(fixture.path()) / "Documents";
+  std::filesystem::create_directory(root);
+  const CloudFixtureRoot cloud_root(root, L"Dropbox");
+  const NativeSyncStorageProvider dropbox(SyncProvider::Dropbox);
+  const NativeSyncStorageProvider onedrive(SyncProvider::OneDrive);
+  const auto detection = dropbox.detect(path_text(root));
+  CHECK(detection.matched);
+  CHECK(detection.detection_source == "windows_cloud_files");
+  CHECK_FALSE(onedrive.detect(path_text(root)).matched);
+}
 
 TestHandle open_placeholder(const std::filesystem::path &path) {
   return TestHandle(CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE,
@@ -625,7 +740,7 @@ TEST_CASE("OneDrive cloud revision tracks writes instead of sync state", "[onedr
   const auto whole_second = std::chrono::floor<std::chrono::seconds>(
       std::filesystem::last_write_time(source));
   std::filesystem::last_write_time(source, whole_second + 10ms);
-  const OneDriveStorageProvider provider;
+  const NativeSyncStorageProvider provider(SyncProvider::OneDrive);
   const auto local = provider.inspect_path(path_text(source));
   {
     const auto handle = open_placeholder(source);

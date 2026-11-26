@@ -394,7 +394,7 @@ QString display_name_for_provider_id(const std::string& provider_id)
     if (provider_id == "onedrive") {
         return QStringLiteral("OneDrive");
     }
-    if (provider_id == "dropbox") {
+    if (provider_id == "dropbox" || provider_id == "dropbox_native") {
         return QStringLiteral("Dropbox");
     }
     if (provider_id == "pcloud") {

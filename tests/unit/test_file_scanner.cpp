@@ -11,6 +11,13 @@
 #else
 #include <unistd.h>
 #endif
+#ifdef __APPLE__
+#include "LocalFsProvider.hpp"
+#include "MacDatalessFiles.hpp"
+#include "NativeSyncStorageProvider.hpp"
+
+#include <cstdlib>
+#endif
 
 static void write_file(const std::filesystem::path& path) {
     std::filesystem::create_directories(path.parent_path());
@@ -153,6 +160,87 @@ TEST_CASE("project protection can be disabled for raw scanner traversal") {
         return entry.file_name == "main.rs";
     }));
 }
+
+#ifdef __APPLE__
+namespace {
+
+void with_source_providers(const auto& check)
+{
+    check(LocalFsProvider{});
+    check(CloudCompatibilityProvider("compatibility_fixture", "Compatibility fixture", {}));
+    check(NativeSyncStorageProvider(one_drive::SyncProvider::OneDrive));
+    check(NativeSyncStorageProvider(one_drive::SyncProvider::Dropbox));
+}
+
+} // namespace
+
+TEST_CASE("macOS source scanners restore the calling thread's materialization policy", "[mac-dataless]")
+{
+    TempDir temp;
+    write_file(temp.path() / "local.txt");
+    const auto policy = [] {
+        return getiopolicy_np(mac_dataless::kMaterializationPolicy, mac_dataless::kPolicyScope);
+    };
+    const int original = policy();
+    REQUIRE(original >= 0);
+
+    with_source_providers([&](const IStorageProvider& provider) {
+        CAPTURE(provider.id());
+        const auto root = Utils::path_to_utf8(temp.path());
+        const auto missing = Utils::path_to_utf8(temp.path() / "missing");
+        for (const auto options : {FileScanOptions::Files, FileScanOptions::Files | FileScanOptions::Recursive}) {
+            const auto entries = provider.list_directory(root, options);
+            REQUIRE(entries.size() == 1);
+            CHECK(entries.front().file_name == "local.txt");
+            CHECK(policy() == original);
+            CHECK_THROWS_AS(provider.list_directory(missing, options), std::filesystem::filesystem_error);
+            CHECK(policy() == original);
+        }
+    });
+
+    const mac_dataless::DisableMaterialization outer;
+    REQUIRE(outer.active());
+    with_source_providers([&](const IStorageProvider& provider) {
+        CHECK(provider.list_directory(Utils::path_to_utf8(temp.path()), FileScanOptions::Files).size() == 1);
+        CHECK(policy() == IOPOL_MATERIALIZE_DATALESS_FILES_OFF);
+    });
+}
+
+TEST_CASE("macOS source scanners leave File Provider placeholders online only", "[.live][mac-dataless]")
+{
+    const char* fixture = std::getenv("AI_FILE_SORTER_DATALESS_SCAN_FIXTURE");
+    if (!fixture || !*fixture) {
+        SKIP("Set AI_FILE_SORTER_DATALESS_SCAN_FIXTURE to a dedicated File Provider test folder");
+    }
+    const auto root = Utils::utf8_to_path(fixture);
+    const auto online_file = root / "online-only.txt";
+    const auto online_dir = root / "Online Folder";
+    const auto verify_fixture = [&] {
+        const mac_dataless::DisableMaterialization guard;
+        REQUIRE(guard.active());
+        struct stat metadata {};
+        REQUIRE(lstat(online_file.c_str(), &metadata) == 0);
+        REQUIRE(S_ISREG(metadata.st_mode));
+        REQUIRE((metadata.st_flags & SF_DATALESS) != 0);
+        REQUIRE(lstat(online_dir.c_str(), &metadata) == 0);
+        REQUIRE(S_ISDIR(metadata.st_mode));
+        REQUIRE((metadata.st_flags & SF_DATALESS) != 0);
+    };
+    verify_fixture();
+
+    with_source_providers([&](const IStorageProvider& provider) {
+        CAPTURE(provider.id());
+        const auto options = FileScanOptions::Files | FileScanOptions::Directories;
+        for (const auto scan_options : {options, options | FileScanOptions::Recursive}) {
+            const auto entries = provider.list_directory(fixture, scan_options);
+            REQUIRE(entries.size() == 1);
+            CHECK(entries.front().file_name == "local.txt");
+            CHECK(provider.list_directory(Utils::path_to_utf8(online_dir), scan_options).empty());
+            verify_fixture();
+        }
+    });
+}
+#endif
 
 #ifndef _WIN32
 TEST_CASE("cloud compatibility providers skip recursive symlink traversal") {
