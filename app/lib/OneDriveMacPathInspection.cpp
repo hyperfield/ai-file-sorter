@@ -1,6 +1,6 @@
 #include "OneDriveMacPathInspection.hpp"
 
-#include "OneDriveMacMaterialization.hpp"
+#include "MacDatalessFiles.hpp"
 #include "OneDriveMacPaths.hpp"
 #include "OneDriveMacRevision.hpp"
 
@@ -67,7 +67,7 @@ PathInspection inspect_macos_path(const std::filesystem::path &path) {
     return inspection;
   }
 
-  const DisableMaterialization policy;
+  const mac_dataless::DisableMaterialization policy;
   if (!policy.active()) {
     inspection.state.move_blocked = true;
     inspection.state.message =

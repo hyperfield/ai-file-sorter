@@ -4,6 +4,7 @@
 #include "ProtectedProjectDetector.hpp"
 
 #ifdef __APPLE__
+#include "MacDatalessFiles.hpp"
 #include "OneDriveMacMutations.hpp"
 #endif
 
@@ -100,6 +101,30 @@ bool append_scan_entry(std::vector<FileEntry>& entries, const fs::path& path,
     }
     return info.directory;
 }
+
+#ifdef __APPLE__
+void scan_macos_directory(std::vector<FileEntry>& entries, std::vector<fs::path>& pending,
+                          const fs::path& directory, FileScanOptions options,
+                          const ProtectedProjectDetector& detector, SyncProvider provider)
+{
+    const bool recursive = has_flag(options, FileScanOptions::Recursive);
+    std::error_code ec;
+    fs::directory_iterator it(directory, ec), end;
+    while (!ec && it != end) {
+        if (append_scan_entry(entries, it->path(), options, detector, provider) && recursive) {
+            pending.push_back(it->path());
+        }
+        it.increment(ec);
+    }
+    if (mac_dataless::materialization_blocked(ec)) {
+        if (const auto logger = Logger::get_logger("core_logger")) {
+            logger->warn("Skipping online-only directory '{}'", path_to_qstring(directory).toStdString());
+        }
+    } else if (ec) {
+        throw fs::filesystem_error("Read synced directory", directory, ec);
+    }
+}
+#endif
 
 std::string revision_token(const PlatformFileInfo& platform, SyncProvider provider)
 {
@@ -258,6 +283,17 @@ std::vector<FileEntry> NativeSyncStorageProvider::list_directory(
 #ifdef __APPLE__
     // Keep the selected root spelling even if the directory is reached through a symlink.
     root = fs::absolute(root);
+    const mac_dataless::DisableMaterialization no_downloads;
+    if (!no_downloads.active()) {
+        throw fs::filesystem_error("Disable automatic downloads for scan", root,
+                                   std::make_error_code(std::errc::operation_not_supported));
+    }
+    if (mac_dataless::needs_materialization(root)) {
+        if (const auto logger = Logger::get_logger("core_logger")) {
+            logger->info("Skipping online-only scan root '{}'", directory);
+        }
+        return {};
+    }
 #endif
     std::vector<FileEntry> entries;
     const ProtectedProjectDetector detector;
@@ -265,6 +301,14 @@ std::vector<FileEntry> NativeSyncStorageProvider::list_directory(
         is_protected_project(detector, root)) {
         return entries;
     }
+#ifdef __APPLE__
+    std::vector<fs::path> pending{root};
+    while (!pending.empty()) {
+        auto current = std::move(pending.back());
+        pending.pop_back();
+        scan_macos_directory(entries, pending, current, options, detector, provider_);
+    }
+#else
     if (has_flag(options, FileScanOptions::Recursive)) {
         for (fs::recursive_directory_iterator it(root), end; it != end; ++it) {
             if (!append_scan_entry(entries, it->path(), options, detector, provider_)) {
@@ -276,6 +320,7 @@ std::vector<FileEntry> NativeSyncStorageProvider::list_directory(
             append_scan_entry(entries, entry.path(), options, detector, provider_);
         }
     }
+#endif
     return entries;
 }
 

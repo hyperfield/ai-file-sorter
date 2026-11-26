@@ -2893,6 +2893,22 @@ Procedure: Scan with `Files | Recursive`.
 Expected outcome: The readable file is returned, the scan does not throw, and the unreadable subtree is skipped.
 Run: `./build-tests/ai_file_sorter_tests "recursive scans skip unreadable directories and continue"`
 
+#### macOS dataless source scans
+
+Run `./build-tests/ai_file_sorter_tests "[mac-dataless]~[.live]"` on macOS. The
+default, compatibility, and native OneDrive and Dropbox providers must restore
+the caller's materialization policy after flat or recursive scans, including
+when enumeration fails or the caller already disabled downloads.
+
+To exercise real placeholders, create a dedicated File Provider test folder
+containing a downloaded `local.txt`, a dataless `online-only.txt`, and a dataless
+`Online Folder`. Use Finder to evict the latter two and verify the `dataless`
+flag with `ls -lO` on the test folder. Set `AI_FILE_SORTER_DATALESS_SCAN_FIXTURE`
+to the test folder's path and run
+`./build-tests/ai_file_sorter_tests "[mac-dataless][.live]"`. All four providers
+must return only `local.txt`, yield no entries when the online-only folder is
+selected directly, and leave the dataless flags set.
+
 ### `tests/unit/test_folder_tree_catalog.cpp`
 
 #### Test case: FolderTreeCatalog scans relative destination folders

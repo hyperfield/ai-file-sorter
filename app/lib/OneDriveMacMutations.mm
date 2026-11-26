@@ -1,6 +1,6 @@
 #include "OneDriveMacMutations.hpp"
 
-#include "OneDriveMacMaterialization.hpp"
+#include "MacDatalessFiles.hpp"
 #include "OneDriveMacPathInspection.hpp"
 #include "OneDriveMacPaths.hpp"
 #include "OneDriveMacRevision.hpp"
@@ -319,7 +319,7 @@ void clean_undo_directories(const fs::path &source_parent,
 
 MacMutationResult ensure_macos_directory(const fs::path &directory) {
   @autoreleasepool {
-    const DisableMaterialization no_downloads;
+    const mac_dataless::DisableMaterialization no_downloads;
     const auto code = QStringLiteral("ensure_directory_failed");
     if (!no_downloads.active() || !valid_path(directory)) {
       return native_failure(code, EINVAL);
@@ -364,7 +364,7 @@ MacMutationResult ensure_macos_directory(const fs::path &directory) {
 MacMutationResult move_macos_path(const fs::path &source, const fs::path &destination,
                                  const std::vector<fs::path> &undo_directories) {
   @autoreleasepool {
-    const DisableMaterialization no_downloads;
+    const mac_dataless::DisableMaterialization no_downloads;
     const auto code = QStringLiteral("move_failed");
     if (!no_downloads.active() || !valid_path(source) || !valid_path(destination) ||
         !source.has_filename() || !destination.has_filename() ||

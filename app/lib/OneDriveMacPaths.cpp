@@ -1,5 +1,7 @@
 #include "OneDriveMacPaths.hpp"
 
+#include "MacDatalessFiles.hpp"
+
 #include <sys/stat.h>
 #include <sys/xattr.h>
 
@@ -39,8 +41,14 @@ MacFinderFlags read_macos_finder_flags(const std::filesystem::path &path,
 ScanEntryInfo scan_macos_entry(const std::filesystem::path &path, bool dot_hidden) {
   struct stat metadata {};
   if (lstat(path.c_str(), &metadata) != 0) {
+    if (errno == EDEADLK) {
+      return {};
+    }
     throw std::filesystem::filesystem_error("Read directory entry", path,
                                            {errno, std::generic_category()});
+  }
+  if (mac_dataless::is_dataless(metadata)) {
+    return {};
   }
   const bool directory = S_ISDIR(metadata.st_mode);
   const bool regular = S_ISREG(metadata.st_mode);
@@ -50,6 +58,9 @@ ScanEntryInfo scan_macos_entry(const std::filesystem::path &path, bool dot_hidde
 
   std::error_code error;
   const auto finder = read_macos_finder_flags(path, error);
+  if (mac_dataless::materialization_blocked(error)) {
+    return {};
+  }
   if (error) {
     throw std::filesystem::filesystem_error("Read Finder metadata", path, error);
   }

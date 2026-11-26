@@ -67,7 +67,7 @@ QString normalized_path_text(const std::filesystem::path &path);
 /**
  * @brief Reads entry traits without opening file contents or following links.
  * @param path Entry discovered by directory enumeration.
- * @return Traits for a normal or Cloud Files entry, or an unclassified entry for a link.
+ * @return Traits for a scannable entry. Links and macOS dataless entries are unclassified.
  * @throws std::filesystem::filesystem_error If entry metadata cannot be read.
  */
 ScanEntryInfo scan_entry_info(const std::filesystem::path &path);
